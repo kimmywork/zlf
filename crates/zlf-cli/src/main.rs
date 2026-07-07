@@ -5,36 +5,39 @@ use serde::{Deserialize, Serialize};
 use zlf_core::{Node, Edge};
 use zlf_query::QueryPlanner;
 use zlf_embed::{EmbeddingConfig, ProviderType, create_provider};
+use zlf_config::ZlfConfig;
 
 #[derive(Deserialize)]
 #[serde(tag = "command")]
 enum Request {
     #[serde(rename = "init")]
-    Init { path: String },
+    Init { path: Option<String> },
     #[serde(rename = "add_node")]
-    AddNode { path: String, labels: Vec<String>, properties: serde_json::Value },
+    AddNode { path: Option<String>, labels: Vec<String>, properties: serde_json::Value },
     #[serde(rename = "get_node")]
-    GetNode { path: String, id: String },
+    GetNode { path: Option<String>, id: String },
     #[serde(rename = "add_edge")]
-    AddEdge { path: String, edge_type: String, source: String, target: String, properties: serde_json::Value },
+    AddEdge { path: Option<String>, edge_type: String, source: String, target: String, properties: serde_json::Value },
     #[serde(rename = "get_edge")]
-    GetEdge { path: String, id: String },
+    GetEdge { path: Option<String>, id: String },
     #[serde(rename = "query")]
-    Query { path: String, query: String },
+    Query { path: Option<String>, query: String },
     #[serde(rename = "search")]
-    Search { path: String, query: String },
+    Search { path: Option<String>, query: String },
     #[serde(rename = "similar")]
-    Similar { path: String, node_id: String, threshold: f32, limit: usize },
+    Similar { path: Option<String>, node_id: String, threshold: f32, limit: usize },
     #[serde(rename = "import")]
-    Import { path: String, file: String },
+    Import { path: Option<String>, file: String },
     #[serde(rename = "export")]
-    Export { path: String, file: Option<String> },
+    Export { path: Option<String>, file: Option<String> },
     #[serde(rename = "index_text")]
-    IndexText { path: String, node_id: String, text: String },
+    IndexText { path: Option<String>, node_id: String, text: String },
     #[serde(rename = "embed")]
-    Embed { text: String, config: EmbeddingConfig },
+    Embed { text: String, #[serde(default)] config: Option<EmbeddingConfig> },
     #[serde(rename = "index_embedding")]
-    IndexEmbedding { path: String, node_id: String, text: String, config: EmbeddingConfig },
+    IndexEmbedding { path: Option<String>, node_id: String, text: String, #[serde(default)] config: Option<EmbeddingConfig> },
+    #[serde(rename = "config")]
+    Config { #[serde(default)] set: Option<ZlfConfig>, get: Option<bool> },
 }
 
 #[derive(Serialize)]
@@ -103,14 +106,18 @@ fn json_to_value(json: &serde_json::Value) -> zlf_core::Value {
 }
 
 fn handle_request(request: Request) -> Response {
+    let config = ZlfConfig::load();
+    
     match request {
         Request::Init { path } => {
+            let path = path.unwrap_or_else(|| config.db_path.clone());
             match open_db(&path, true) {
                 Ok(_) => Response::Success { data: serde_json::json!({ "path": path }) },
                 Err(e) => Response::Error { code: "INIT_FAILED".to_string(), message: e },
             }
         }
         Request::AddNode { path, labels, properties } => {
+            let path = path.unwrap_or_else(|| config.db_path.clone());
             match open_db(&path, false) {
                 Ok(db) => {
                     let props = json_to_properties(properties);
@@ -124,6 +131,7 @@ fn handle_request(request: Request) -> Response {
             }
         }
         Request::GetNode { path, id } => {
+            let path = path.unwrap_or_else(|| config.db_path.clone());
             match open_db(&path, false) {
                 Ok(db) => {
                     match db.get_node(&id) {
@@ -136,6 +144,7 @@ fn handle_request(request: Request) -> Response {
             }
         }
         Request::AddEdge { path, edge_type, source, target, properties } => {
+            let path = path.unwrap_or_else(|| config.db_path.clone());
             match open_db(&path, false) {
                 Ok(db) => {
                     let props = json_to_properties(properties);
@@ -149,6 +158,7 @@ fn handle_request(request: Request) -> Response {
             }
         }
         Request::GetEdge { path, id } => {
+            let path = path.unwrap_or_else(|| config.db_path.clone());
             match open_db(&path, false) {
                 Ok(db) => {
                     match db.get_edge(&id) {
@@ -161,6 +171,7 @@ fn handle_request(request: Request) -> Response {
             }
         }
         Request::Query { path, query } => {
+            let path = path.unwrap_or_else(|| config.db_path.clone());
             match open_db(&path, false) {
                 Ok(db) => {
                     match db.execute(&query) {
@@ -172,6 +183,7 @@ fn handle_request(request: Request) -> Response {
             }
         }
         Request::Search { path, query } => {
+            let path = path.unwrap_or_else(|| config.db_path.clone());
             match open_db(&path, false) {
                 Ok(db) => {
                     match db.search(&query) {
@@ -188,6 +200,7 @@ fn handle_request(request: Request) -> Response {
             }
         }
         Request::Similar { path, node_id, threshold, limit } => {
+            let path = path.unwrap_or_else(|| config.db_path.clone());
             match open_db(&path, false) {
                 Ok(db) => {
                     match db.similar(&node_id, threshold, limit) {
@@ -204,6 +217,7 @@ fn handle_request(request: Request) -> Response {
             }
         }
         Request::Import { path, file } => {
+            let path = path.unwrap_or_else(|| config.db_path.clone());
             match open_db(&path, false) {
                 Ok(db) => {
                     match import_json(&db, &file) {
@@ -215,6 +229,7 @@ fn handle_request(request: Request) -> Response {
             }
         }
         Request::Export { path, file } => {
+            let path = path.unwrap_or_else(|| config.db_path.clone());
             match open_db(&path, false) {
                 Ok(db) => {
                     match export_json(&db, file.as_deref()) {
@@ -226,6 +241,7 @@ fn handle_request(request: Request) -> Response {
             }
         }
         Request::IndexText { path, node_id, text } => {
+            let path = path.unwrap_or_else(|| config.db_path.clone());
             match open_db(&path, false) {
                 Ok(db) => {
                     match db.index_text(&node_id, &text) {
@@ -236,20 +252,23 @@ fn handle_request(request: Request) -> Response {
                 Err(e) => Response::Error { code: "DB_OPEN_FAILED".to_string(), message: e },
             }
         }
-        Request::Embed { text, config } => {
+        Request::Embed { text, config: embed_config } => {
+            let embed_config = embed_config.unwrap_or_else(|| config.to_embed_config());
             let rt = tokio::runtime::Runtime::new().unwrap();
             rt.block_on(async {
-                let provider = create_provider(config);
+                let provider = create_provider(embed_config);
                 match provider.embed(&text).await {
                     Ok(embedding) => Response::Success { data: serde_json::json!({ "embedding": embedding }) },
                     Err(e) => Response::Error { code: "EMBED_FAILED".to_string(), message: e.to_string() },
                 }
             })
         }
-        Request::IndexEmbedding { path, node_id, text, config } => {
+        Request::IndexEmbedding { path, node_id, text, config: embed_config } => {
+            let path = path.unwrap_or_else(|| config.db_path.clone());
+            let embed_config = embed_config.unwrap_or_else(|| config.to_embed_config());
             let rt = tokio::runtime::Runtime::new().unwrap();
             rt.block_on(async {
-                let provider = create_provider(config);
+                let provider = create_provider(embed_config);
                 match provider.embed(&text).await {
                     Ok(embedding) => {
                         match open_db(&path, false) {
@@ -265,6 +284,18 @@ fn handle_request(request: Request) -> Response {
                     Err(e) => Response::Error { code: "EMBED_FAILED".to_string(), message: e.to_string() },
                 }
             })
+        }
+        Request::Config { set, get } => {
+            if let Some(new_config) = set {
+                match new_config.save(None) {
+                    Ok(_) => Response::Success { data: serde_json::json!({ "saved": true }) },
+                    Err(e) => Response::Error { code: "CONFIG_SAVE_FAILED".to_string(), message: e },
+                }
+            } else if get.unwrap_or(true) {
+                Response::Success { data: serde_json::to_value(&config).unwrap() }
+            } else {
+                Response::Error { code: "INVALID_REQUEST".to_string(), message: "Specify set or get".to_string() }
+            }
         }
     }
 }
