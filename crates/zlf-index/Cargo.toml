@@ -1,0 +1,18 @@
+[package]
+name = "zlf-index"
+version = "0.1.0"
+edition = "2021"
+description = "Index management for zlf graph database"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+zlf-core = { path = "../zlf-core" }
+rocksdb = "0.24"
+serde = { version = "1.0", features = ["derive"] }
+bincode = "1.3"
+chrono = { version = "0.4", features = ["serde"] }
+thiserror = "2.0"
+jieba-rs = "0.10"
+
+[dev-dependencies]
+tempfile = "3.0"

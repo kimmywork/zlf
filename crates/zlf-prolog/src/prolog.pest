@@ -1,0 +1,24 @@
+// zlf-prolog grammar
+
+// Entry rules
+query = { SOI ~ "?" ~ term ~ "." ~ EOI }
+fact = { term ~ "." }
+rule = { term ~ ":-" ~ term ~ ("," ~ term)* ~ "." }
+
+// Terms - compound must come before atom to match correctly
+term = { compound | variable | atom | number | string | list }
+
+// Basic types
+variable = @{ 'A'..'Z' ~ (ASCII_ALPHANUMERIC | "_")* }
+atom = @{ 'a'..'z' ~ (ASCII_ALPHANUMERIC | "_")* }
+number = @{ (ASCII_DIGIT+ ~ ("." ~ ASCII_DIGIT+)?) | ("-" ~ ASCII_DIGIT+ ~ ("." ~ ASCII_DIGIT+)?) }
+string = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
+
+// Compound term - must be before atom
+compound = { atom ~ "(" ~ term ~ ("," ~ term)* ~ ")" }
+
+// List
+list = { "[" ~ (term ~ ("," ~ term)*)? ~ "]" }
+
+// Whitespace
+WHITESPACE = _{ " " | "\t" | "\n" | "\r" }

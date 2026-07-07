@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "skills": {
+    "delivery-acceptance": {
+      "source": "kimmywork/skills",
+      "sourceType": "github",
+      "skillPath": "delivery/skills/delivery-acceptance/SKILL.md",
+      "computedHash": "fbc9ce26b4ac1cf7ec121a9925480c1d89aca10ef23421c49edf9d96250aa124"
+    },
+    "implementation-execution": {
+      "source": "kimmywork/skills",
+      "sourceType": "github",
+      "skillPath": "delivery/skills/implementation-execution/SKILL.md",
+      "computedHash": "929979cd20f5161562a924eec341455181cff86027e54d25c9d316a8baf34a00"
+    },
+    "process-distillation": {
+      "source": "kimmywork/skills",
+      "sourceType": "github",
+      "skillPath": "delivery/skills/process-distillation/SKILL.md",
+      "computedHash": "c4fd45fabc20cdf1fa9b0d26246a9e96eeec8f6e425cf849b660453f14ab4d8f"
+    },
+    "requirement-discovery": {
+      "source": "kimmywork/skills",
+      "sourceType": "github",
+      "skillPath": "delivery/skills/requirement-discovery/SKILL.md",
+      "computedHash": "969e3240856cf2a53bc3492d850c541a32ffd76563d32bddcc98b572b5bb6337"
+    },
+    "review-feedback": {
+      "source": "kimmywork/skills",
+      "sourceType": "github",
+      "skillPath": "delivery/skills/review-feedback/SKILL.md",
+      "computedHash": "3e6fb440dd0041aae61c6d054f28129370d0d402e30831a1c759ac3e9fbb9173"
+    },
+    "solution-delivery-loop": {
+      "source": "kimmywork/skills",
+      "sourceType": "github",
+      "skillPath": "delivery/skills/solution-delivery-loop/SKILL.md",
+      "computedHash": "7f38dcf77a11beb5473858e83a143664e70a44122a13152606ee282441e1aada"
+    },
+    "solution-design": {
+      "source": "kimmywork/skills",
+      "sourceType": "github",
+      "skillPath": "delivery/skills/solution-design/SKILL.md",
+      "computedHash": "e33b4bf4e503cba8852ba24f499f09c2097125606cb0211ed025e6609e75776a"
+    },
+    "structured-investigation": {
+      "source": "kimmywork/skills",
+      "sourceType": "github",
+      "skillPath": "delivery/skills/structured-investigation/SKILL.md",
+      "computedHash": "6c1eb8fdfe792fcbb1b64b8f5613a037e196766fb0b54dd851886ecff76cdb7b"
+    }
+  }
+}

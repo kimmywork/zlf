@@ -1,0 +1,10 @@
+[workspace]
+members = [
+    "crates/zlf-core",
+    "crates/zlf-storage",
+    "crates/zlf-index",
+    "crates/zlf-prolog",
+    "crates/zlf-query",
+    "crates/zlf-api",
+]
+resolver = "2"

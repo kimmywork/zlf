@@ -1,0 +1,26 @@
+[package]
+name = "zlf-api"
+version = "0.1.0"
+edition = "2021"
+description = "FFI bindings for zlf graph database"
+license = "MIT OR Apache-2.0"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[features]
+default = []
+napi = ["dep:napi", "dep:napi-derive"]
+
+[dependencies]
+zlf-core = { path = "../zlf-core" }
+zlf-storage = { path = "../zlf-storage" }
+zlf-index = { path = "../zlf-index" }
+zlf-query = { path = "../zlf-query" }
+napi = { version = "2", features = ["async"], optional = true }
+napi-derive = { version = "2", optional = true }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+[dev-dependencies]
+tempfile = "3.0"
