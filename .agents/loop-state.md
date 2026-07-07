@@ -1,6 +1,6 @@
 # Loop State: zlf
 
-## Current Phase: Enhancement (Benchmark + Optimization pending)
+## Current Phase: Enhancement (Final verification pending)
 
 ## Progress
 
@@ -9,19 +9,22 @@
 - BM25 search (Chinese/English) ✅
 - Prolog queries (node/edge) ✅
 - Import/Export ✅
-- Temporal index integration ✅ (Change Note 004)
-- Embedding provider (Ollama/OpenAI/HuggingFace) ✅ (Change Note 005)
+- Temporal index integration ✅
+- Embedding provider (Ollama/OpenAI) ✅
+- Config file support ✅
+- HTTP daemon mode ✅
 - README + Usage guide ✅
 
 ### Pending
-- Benchmark + Performance optimization
+- Final verification and delivery
 
-## Architecture Changes
+## Architecture
 
-1. **FFI Strategy**: JSON-over-STDIO (Change Note 001)
-2. **CLI**: Rust CLI binary (Change Note 002)
-3. **Temporal Integration**: query_time_range/before/after (Change Note 004)
-4. **Embedding Provider**: Configurable Ollama/OpenAI/HuggingFace (Change Note 005)
+```
+User → HTTP Server (axum) → Rust Core
+User → CLI (STDIO) → Rust Core
+User → TypeScript SDK → CLI → Rust Core
+```
 
 ## Test Results
 
@@ -35,14 +38,8 @@
 | zlf-api | 5 | ✅ Passing |
 | zlf-cli | 12 | ✅ Passing |
 | TypeScript SDK | 14 | ✅ Passing |
-| zlf-embed | 1 | ✅ Passing |
-| **Total** | **115** | **All passing** |
-
-## Next Actions
-
-1. Design and run benchmarks
-2. Optimize performance
-3. Final verification and delivery
+| zlf-embed | 4 | ✅ Passing |
+| **Total** | **118** | **All passing** |
 
 ## Key Decisions Made
 
@@ -51,6 +48,7 @@
 3. pest for Prolog parsing
 4. jieba-rs for Chinese tokenization
 5. JSON-over-STDIO FFI
-6. Configurable embedding provider (Ollama/OpenAI/HuggingFace)
+6. HTTP daemon mode (axum)
+7. Configurable embedding provider (Ollama/OpenAI)
 7. Temporal queries: variable first arg = match all nodes
 8. Embedding config: API endpoint, API key, model ID
