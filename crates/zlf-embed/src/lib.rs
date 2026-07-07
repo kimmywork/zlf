@@ -127,8 +127,14 @@ impl EmbeddingProvider for OpenAIProvider {
             "input": text
         });
         
+        let url = if self.config.api_endpoint.ends_with("/v1") {
+            format!("{}/embeddings", self.config.api_endpoint)
+        } else {
+            format!("{}/v1/embeddings", self.config.api_endpoint)
+        };
+        
         let mut builder = self.client
-            .post(format!("{}/v1/embeddings", self.config.api_endpoint))
+            .post(&url)
             .json(&request);
         
         if let Some(api_key) = &self.config.api_key {
@@ -141,7 +147,7 @@ impl EmbeddingProvider for OpenAIProvider {
         response_json["data"][0]["embedding"]
             .as_array()
             .map(|arr| arr.iter().filter_map(|v| v.as_f64().map(|f| f as f32)).collect())
-            .ok_or_else(|| EmbedError::InvalidResponse("No embedding in response".to_string()))
+            .ok_or_else(|| EmbedError::InvalidResponse(format!("No embedding in response: {:?}", response_json)))
     }
     
     async fn embed_batch(&self, texts: &[&str]) -> Result<Vec<Vec<f32>>> {
@@ -150,8 +156,14 @@ impl EmbeddingProvider for OpenAIProvider {
             "input": texts
         });
         
+        let url = if self.config.api_endpoint.ends_with("/v1") {
+            format!("{}/embeddings", self.config.api_endpoint)
+        } else {
+            format!("{}/v1/embeddings", self.config.api_endpoint)
+        };
+        
         let mut builder = self.client
-            .post(format!("{}/v1/embeddings", self.config.api_endpoint))
+            .post(&url)
             .json(&request);
         
         if let Some(api_key) = &self.config.api_key {
