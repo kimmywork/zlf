@@ -4,6 +4,7 @@ use std::sync::Arc;
 use zlf_core::{Node, Edge, ZlfError, Result};
 use zlf_storage::Storage;
 use zlf_index::{TemporalIndex, BM25Index, VectorIndex};
+use zlf_index::temporal::TemporalEntry;
 use zlf_prolog::{PrologParser, Term, Query};
 
 pub struct QueryPlanner {
@@ -116,9 +117,8 @@ impl QueryPlanner {
         let nodes = if let Some(label) = label {
             self.storage.get_nodes_by_label(&label)?
         } else {
-            // For variable, we need to get all nodes
-            // This is a simplified implementation - in production we'd use an iterator
-            Vec::new()
+            // For variable, get all nodes
+            self.storage.get_all_nodes()?
         };
         
         let mut results = Vec::new();
@@ -229,23 +229,162 @@ impl QueryPlanner {
         }
     }
 
-    fn query_time_range(&self, _args: &[Term]) -> Result<Vec<serde_json::Value>> {
-        // Simplified implementation
-        Ok(vec![])
+    fn query_time_range(&self, args: &[Term]) -> Result<Vec<serde_json::Value>> {
+        if args.len() < 3 {
+            return Err(ZlfError::SyntaxError(0, "time_range requires 3 arguments: node_id, start_time, end_time".to_string()));
+        }
+        
+        // Get node ID
+        let node_id = match &args[0] {
+            Term::Atom(s) => s.clone(),
+            Term::String(s) => s.clone(),
+            _ => return Err(ZlfError::SyntaxError(0, "first argument must be node ID".to_string())),
+        };
+        
+        // Get start time
+        let start_str = match &args[1] {
+            Term::String(s) => s.clone(),
+            _ => return Err(ZlfError::SyntaxError(0, "second argument must be start time string".to_string())),
+        };
+        
+        // Get end time
+        let end_str = match &args[2] {
+            Term::String(s) => s.clone(),
+            _ => return Err(ZlfError::SyntaxError(0, "third argument must be end time string".to_string())),
+        };
+        
+        // Parse dates
+        let start_date = chrono::NaiveDate::parse_from_str(&start_str, "%Y-%m-%d")
+            .map_err(|e| ZlfError::SyntaxError(0, format!("Invalid start date: {}", e)))?;
+        let end_date = chrono::NaiveDate::parse_from_str(&end_str, "%Y-%m-%d")
+            .map_err(|e| ZlfError::SyntaxError(0, format!("Invalid end date: {}", e)))?;
+        
+        // Get temporal entries
+        let entries = self.temporal_index.get_entries_in_range(start_date, end_date)?;
+        
+        // Filter by node ID if specified
+        let mut results = Vec::new();
+        for entry in entries {
+            if entry.node_id == node_id || node_id == "_" {
+                if let Some(node) = self.storage.get_node(&entry.node_id)? {
+                    let mut result = serde_json::Map::new();
+                    result.insert("id".to_string(), serde_json::Value::String(node.id));
+                    result.insert("labels".to_string(), serde_json::json!(node.labels));
+                    result.insert("properties".to_string(), serde_json::json!(node.properties));
+                    result.insert("valid_from".to_string(), serde_json::Value::String(entry.valid_from.to_rfc3339()));
+                    if let Some(valid_to) = entry.valid_to {
+                        result.insert("valid_to".to_string(), serde_json::Value::String(valid_to.to_rfc3339()));
+                    }
+                    results.push(serde_json::Value::Object(result));
+                }
+            }
+        }
+        
+        Ok(results)
     }
 
-    fn query_before(&self, _args: &[Term]) -> Result<Vec<serde_json::Value>> {
-        // Simplified implementation
-        Ok(vec![])
+    fn query_before(&self, args: &[Term]) -> Result<Vec<serde_json::Value>> {
+        if args.len() < 2 {
+            return Err(ZlfError::SyntaxError(0, "before requires 2 arguments: node_id, time".to_string()));
+        }
+        
+        // Get node ID (None means match all)
+        let node_id = match &args[0] {
+            Term::Atom(s) => Some(s.clone()),
+            Term::String(s) => Some(s.clone()),
+            Term::Variable(_) => None, // Match all nodes
+            _ => return Err(ZlfError::SyntaxError(0, "first argument must be node ID or variable".to_string())),
+        };
+        
+        // Get time
+        let time_str = match &args[1] {
+            Term::String(s) => s.clone(),
+            _ => return Err(ZlfError::SyntaxError(0, "second argument must be time string".to_string())),
+        };
+        
+        // Parse date
+        let date = chrono::NaiveDate::parse_from_str(&time_str, "%Y-%m-%d")
+            .map_err(|e| ZlfError::SyntaxError(0, format!("Invalid date: {}", e)))?;
+        
+        // Get all entries before this date
+        let start_date = chrono::NaiveDate::from_ymd_opt(1970, 1, 1).unwrap();
+        let entries = self.temporal_index.get_entries_in_range(start_date, date)?;
+        
+        // Filter by node ID if specified
+        let mut results = Vec::new();
+        for entry in entries {
+            if node_id.is_none() || node_id.as_deref() == Some(&entry.node_id) {
+                if let Some(node) = self.storage.get_node(&entry.node_id)? {
+                    let mut result = serde_json::Map::new();
+                    result.insert("id".to_string(), serde_json::Value::String(node.id));
+                    result.insert("labels".to_string(), serde_json::json!(node.labels));
+                    result.insert("properties".to_string(), serde_json::json!(node.properties));
+                    result.insert("valid_from".to_string(), serde_json::Value::String(entry.valid_from.to_rfc3339()));
+                    results.push(serde_json::Value::Object(result));
+                }
+            }
+        }
+        
+        Ok(results)
     }
 
-    fn query_after(&self, _args: &[Term]) -> Result<Vec<serde_json::Value>> {
-        // Simplified implementation
-        Ok(vec![])
+    fn query_after(&self, args: &[Term]) -> Result<Vec<serde_json::Value>> {
+        if args.len() < 2 {
+            return Err(ZlfError::SyntaxError(0, "after requires 2 arguments: node_id, time".to_string()));
+        }
+        
+        // Get node ID (None means match all)
+        let node_id = match &args[0] {
+            Term::Atom(s) => Some(s.clone()),
+            Term::String(s) => Some(s.clone()),
+            Term::Variable(_) => None, // Match all nodes
+            _ => return Err(ZlfError::SyntaxError(0, "first argument must be node ID or variable".to_string())),
+        };
+        
+        // Get time
+        let time_str = match &args[1] {
+            Term::String(s) => s.clone(),
+            _ => return Err(ZlfError::SyntaxError(0, "second argument must be time string".to_string())),
+        };
+        
+        // Parse date
+        let date = chrono::NaiveDate::parse_from_str(&time_str, "%Y-%m-%d")
+            .map_err(|e| ZlfError::SyntaxError(0, format!("Invalid date: {}", e)))?;
+        
+        // Get all entries after this date
+        let end_date = chrono::NaiveDate::from_ymd_opt(2099, 12, 31).unwrap();
+        let entries = self.temporal_index.get_entries_in_range(date, end_date)?;
+        
+        // Filter by node ID if specified
+        let mut results = Vec::new();
+        for entry in entries {
+            if node_id.is_none() || node_id.as_deref() == Some(&entry.node_id) {
+                if let Some(node) = self.storage.get_node(&entry.node_id)? {
+                    let mut result = serde_json::Map::new();
+                    result.insert("id".to_string(), serde_json::Value::String(node.id));
+                    result.insert("labels".to_string(), serde_json::json!(node.labels));
+                    result.insert("properties".to_string(), serde_json::json!(node.properties));
+                    result.insert("valid_from".to_string(), serde_json::Value::String(entry.valid_from.to_rfc3339()));
+                    results.push(serde_json::Value::Object(result));
+                }
+            }
+        }
+        
+        Ok(results)
     }
 
     pub fn add_node(&self, node: Node) -> Result<Node> {
-        self.storage.create_node(node)
+        let created = self.storage.create_node(node)?;
+        
+        // Index the node in temporal index
+        let entry = zlf_index::TemporalEntry {
+            node_id: created.id.clone(),
+            valid_from: created.created_at,
+            valid_to: None,
+        };
+        let _ = self.temporal_index.add_entry(entry);
+        
+        Ok(created)
     }
 
     pub fn get_node(&self, id: &str) -> Result<Option<Node>> {
@@ -270,6 +409,19 @@ impl QueryPlanner {
         } else {
             Err(ZlfError::NoEmbedding(node_id.to_string()))
         }
+    }
+
+    pub fn index_text(&self, node_id: &str, text: &str) -> Result<()> {
+        self.bm25_index.index_text(node_id, text)
+    }
+
+    pub fn index_embedding(&self, node_id: &str, embedding: &[f32], model: &str) -> Result<()> {
+        let entry = zlf_index::VectorEntry {
+            node_id: node_id.to_string(),
+            embedding: embedding.to_vec(),
+            model: model.to_string(),
+        };
+        self.vector_index.add_entry(entry)
     }
 }
 
@@ -404,5 +556,39 @@ mod tests {
         let result = planner.execute("?unsupported(alice).");
         // Should return empty results, not error
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_temporal_query_after() {
+        let (planner, _temp) = create_test_planner();
+        
+        // Add a node
+        let mut props = HashMap::new();
+        props.insert("name".to_string(), Value::String("Alice".to_string()));
+        let node = Node::new(vec!["person".to_string()], props);
+        planner.add_node(node).unwrap();
+        
+        // Query nodes after a date (use X instead of _ since grammar doesn't support _)
+        let result = planner.execute("?after(X, \"2020-01-01\").");
+        assert!(result.is_ok(), "Query failed: {:?}", result.err());
+        let data = result.unwrap();
+        assert!(!data.is_empty(), "Should find nodes after 2020-01-01");
+    }
+
+    #[test]
+    fn test_temporal_query_before() {
+        let (planner, _temp) = create_test_planner();
+        
+        // Add a node
+        let mut props = HashMap::new();
+        props.insert("name".to_string(), Value::String("Alice".to_string()));
+        let node = Node::new(vec!["person".to_string()], props);
+        planner.add_node(node).unwrap();
+        
+        // Query nodes before a date (should be empty since node was just created)
+        let result = planner.execute("?before(X, \"2020-01-01\").");
+        assert!(result.is_ok(), "Query failed: {:?}", result.err());
+        let data = result.unwrap();
+        assert!(data.is_empty(), "Should not find nodes before 2020-01-01");
     }
 }

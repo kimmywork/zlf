@@ -303,6 +303,25 @@ impl Storage {
         Ok(nodes)
     }
 
+    pub fn get_all_nodes(&self) -> Result<Vec<Node>> {
+        let mut nodes = Vec::new();
+        
+        let iter = self.db.iterator(rocksdb::IteratorMode::Start);
+        for item in iter {
+            let (key, value) = item.map_err(|e| ZlfError::Internal(e.to_string()))?;
+            let key_str = String::from_utf8_lossy(&key);
+            
+            // Only get node keys (not index keys)
+            if key_str.starts_with("node:") {
+                let node: Node = bincode::deserialize(&value)
+                    .map_err(|e| ZlfError::Serialization(e.to_string()))?;
+                nodes.push(node);
+            }
+        }
+
+        Ok(nodes)
+    }
+
     pub fn get_edges_by_type(&self, edge_type: &str) -> Result<Vec<Edge>> {
         let prefix = format!("idx:edge_type:{}:", edge_type);
         let mut edges = Vec::new();

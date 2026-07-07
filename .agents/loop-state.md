@@ -1,29 +1,27 @@
 # Loop State: zlf
 
-## Current Phase: Implementation Complete
+## Current Phase: Enhancement (Benchmark + Optimization pending)
 
 ## Progress
 
-### Completed Slices (12/12)
-- Slice 1: Project Setup & Core Types ✅
-- Slice 2: Storage Engine ✅
-- Slice 3: Index Management ✅
-- Slice 4: Prolog Parser ✅
-- Slice 5: WAM Execution Engine ✅
-- Slice 6: Query Planner & Executor ✅
-- Slice 7: Node Versioning & Temporal ✅
-- Slice 8: TypeScript SDK ✅ (JSON-over-STDIO FFI)
-- Slice 9: CLI Application ✅ (Rust CLI binary)
-- Slice 10: BM25/Vector Search Integration ✅
-- Slice 11: Import/Export ✅
-- Slice 12: Documentation ✅
+### Completed Features
+- Core storage (Node/Edge CRUD, versioning) ✅
+- BM25 search (Chinese/English) ✅
+- Prolog queries (node/edge) ✅
+- Import/Export ✅
+- Temporal index integration ✅ (Change Note 004)
+- Embedding provider (Ollama/OpenAI/HuggingFace) ✅ (Change Note 005)
+- README + Usage guide ✅
+
+### Pending
+- Benchmark + Performance optimization
 
 ## Architecture Changes
 
-1. **FFI Strategy**: Changed from napi-rs to JSON-over-STDIO (Change Note 001)
-2. **CLI**: Removed TypeScript CLI, using Rust CLI binary (Change Note 002)
-3. **PRD Updated**: API Design, Scope, Decisions sections updated
-4. **Documentation**: README.md and usage guide created (Change Note 003)
+1. **FFI Strategy**: JSON-over-STDIO (Change Note 001)
+2. **CLI**: Rust CLI binary (Change Note 002)
+3. **Temporal Integration**: query_time_range/before/after (Change Note 004)
+4. **Embedding Provider**: Configurable Ollama/OpenAI/HuggingFace (Change Note 005)
 
 ## Test Results
 
@@ -33,19 +31,18 @@
 | zlf-storage | 15 | ✅ Passing |
 | zlf-index | 21 | ✅ Passing |
 | zlf-prolog | 20 | ✅ Passing |
-| zlf-query | 8 | ✅ Passing |
+| zlf-query | 10 | ✅ Passing |
 | zlf-api | 5 | ✅ Passing |
 | zlf-cli | 12 | ✅ Passing |
 | TypeScript SDK | 14 | ✅ Passing |
-| **Total** | **112** | **All passing** |
+| zlf-embed | 1 | ✅ Passing |
+| **Total** | **115** | **All passing** |
 
-## Deliverables
+## Next Actions
 
-- Rust CLI binary with JSON-over-STDIO interface
-- TypeScript SDK with child_process integration
-- 112 tests covering all components
-- README.md with quick start guide
-- Usage guide with detailed documentation
+1. Design and run benchmarks
+2. Optimize performance
+3. Final verification and delivery
 
 ## Key Decisions Made
 
@@ -53,5 +50,7 @@
 2. RocksDB for storage
 3. pest for Prolog parsing
 4. jieba-rs for Chinese tokenization
-5. JSON-over-STDIO FFI (replaced napi-rs)
-6. Removed redundant TypeScript CLI
+5. JSON-over-STDIO FFI
+6. Configurable embedding provider (Ollama/OpenAI/HuggingFace)
+7. Temporal queries: variable first arg = match all nodes
+8. Embedding config: API endpoint, API key, model ID

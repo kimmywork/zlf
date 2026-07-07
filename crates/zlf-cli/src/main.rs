@@ -4,6 +4,7 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use zlf_core::{Node, Edge};
 use zlf_query::QueryPlanner;
+use zlf_embed::{EmbeddingConfig, ProviderType, create_provider};
 
 #[derive(Deserialize)]
 #[serde(tag = "command")]
@@ -28,6 +29,12 @@ enum Request {
     Import { path: String, file: String },
     #[serde(rename = "export")]
     Export { path: String, file: Option<String> },
+    #[serde(rename = "index_text")]
+    IndexText { path: String, node_id: String, text: String },
+    #[serde(rename = "embed")]
+    Embed { text: String, config: EmbeddingConfig },
+    #[serde(rename = "index_embedding")]
+    IndexEmbedding { path: String, node_id: String, text: String, config: EmbeddingConfig },
 }
 
 #[derive(Serialize)]
@@ -217,6 +224,47 @@ fn handle_request(request: Request) -> Response {
                 }
                 Err(e) => Response::Error { code: "DB_OPEN_FAILED".to_string(), message: e },
             }
+        }
+        Request::IndexText { path, node_id, text } => {
+            match open_db(&path, false) {
+                Ok(db) => {
+                    match db.index_text(&node_id, &text) {
+                        Ok(_) => Response::Success { data: serde_json::json!({ "indexed": true }) },
+                        Err(e) => Response::Error { code: "INDEX_FAILED".to_string(), message: e.to_string() },
+                    }
+                }
+                Err(e) => Response::Error { code: "DB_OPEN_FAILED".to_string(), message: e },
+            }
+        }
+        Request::Embed { text, config } => {
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            rt.block_on(async {
+                let provider = create_provider(config);
+                match provider.embed(&text).await {
+                    Ok(embedding) => Response::Success { data: serde_json::json!({ "embedding": embedding }) },
+                    Err(e) => Response::Error { code: "EMBED_FAILED".to_string(), message: e.to_string() },
+                }
+            })
+        }
+        Request::IndexEmbedding { path, node_id, text, config } => {
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            rt.block_on(async {
+                let provider = create_provider(config);
+                match provider.embed(&text).await {
+                    Ok(embedding) => {
+                        match open_db(&path, false) {
+                            Ok(db) => {
+                                match db.index_embedding(&node_id, &embedding, provider.name()) {
+                                    Ok(_) => Response::Success { data: serde_json::json!({ "indexed": true, "dimension": embedding.len() }) },
+                                    Err(e) => Response::Error { code: "INDEX_FAILED".to_string(), message: e.to_string() },
+                                }
+                            }
+                            Err(e) => Response::Error { code: "DB_OPEN_FAILED".to_string(), message: e },
+                        }
+                    }
+                    Err(e) => Response::Error { code: "EMBED_FAILED".to_string(), message: e.to_string() },
+                }
+            })
         }
     }
 }

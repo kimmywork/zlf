@@ -7,5 +7,6 @@ members = [
     "crates/zlf-query",
     "crates/zlf-api",
     "crates/zlf-cli",
+    "crates/zlf-embed",
 ]
 resolver = "2"

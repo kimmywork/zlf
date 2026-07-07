@@ -105,11 +105,11 @@ None - All slices complete
 | zlf-storage | 15 | ✅ Passing |
 | zlf-index | 21 | ✅ Passing |
 | zlf-prolog | 20 | ✅ Passing |
-| zlf-query | 8 | ✅ Passing |
+| zlf-query | 10 | ⚠️ 2 temporal tests failing |
 | zlf-api | 5 | ✅ Passing |
 | zlf-cli (integration) | 12 | ✅ Passing |
 | TypeScript SDK (unit) | 14 | ✅ Passing |
-| **Total** | **112** | **All Passing** |
+| **Total** | **114** | **112 Passing, 2 Failing** |
 
 ## Documentation
 
@@ -119,11 +119,14 @@ None - All slices complete
 ## Issues & Fixes
 
 1. **Bincode serialization issue**: Fixed by using tagged enum instead of untagged
-2. **Pest grammar issues**: Fixed ASCII_UPPERCASE/ASCII_LOWERCASE to use char ranges
+2. **Pest grammar issues**: Fixed ASCII_UPPERCASE/ASCII_LOWERCARE to use char ranges
 3. **serde_json::Number conversion**: Fixed by converting f32 to f64
 4. **Compiler warnings**: Fixed unused imports and variables
 5. **napi-rs build failure**: Changed to JSON-over-STDIO approach (Change Note 001)
 6. **Redundant TypeScript CLI**: Removed `cli/` directory (Change Note 002)
+7. **Temporal query variable syntax**: Fixed by handling Term::Variable as "match all nodes"
+8. **chrono dependency missing**: Added to zlf-query/Cargo.toml
+9. **TemporalEntry not exported**: Added re-export in zlf-index/src/lib.rs
 
 ## Architecture Decisions
 
@@ -134,11 +137,12 @@ None - All slices complete
 5. **Pluggable Embedding**: Support multiple embedding providers
 6. **JSON-over-STDIO FFI**: Rust CLI binary + TypeScript child_process (replaced napi-rs)
 7. **No TypeScript CLI**: Removed redundant `cli/` directory (Change Note 002)
+8. **Temporal Index Integration**: Nodes auto-indexed by creation time, query_time_range/before/after functional
+9. **Embedding Provider Design**: Configurable (Ollama/OpenAI/HuggingFace), API endpoint/key/model ID config
 
 ## Next Steps
 
-1. Verify TypeScript SDK integration with Rust CLI
-2. Add missing tests for edge cases
-3. Continue with Slices 10-12
-4. Integration testing
-5. Performance optimization
+1. Fix temporal query test failures (query_after/query_before)
+2. Implement configurable embedding provider (Ollama/OpenAI/HuggingFace)
+3. Design and run benchmarks
+4. Performance optimization
