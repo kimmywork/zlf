@@ -6,6 +6,8 @@ use zlf_core::{Node, Edge};
 use zlf_query::QueryPlanner;
 use zlf_embed::{EmbeddingConfig, ProviderType, create_provider};
 use zlf_config::ZlfConfig;
+use axum::{Router, routing::post, Json, response::IntoResponse};
+use tower_http::cors::{CorsLayer, Any};
 
 #[derive(Deserialize)]
 #[serde(tag = "command")]
@@ -254,36 +256,51 @@ fn handle_request(request: Request) -> Response {
         }
         Request::Embed { text, config: embed_config } => {
             let embed_config = embed_config.unwrap_or_else(|| config.to_embed_config());
-            let rt = tokio::runtime::Runtime::new().unwrap();
-            rt.block_on(async {
+            // Use a thread pool for async embedding
+            let rt = tokio::runtime::Handle::current();
+            let (tx, rx) = std::sync::mpsc::channel();
+            rt.spawn(async move {
                 let provider = create_provider(embed_config);
-                match provider.embed(&text).await {
-                    Ok(embedding) => Response::Success { data: serde_json::json!({ "embedding": embedding }) },
-                    Err(e) => Response::Error { code: "EMBED_FAILED".to_string(), message: e.to_string() },
-                }
-            })
+                let result = provider.embed(&text).await;
+                let _ = tx.send(result);
+            });
+            match rx.recv() {
+                Ok(Ok(embedding)) => Response::Success { data: serde_json::json!({ "embedding": embedding }) },
+                Ok(Err(e)) => Response::Error { code: "EMBED_FAILED".to_string(), message: e.to_string() },
+                Err(e) => Response::Error { code: "EMBED_FAILED".to_string(), message: e.to_string() },
+            }
         }
         Request::IndexEmbedding { path, node_id, text, config: embed_config } => {
             let path = path.unwrap_or_else(|| config.db_path.clone());
             let embed_config = embed_config.unwrap_or_else(|| config.to_embed_config());
-            let rt = tokio::runtime::Runtime::new().unwrap();
-            rt.block_on(async {
+            let provider_name = match embed_config.provider {
+                ProviderType::Ollama => "ollama",
+                ProviderType::OpenAI => "openai",
+                ProviderType::HuggingFace => "huggingface",
+            }.to_string();
+            // Use a thread pool for async embedding
+            let rt = tokio::runtime::Handle::current();
+            let (tx, rx) = std::sync::mpsc::channel();
+            rt.spawn(async move {
                 let provider = create_provider(embed_config);
-                match provider.embed(&text).await {
-                    Ok(embedding) => {
-                        match open_db(&path, false) {
-                            Ok(db) => {
-                                match db.index_embedding(&node_id, &embedding, provider.name()) {
-                                    Ok(_) => Response::Success { data: serde_json::json!({ "indexed": true, "dimension": embedding.len() }) },
-                                    Err(e) => Response::Error { code: "INDEX_FAILED".to_string(), message: e.to_string() },
-                                }
+                let result = provider.embed(&text).await;
+                let _ = tx.send(result);
+            });
+            match rx.recv() {
+                Ok(Ok(embedding)) => {
+                    match open_db(&path, false) {
+                        Ok(db) => {
+                            match db.index_embedding(&node_id, &embedding, &provider_name) {
+                                Ok(_) => Response::Success { data: serde_json::json!({ "indexed": true, "dimension": embedding.len() }) },
+                                Err(e) => Response::Error { code: "INDEX_FAILED".to_string(), message: e.to_string() },
                             }
-                            Err(e) => Response::Error { code: "DB_OPEN_FAILED".to_string(), message: e },
                         }
+                        Err(e) => Response::Error { code: "DB_OPEN_FAILED".to_string(), message: e },
                     }
-                    Err(e) => Response::Error { code: "EMBED_FAILED".to_string(), message: e.to_string() },
                 }
-            })
+                Ok(Err(e)) => Response::Error { code: "EMBED_FAILED".to_string(), message: e.to_string() },
+                Err(e) => Response::Error { code: "EMBED_FAILED".to_string(), message: e.to_string() },
+            }
         }
         Request::Config { set, get } => {
             if let Some(new_config) = set {
@@ -378,7 +395,82 @@ fn export_json(db: &QueryPlanner, file: Option<&str>) -> Result<serde_json::Valu
     Ok(data)
 }
 
+async fn serve_http(port: u16) -> Result<()> {
+    let app = Router::new()
+        .route("/api", post(handle_http_request))
+        .route("/health", axum::routing::get(|| async { "ok" }))
+        .layer(CorsLayer::new()
+            .allow_origin(Any)
+            .allow_methods(Any)
+            .allow_headers(Any));
+    
+    let addr = format!("0.0.0.0:{}", port);
+    println!("zlf server listening on {}", addr);
+    
+    let listener = tokio::net::TcpListener::bind(&addr).await?;
+    axum::serve(listener, app).await?;
+    
+    Ok(())
+}
+
+async fn handle_http_request(Json(request): Json<Request>) -> impl IntoResponse {
+    let response = handle_request_async(request).await;
+    Json(response)
+}
+
+async fn handle_request_async(request: Request) -> Response {
+    let config = ZlfConfig::load();
+    
+    match request {
+        Request::Embed { text, config: embed_config } => {
+            let embed_config = embed_config.unwrap_or_else(|| config.to_embed_config());
+            let provider = create_provider(embed_config);
+            match provider.embed(&text).await {
+                Ok(embedding) => Response::Success { data: serde_json::json!({ "embedding": embedding }) },
+                Err(e) => Response::Error { code: "EMBED_FAILED".to_string(), message: e.to_string() },
+            }
+        }
+        Request::IndexEmbedding { path, node_id, text, config: embed_config } => {
+            let path = path.unwrap_or_else(|| config.db_path.clone());
+            let embed_config = embed_config.unwrap_or_else(|| config.to_embed_config());
+            let provider_name = match embed_config.provider {
+                ProviderType::Ollama => "ollama",
+                ProviderType::OpenAI => "openai",
+                ProviderType::HuggingFace => "huggingface",
+            }.to_string();
+            
+            let provider = create_provider(embed_config);
+            match provider.embed(&text).await {
+                Ok(embedding) => {
+                    match open_db(&path, false) {
+                        Ok(db) => {
+                            match db.index_embedding(&node_id, &embedding, &provider_name) {
+                                Ok(_) => Response::Success { data: serde_json::json!({ "indexed": true, "dimension": embedding.len() }) },
+                                Err(e) => Response::Error { code: "INDEX_FAILED".to_string(), message: e.to_string() },
+                            }
+                        }
+                        Err(e) => Response::Error { code: "DB_OPEN_FAILED".to_string(), message: e },
+                    }
+                }
+                Err(e) => Response::Error { code: "EMBED_FAILED".to_string(), message: e.to_string() },
+            }
+        }
+        _ => handle_request(request),
+    }
+}
+
 fn main() -> Result<()> {
+    // Check for serve command in args
+    let args: Vec<String> = std::env::args().collect();
+    
+    if args.len() > 1 && args[1] == "serve" {
+        let port = args.get(2).and_then(|p| p.parse::<u16>().ok()).unwrap_or(8520);
+        let rt = tokio::runtime::Runtime::new()?;
+        rt.block_on(serve_http(port))?;
+        return Ok(());
+    }
+    
+    // STDIO mode (default)
     let stdin = io::stdin();
     let stdout = io::stdout();
     
