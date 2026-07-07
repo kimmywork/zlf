@@ -41,3 +41,9 @@ Desktop.ini
 .env
 .env.local
 .env.*.local
+
+# Runtime / Test databases
+test-*/
+*-db/
+*.db
+test-integration-db/

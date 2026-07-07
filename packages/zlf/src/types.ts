@@ -32,7 +32,7 @@ export interface SimilarResult {
 }
 
 export interface MemoryData {
-  type: 'conversation' | 'knowledge' | 'task';
+  type: string;
   content: Record<string, any>;
   entities?: string[];
   topics?: string[];

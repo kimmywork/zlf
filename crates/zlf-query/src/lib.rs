@@ -99,21 +99,73 @@ impl QueryPlanner {
         Ok(results)
     }
 
-    fn query_nodes(&self, _args: &[Term]) -> Result<Vec<serde_json::Value>> {
-        let results = Vec::new();
+    fn query_nodes(&self, args: &[Term]) -> Result<Vec<serde_json::Value>> {
+        if args.is_empty() {
+            return Err(ZlfError::SyntaxError(0, "node requires at least 1 argument".to_string()));
+        }
         
-        // Get all nodes and filter
-        // This is a simplified implementation
-        // In production, we would use indexes
+        // Get label filter from first argument
+        let label = match &args[0] {
+            Term::Atom(s) => Some(s.clone()),
+            Term::String(s) => Some(s.clone()),
+            Term::Variable(_) => None, // No label filter
+            _ => return Err(ZlfError::SyntaxError(0, "first argument must be label or variable".to_string())),
+        };
+        
+        // Get nodes by label or all nodes
+        let nodes = if let Some(label) = label {
+            self.storage.get_nodes_by_label(&label)?
+        } else {
+            // For variable, we need to get all nodes
+            // This is a simplified implementation - in production we'd use an iterator
+            Vec::new()
+        };
+        
+        let mut results = Vec::new();
+        for node in nodes {
+            let mut result = serde_json::Map::new();
+            result.insert("id".to_string(), serde_json::Value::String(node.id));
+            result.insert("labels".to_string(), serde_json::json!(node.labels));
+            result.insert("properties".to_string(), serde_json::json!(node.properties));
+            result.insert("current_version".to_string(), serde_json::json!(node.current_version));
+            results.push(serde_json::Value::Object(result));
+        }
         
         Ok(results)
     }
 
-    fn query_edges(&self, _args: &[Term]) -> Result<Vec<serde_json::Value>> {
-        let results = Vec::new();
+    fn query_edges(&self, args: &[Term]) -> Result<Vec<serde_json::Value>> {
+        if args.is_empty() {
+            return Err(ZlfError::SyntaxError(0, "edge requires at least 1 argument".to_string()));
+        }
         
-        // Get all edges and filter
-        // This is a simplified implementation
+        // Get edge type filter from first argument
+        let edge_type = match &args[0] {
+            Term::Atom(s) => Some(s.clone()),
+            Term::String(s) => Some(s.clone()),
+            Term::Variable(_) => None, // No type filter
+            _ => return Err(ZlfError::SyntaxError(0, "first argument must be edge type or variable".to_string())),
+        };
+        
+        // Get edges by type or all edges
+        let edges = if let Some(edge_type) = edge_type {
+            self.storage.get_edges_by_type(&edge_type)?
+        } else {
+            // For variable, we need to get all edges
+            // This is a simplified implementation - in production we'd use an iterator
+            Vec::new()
+        };
+        
+        let mut results = Vec::new();
+        for edge in edges {
+            let mut result = serde_json::Map::new();
+            result.insert("id".to_string(), serde_json::Value::String(edge.id));
+            result.insert("edge_type".to_string(), serde_json::Value::String(edge.edge_type));
+            result.insert("source".to_string(), serde_json::Value::String(edge.source));
+            result.insert("target".to_string(), serde_json::Value::String(edge.target));
+            result.insert("properties".to_string(), serde_json::json!(edge.properties));
+            results.push(serde_json::Value::Object(result));
+        }
         
         Ok(results)
     }
@@ -286,6 +338,55 @@ mod tests {
         // For now, search returns empty
         let results = planner.search("test").unwrap();
         assert!(results.is_empty());
+    }
+
+    #[test]
+    fn test_query_nodes_by_label() {
+        let (planner, _temp) = create_test_planner();
+        
+        // Add nodes
+        let mut props = HashMap::new();
+        props.insert("name".to_string(), Value::String("Alice".to_string()));
+        
+        let node1 = Node::new(vec!["person".to_string()], props.clone());
+        let node2 = Node::new(vec!["company".to_string()], props);
+        
+        planner.add_node(node1).unwrap();
+        planner.add_node(node2).unwrap();
+        
+        // Query by label (use X instead of _ since grammar doesn't support _)
+        let results = planner.execute("?node(person, X, Props).").unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0]["labels"], serde_json::json!(["person"]));
+    }
+
+    #[test]
+    fn test_query_edges_by_type() {
+        let (planner, _temp) = create_test_planner();
+        
+        // Add nodes
+        let mut props = HashMap::new();
+        props.insert("name".to_string(), Value::String("Alice".to_string()));
+        
+        let node1 = Node::with_id("alice".to_string(), vec!["person".to_string()], props.clone());
+        let node2 = Node::with_id("bob".to_string(), vec!["person".to_string()], props);
+        
+        planner.add_node(node1).unwrap();
+        planner.add_node(node2).unwrap();
+        
+        // Add edge
+        let edge = Edge::new(
+            "knows".to_string(),
+            "alice".to_string(),
+            "bob".to_string(),
+            HashMap::new(),
+        );
+        planner.add_edge(edge).unwrap();
+        
+        // Query by type
+        let results = planner.execute("?edge(knows, X, Y, Props).").unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0]["edge_type"], "knows");
     }
 
     #[test]

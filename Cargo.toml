@@ -6,5 +6,6 @@ members = [
     "crates/zlf-prolog",
     "crates/zlf-query",
     "crates/zlf-api",
+    "crates/zlf-cli",
 ]
 resolver = "2"

@@ -189,49 +189,73 @@ senior(X) :- age(X, A), A >= 50.
 
 ## 7. API Design
 
-### CLI Interface
+### CLI Interface (JSON-over-STDIO)
+
+The CLI accepts JSON commands via STDIN and returns JSON via STDOUT.
+
 ```bash
-# Interactive REPL
-zlf repl
+# Initialize database
+echo '{"command":"init","path":"./my-graph.db"}' | zlf
+
+# Add a node
+echo '{"command":"add_node","path":"./my-graph.db","labels":["person"],"properties":{"name":"Alice","age":30}}' | zlf
+
+# Get a node
+echo '{"command":"get_node","path":"./my-graph.db","id":"<node-id>"}' | zlf
+
+# Add an edge
+echo '{"command":"add_edge","path":"./my-graph.db","edge_type":"knows","source":"<source-id>","target":"<target-id>","properties":{"since":2020}}' | zlf
 
 # Execute query
-zlf query "node(person, X, {name: 'Alice'}), edge(X, knows, Y)."
+echo '{"command":"query","path":"./my-graph.db","query":"node(person, X, _)."}' | zlf
 
-# Import/Export
-zlf import data.json
-zlf export --format json
+# BM25 search
+echo '{"command":"search","path":"./my-graph.db","query":"software engineer"}' | zlf
 
-# Database management
-zlf init ./my-graph.db
-zlf status
+# Semantic search
+echo '{"command":"similar","path":"./my-graph.db","node_id":"<node-id>","threshold":0.8,"limit":10}' | zlf
 ```
 
-### Programmatic API (for AI Agents)
+**Response Format:**
+```json
+{"type": "success", "data": {...}}
+// or
+{"type": "error", "code": "ERROR_CODE", "message": "description"}
+```
+
+### Programmatic API (TypeScript SDK)
 ```typescript
-// TypeScript SDK
 import { ZLF } from 'zlf';
 
 const db = new ZLF('./my-graph.db');
 
-// Add facts
-db.addNode('person', 'alice', { name: 'Alice', age: 30 });
-db.addEdge('alice', 'knows', 'bob', { since: 2020 });
+// Add a node
+const node = await db.addNode(['person'], { name: 'Alice', age: 30 });
 
-// Query with backtracking
-const results = db.query(`
-  colleague(X, Y) :- works_at(X, C), works_at(Y, C), X \\= Y.
-  ?colleague(alice, Who).
-`);
+// Get a node
+const retrieved = await db.getNode(node.id);
 
-// Agent memory operations
-db.memory.store('conversation_123', {
+// Add an edge
+const edge = await db.addEdge('knows', node.id, bobNode.id, { since: 2020 });
+
+// Execute query
+const results = await db.query('node(person, X, _).');
+
+// BM25 search
+const searchResults = await db.search('software engineer');
+
+// Semantic search
+const similarResults = await db.similar(node.id, 0.8, 10);
+
+// Memory operations
+await db.storeMemory('conv123', {
+  type: 'conversation',
+  content: { message: 'Hello' },
   entities: ['alice', 'bob'],
-  topics: ['project_planning'],
-  timestamp: '2026-07-06T10:00:00Z'
+  importance: 0.8
 });
 
-// Temporal query
-db.query('?memory(conversation_123, Entities), time_range(Entities, last_week).');
+const memory = await db.getMemory('conv123');
 ```
 
 ## 8. Scope
@@ -239,12 +263,12 @@ db.query('?memory(conversation_123, Entities), time_range(Entities, last_week).'
 - **In scope**:
   - Core graph storage (nodes, edges, properties)
   - zlf-log query language (facts, rules, queries, backtracking)
-  - CLI interface (REPL + one-shot)
+  - CLI interface (JSON-over-STDIO)
   - Temporal layer (node versioning)
-  - TypeScript SDK
+  - TypeScript SDK (calls Rust CLI via child_process)
   - Pluggable embedding for semantic search
   - BM25 full-text search
-  - Import/export (JSON + auto-parse documents)
+  - Import/export (JSON)
 
 - **Out of scope**:
   - MCP integration (future)
@@ -729,34 +753,43 @@ Then:
   - Errors are formatted with error code and suggestion
 ```
 
-**CLI Commands**:
+**CLI Interface (JSON-over-STDIO)**:
 ```bash
-zlf init [path]           # Initialize database
-zlf status                # Show database stats
-zlf node add <labels> <props>  # Add node
-zlf node get <id>         # Get node
-zlf edge add <type> <src> <tgt> [props]  # Add edge
-zlf query "<zlf-log>"     # Execute query
-zlf repl                  # Interactive REPL
-zlf import <file>         # Import JSON
-zlf export [format]       # Export data
-zlf search "<query>"      # BM25 search
-zlf similar <id> [threshold]  # Semantic search
+# Initialize database
+echo '{"command":"init","path":"./db"}' | zlf
+
+# Add a node
+echo '{"command":"add_node","path":"./db","labels":["person"],"properties":{"name":"Alice"}}' | zlf
+
+# Get a node
+echo '{"command":"get_node","path":"./db","id":"<node-id>"}' | zlf
+
+# Add an edge
+echo '{"command":"add_edge","path":"./db","edge_type":"knows","source":"<src>","target":"<tgt>","properties":{}}' | zlf
+
+# Execute query
+echo '{"command":"query","path":"./db","query":"node(person, X, _)."}' | zlf
+
+# BM25 search
+echo '{"command":"search","path":"./db","query":"engineer"}' | zlf
+
+# Semantic search
+echo '{"command":"similar","path":"./db","node_id":"<id>","threshold":0.8,"limit":10}' | zlf
 ```
 
 **Edge Cases**:
-- EC-014.1: CLI argument parsing errors → System shall show usage help
-- EC-014.2: Interactive REPL input validation → System shall validate before execution
+- EC-014.1: Invalid JSON input → System shall return error with INVALID_REQUEST code
+- EC-014.2: Missing required fields → System shall return error with missing field name
 - EC-014.3: File permission issues → System shall return clear error message
-- EC-014.4: Signal handling (Ctrl+C) → System shall gracefully exit
-- EC-014.5: Unicode/emoji handling → System shall support UTF-8 input/output
+- EC-014.4: Empty input → System shall skip and wait for next command
+- EC-014.5: Unicode/emoji handling → System shall support UTF-8 in JSON
 
 **Unhappy Paths**:
-- UP-014.1: CLI command not found → System shall show available commands
-- UP-014.2: Invalid command syntax → System shall show usage example
-- UP-014.3: Missing required arguments → System shall show error with expected args
-- UP-014.4: File not accessible → System shall return permission error
-- UP-014.5: REPL session timeout → System shall support configurable timeout
+- UP-014.1: Invalid command type → System shall return error with available commands
+- UP-014.2: Invalid JSON syntax → System shall return error with parse details
+- UP-014.3: Missing required arguments → System shall return error with expected args
+- UP-014.4: Database not found → System shall return DB_OPEN_FAILED error
+- UP-014.5: Node/edge not found → System shall return NODE_NOT_FOUND or EDGE_NOT_FOUND error
 
 ## 11. Decisions Made
 
@@ -772,7 +805,7 @@ zlf similar <id> [threshold]  # Semantic search
 | Embedding Model | Pluggable | User choice, flexibility |
 | Temporal Granularity | Node Versioning | Nodes are primary entities, edges reference versions |
 | Import Pipeline | LLM + Human Review | Accuracy + control |
-| Implementation | Rust (engine) + TypeScript (CLI/SDK) | Performance + ecosystem |
+| Implementation | Rust (engine) + TypeScript (SDK) | Performance + ecosystem |
 | Query Engine | WAM in Rust | Efficient Prolog execution |
 | File Format | Directory-based | Separation of concerns, extensibility |
 | Query Result | JSON | AI-friendly |
@@ -780,7 +813,7 @@ zlf similar <id> [threshold]  # Semantic search
 | Concurrency | Read-Write Lock | Read-heavy workload |
 | Prolog-Graph Integration | Dynamic Facts | node/edge as Prolog facts, generated on query |
 | Memory Structure | Typed Nodes | Each memory is a node with type (conversation/knowledge/task) |
-| CLI Model | Both REPL + One-shot | Interactive + scripting |
+| CLI Model | JSON-over-STDIO | Simple, scriptable, no REPL needed |
 | Embedding Integration | Per-node Embedding | Optional embedding per node for semantic search |
 | Error Recovery | WAL Recovery | Crash recovery to consistent state |
 | Testing Strategy | Hybrid | Prolog tests for business logic + SDK tests for integration |
@@ -800,7 +833,7 @@ zlf similar <id> [threshold]  # Semantic search
 | WAM Testing | Layered Testing | Instruction-level unit tests + integration tests |
 | Serialization | Bincode | Binary format, efficient and compact |
 | Prolog Parser | Parser Generator | Use pest or lalrpop for parser generation |
-| FFI Strategy | napi-rs | TypeScript-Rust bindings, performance + type safety |
+| FFI Strategy | JSON-over-STDIO | Rust CLI binary + TypeScript child_process, simple + portable |
 | Project Structure | Monorepo | Rust crate + TypeScript package in one repo |
 | CI/CD | GitHub Actions | Automated testing and release |
 | Version Numbering | SemVer | Semantic versioning (major.minor.patch) |
@@ -815,11 +848,11 @@ zlf similar <id> [threshold]  # Semantic search
 | Query Combination | Set-based | All queries return node sets, can be combined |
 | Storage Crate | rust-rocksdb | Official RocksDB binding, mature and stable |
 | Parser Crate | pest | PEG parser generator, flexible and well-documented |
-| CLI Crate | clap | Most popular CLI framework in Rust |
+| CLI Crate | serde_json + anyhow | JSON serialization + error handling for STDIO |
 | Serialization | serde + bincode | Standard serialization, efficient binary format |
 | Error Handling | thiserror + anyhow | Standard error handling pattern |
 | Logging | tracing | Modern async logging framework |
-| FFI | napi | Standard Node.js native bindings |
+| FFI | JSON-over-STDIO | Rust CLI binary + TypeScript child_process |
 | Search | tantivy | Open-source full-text search engine (BM25) |
 | Chinese Segmentation | jieba-rs | Chinese word segmentation for BM25 |
 

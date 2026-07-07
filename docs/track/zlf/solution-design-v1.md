@@ -89,45 +89,39 @@ zlf/
 │   │   │   └── optimizer.rs   # Query optimizer
 │   │   └── Cargo.toml
 │   │
-│   └── zlf-api/               # FFI bindings (napi-rs)
+│   ├── zlf-api/               # API layer (Rust library)
+│   │   ├── src/
+│   │   │   └── lib.rs         # ZLF struct with JSON conversion
+│   │   └── Cargo.toml
+│   │
+│   └── zlf-cli/               # CLI binary (JSON-over-STDIO)
 │       ├── src/
-│       │   ├── lib.rs
-│       │   ├── node.rs        # Node operations
-│       │   ├── edge.rs        # Edge operations
-│       │   ├── query.rs       # Query operations
-│       │   ├── search.rs      # Search operations
-│       │   └── memory.rs      # Memory operations
+│       │   └── main.rs        # JSON command handler
+│       ├── tests/
+│       │   └── integration_test.rs
 │       └── Cargo.toml
 │
-├── packages/                  # TypeScript WRAPPER only
-│   └── zlf/                   # TypeScript SDK (thin wrapper)
+├── packages/                  # TypeScript SDK (thin wrapper)
+│   └── zlf/                   # Calls Rust CLI via child_process
 │       ├── src/
 │       │   ├── index.ts
-│       │   ├── zlf.ts         # Main ZLF class (wraps Rust)
-│       │   ├── memory.ts      # Memory operations (wraps Rust)
-│       │   ├── embedding.ts   # Embedding API calls (OpenAI, etc.)
-│       │   └── types.ts       # TypeScript types
+│       │   ├── zlf.ts         # Main ZLF class
+│       │   ├── types.ts       # TypeScript types
+│       │   └── __tests__/
+│       │       ├── zlf.test.ts        # Unit tests (mocked)
+│       │       └── integration.test.ts # Integration tests
 │       ├── package.json
-│       └── tsconfig.json
-│
-├── cli/                       # CLI application (thin wrapper)
-│   ├── src/
-│   │   ├── index.ts
-│   │   ├── commands/          # CLI commands
-│   │   │   ├── repl.ts
-│   │   │   ├── query.ts
-│   │   │   ├── import.ts
-│   │   │   ├── export.ts
-│   │   │   └── init.ts
-│   │   └── utils/
-│   ├── package.json
-│   └── tsconfig.json
+│       ├── tsconfig.json
+│       └── jest.config.js
 │
 ├── docs/
 │   └── track/zlf/            # Track documentation
 │       ├── prd-v1.md
 │       ├── solution-design-v1.md
-│       └── plan-v1.md
+│       ├── plan-v1.md
+│       ├── delivery-record-v1.md
+│       ├── change-note-001.md
+│       └── review-feedback-001.md
 │
 └── Cargo.toml                 # Rust workspace
 ```
@@ -149,19 +143,12 @@ zlf/
 | `uuid` | 1.x | MIT/Apache-2.0 | UUID generation |
 | `chrono` | 0.4.x | MIT/Apache-2.0 | Date/time handling |
 
-### FFI Dependencies (Rust)
-
-| Crate | Version | License | Purpose |
-|---|---|---|---|
-| `napi` | 2.x | MIT | Node.js native bindings |
-| `napi-derive` | 2.x | MIT | NAPI derive macros |
-
 ### CLI Dependencies (Rust)
 
 | Crate | Version | License | Purpose |
 |---|---|---|---|
-| `clap` | 4.x | MIT/Apache-2.0 | CLI argument parser |
-| `rustyline` | 14.x | MIT | REPL line editing |
+| `serde_json` | 1.x | MIT/Apache-2.0 | JSON serialization for STDIO |
+| `anyhow` | 1.x | MIT/Apache-2.0 | Error handling |
 
 ### Search Dependencies (Rust)
 
@@ -298,44 +285,64 @@ class MemoryManager {
 }
 ```
 
-### CLI Commands
+### CLI Interface (JSON-over-STDIO)
 
+The CLI accepts JSON commands via STDIN and returns JSON responses via STDOUT.
+
+**Request Format:**
+```json
+{"command": "<command>", "path": "<db-path>", ...params}
+```
+
+**Response Format:**
+```json
+{"type": "success", "data": {...}}
+// or
+{"type": "error", "code": "ERROR_CODE", "message": "description"}
+```
+
+**Supported Commands:**
+
+| Command | Parameters | Description |
+|---------|------------|-------------|
+| `init` | `path` | Initialize database |
+| `add_node` | `path`, `labels`, `properties` | Add a node |
+| `get_node` | `path`, `id` | Get node by ID |
+| `add_edge` | `path`, `edge_type`, `source`, `target`, `properties` | Add an edge |
+| `get_edge` | `path`, `id` | Get edge by ID |
+| `query` | `path`, `query` | Execute zlf-log query |
+| `search` | `path`, `query` | BM25 search |
+| `similar` | `path`, `node_id`, `threshold`, `limit` | Semantic search |
+
+**Example Usage:**
 ```bash
-# Database management
-zlf init [path]           # Initialize database
-zlf status                # Show database stats
-zlf backup [path]         # Create backup
-zlf restore [path]        # Restore from backup
+# Initialize database
+echo '{"command":"init","path":"./my-db"}' | zlf
 
-# CRUD operations
-zlf node add <labels> <properties>  # Add node
-zlf node get <id>                   # Get node
-zlf node update <id> <properties>   # Update node
-zlf node delete <id>                # Delete node
+# Add a node
+echo '{"command":"add_node","path":"./my-db","labels":["person"],"properties":{"name":"Alice"}}' | zlf
 
-zlf edge add <type> <source> <target> [properties]
-zlf edge get <id>
-zlf edge delete <id>
+# Query
+echo '{"command":"query","path":"./my-db","query":"node(person, X, _)."}' | zlf
+```
 
-# Query operations
-zlf query "<zlf-log query>"         # Execute query
-zlf repl                            # Interactive REPL
+**TypeScript SDK Usage:**
+```typescript
+import { ZLF } from 'zlf';
 
-# Import/Export
-zlf import <file>                   # Import from JSON
-zlf export [format]                 # Export to JSON/CSV
-
-# Search
-zlf search "<query>"                # BM25 search
-zlf similar <node-id> [threshold]   # Semantic search
+const db = new ZLF('./my-db');
+const node = await db.addNode(['person'], { name: 'Alice' });
+const retrieved = await db.getNode(node.id);
 ```
 
 ## Query Execution Flow
 
 ```
-TypeScript CLI/SDK (thin wrapper)
-    ↓ FFI call
-Rust zlf-api (FFI bindings)
+TypeScript SDK
+    ↓ child_process
+Rust zlf-cli (JSON-over-STDIO)
+    ↓
+Rust zlf-api (JSON conversion)
     ↓
 Rust zlf-query (planner + executor)
     ↓
@@ -345,21 +352,23 @@ Rust zlf-storage (KV operations)
     ↓
 Rust zlf-index (index lookups)
     ↓
-Results as JSON → TypeScript
+Results as JSON → TypeScript SDK
 ```
 
 **Detailed Flow:**
-1. Parse zlf-log query (Rust parser)
-2. Generate WAM instructions (Rust WAM)
-3. Plan execution order (Rust planner)
+1. TypeScript SDK serializes command as JSON
+2. Rust CLI receives JSON via STDIN
+3. Parse zlf-log query (Rust parser)
+4. Generate WAM instructions (Rust WAM)
+5. Plan execution order (Rust planner)
    - Graph traversal first
    - Then semantic filtering
    - Then temporal filtering
-4. Execute WAM with dynamic facts (Rust)
+6. Execute WAM with dynamic facts (Rust)
    - Load nodes/edges from storage
    - Apply rules and backtracking
-5. Apply filters (semantic, temporal)
-6. Return results as JSON via FFI
+7. Apply filters (semantic, temporal)
+8. Return results as JSON via STDOUT
 
 ## Test Strategy
 
@@ -408,16 +417,23 @@ Results as JSON → TypeScript
 
 ### E2E Tests
 
-**CLI Commands**:
-- All CRUD commands
+**CLI Binary (JSON-over-STDIO)**:
+- Init database
+- Add/get nodes
+- Add/get edges
 - Query execution
-- Import/export
-- REPL interaction
+- Error handling (invalid JSON, missing DB, etc.)
 
-**SDK Usage**:
-- TypeScript SDK operations
-- FFI bindings correctness
+**TypeScript SDK**:
+- SDK operations (addNode, getNode, addEdge, etc.)
+- Memory operations
 - Error propagation
+- Integration with Rust CLI binary
+
+**Integration Tests**:
+- Full flow: TypeScript SDK → Rust CLI → Database
+- Edge cases (empty labels, nested properties, etc.)
+- Unhappy paths (non-existent nodes, invalid paths, etc.)
 
 ### Manual Tests
 

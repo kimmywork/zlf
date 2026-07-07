@@ -1,20 +1,23 @@
 [package]
-name = "zlf-api"
+name = "zlf-cli"
 version = "0.1.0"
 edition = "2021"
-description = "FFI bindings for zlf graph database"
+description = "CLI for zlf graph database (JSON-over-STDIO)"
 license = "MIT OR Apache-2.0"
 
-[lib]
-crate-type = ["lib"]
+[[bin]]
+name = "zlf"
+path = "src/main.rs"
 
 [dependencies]
 zlf-core = { path = "../zlf-core" }
 zlf-storage = { path = "../zlf-storage" }
 zlf-index = { path = "../zlf-index" }
 zlf-query = { path = "../zlf-query" }
+zlf-api = { path = "../zlf-api" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+anyhow = "1.0"
 
 [dev-dependencies]
 tempfile = "3.0"

@@ -93,8 +93,8 @@ mod tests {
     #[test]
     fn test_zlf_creation() {
         let temp = TempDir::new().unwrap();
-        let db = ZLF::new(temp.path().to_str().unwrap()).unwrap();
-        assert!(db.planner.is_some() || true); // Just test creation
+        let _db = ZLF::new(temp.path().to_str().unwrap()).unwrap();
+        // Just test creation succeeds
     }
 
     #[test]

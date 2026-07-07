@@ -273,76 +273,74 @@ Implement zlf v1 with core graph storage, zlf-log query language, CLI, and TypeS
 
 ---
 
-### Slice 8: TypeScript SDK (Thin Wrapper)
+### Slice 8: TypeScript SDK (JSON-over-STDIO)
 
-**Acceptance covered:** REQ-013, All requirements (via FFI)
+**Acceptance covered:** REQ-013, All requirements (via JSON-over-STDIO)
 
 **Files / modules:**
-- Create: packages/zlf/, crates/zlf-api/
+- Create: packages/zlf/, crates/zlf-api/, crates/zlf-cli/
 - Modify: None
-- Test: packages/zlf/tests/
+- Test: packages/zlf/src/__tests__/
 
 **Verification:**
 - `npm test` → all tests pass
+- `cargo test -p zlf-cli` → all tests pass
 - Manual: Use SDK to create nodes and query
 
 **Edge Cases Covered:**
-- EC-013.1: FFI type conversion (number overflow, string encoding) - from REQ-013
+- EC-013.1: JSON type conversion (number overflow, string encoding) - from REQ-013
 - EC-013.2: Null/undefined handling in TypeScript - from REQ-013
-- EC-013.3: Async operation cancellation - from REQ-013
-- EC-013.4: Memory leak prevention - from REQ-013
+- EC-013.3: Async operation timeout - from REQ-013
+- EC-013.4: Process cleanup - from REQ-013
 
 **Unhappy Paths Covered:**
-- UP-013.1: FFI call fails (Rust panic) - from REQ-013
-- UP-013.2: TypeScript receives invalid data from Rust - from REQ-013
-- UP-013.3: FFI timeout - from REQ-013
-- UP-013.4: FFI memory limit exceeded - from REQ-013
+- UP-013.1: Rust CLI process fails - from REQ-013
+- UP-013.2: TypeScript receives invalid JSON from Rust - from REQ-013
+- UP-013.3: CLI timeout - from REQ-013
+- UP-013.4: Binary not found - from REQ-013
 
 **Steps:**
-- [x] Set up napi-rs project
-- [x] Implement FFI bindings for core operations
-- [x] Implement TypeScript ZLF class (thin wrapper)
-- [x] Implement MemoryManager class (thin wrapper)
-- [x] Implement embedding.ts for LLM API calls
-- [x] Write SDK tests (including error handling)
+- [x] Implement Rust CLI binary (JSON-over-STDIO)
+- [x] Implement TypeScript ZLF class (calls Rust CLI)
+- [x] Implement types.ts (TypeScript types)
+- [x] Write unit tests (mocked)
+- [x] Write integration tests (real binary)
 
 ---
 
-### Slice 9: CLI Application (Thin Wrapper)
+### Slice 9: CLI Application (Rust Binary)
 
-**Acceptance covered:** REQ-014, All requirements (via SDK)
+**Acceptance covered:** REQ-014, All requirements (via Rust CLI)
 
 **Files / modules:**
-- Create: cli/
+- Create: crates/zlf-cli/
 - Modify: None
-- Test: cli/tests/
+- Test: crates/zlf-cli/tests/
 
 **Verification:**
-- `npm test` → all tests pass
-- Manual: Use CLI commands
+- `cargo test -p zlf-cli` → all tests pass
+- Manual: Use CLI commands via STDIN/STDOUT
 
 **Edge Cases Covered:**
-- EC-014.1: CLI argument parsing errors - from REQ-014
-- EC-014.2: Interactive REPL input validation - from REQ-014
+- EC-014.1: Invalid JSON input - from REQ-014
+- EC-014.2: Missing required fields - from REQ-014
 - EC-014.3: File permission issues - from REQ-014
-- EC-014.4: Signal handling (Ctrl+C) - from REQ-014
+- EC-014.4: Empty input handling - from REQ-014
 - EC-014.5: Unicode/emoji handling - from REQ-014
 
 **Unhappy Paths Covered:**
-- UP-014.1: CLI command not found - from REQ-014
-- UP-014.2: Invalid command syntax - from REQ-014
+- UP-014.1: Invalid command type - from REQ-014
+- UP-014.2: Invalid JSON syntax - from REQ-014
 - UP-014.3: Missing required arguments - from REQ-014
-- UP-014.4: File not accessible - from REQ-014
-- UP-014.5: REPL session timeout - from REQ-014
+- UP-014.4: Database not found - from REQ-014
+- UP-014.5: Node/edge not found - from REQ-014
 
 **Steps:**
-- [x] Set up TypeScript CLI project
-- [x] Implement init command (thin wrapper)
-- [x] Implement node/edge CRUD commands (thin wrapper)
-- [x] Implement query command (thin wrapper)
-- [x] Implement REPL (thin wrapper)
-- [x] Implement import/export commands (thin wrapper)
-- [x] Write CLI tests (including error handling)
+- [x] Implement JSON request/response types
+- [x] Implement command handlers
+- [x] Implement STDIO loop
+- [x] Write integration tests
+- [x] Add to workspace
 
 ---
 
