@@ -1,13 +1,21 @@
 use std::io::{self, BufRead, Write};
 use std::path::Path;
+use std::sync::Arc;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
+use tokio::sync::RwLock;
 use zlf_core::{Node, Edge};
 use zlf_query::QueryPlanner;
 use zlf_embed::{EmbeddingConfig, ProviderType, create_provider};
 use zlf_config::ZlfConfig;
-use axum::{Router, routing::post, Json, response::IntoResponse};
+use axum::{Router, routing::post, Json, response::IntoResponse, extract::State};
 use tower_http::cors::{CorsLayer, Any};
+
+// Shared application state
+struct AppState {
+    db_path: RwLock<String>,
+    db: RwLock<Option<Arc<QueryPlanner>>>,
+}
 
 #[derive(Deserialize)]
 #[serde(tag = "command")]
@@ -51,25 +59,6 @@ enum Response {
     Error { code: String, message: String },
 }
 
-fn open_db(path: &str, create: bool) -> Result<QueryPlanner, String> {
-    let db_path = Path::new(path);
-    
-    if create {
-        // For init, create directory and open new database
-        std::fs::create_dir_all(db_path)
-            .map_err(|e| format!("Failed to create directory: {}", e))?;
-        QueryPlanner::open(db_path)
-            .map_err(|e| format!("Failed to open database: {}", e))
-    } else {
-        // For other operations, open existing database
-        if !db_path.exists() {
-            return Err(format!("Database not found: {}", path));
-        }
-        QueryPlanner::open_existing(db_path)
-            .map_err(|e| format!("Failed to open database: {}", e))
-    }
-}
-
 fn json_to_properties(json: serde_json::Value) -> std::collections::HashMap<String, zlf_core::Value> {
     let mut props = std::collections::HashMap::new();
     
@@ -107,20 +96,69 @@ fn json_to_value(json: &serde_json::Value) -> zlf_core::Value {
     }
 }
 
-fn handle_request(request: Request) -> Response {
+async fn ensure_db(state: &AppState, path: &str) -> Result<Arc<QueryPlanner>, String> {
+    // Check if we need to open a new database
+    {
+        let db_path = state.db_path.read().await;
+        let db = state.db.read().await;
+        
+        if *db_path == path {
+            if let Some(planner) = db.as_ref() {
+                return Ok(Arc::clone(planner));
+            }
+        }
+    }
+    
+    // Open new database
+    let db_path = std::path::Path::new(path);
+    let planner = if db_path.exists() {
+        QueryPlanner::open_existing(db_path)
+    } else {
+        std::fs::create_dir_all(db_path).map_err(|e| e.to_string())?;
+        QueryPlanner::open(db_path)
+    }.map_err(|e| e.to_string())?;
+    
+    let planner = Arc::new(planner);
+    
+    // Update state
+    {
+        let mut db_path = state.db_path.write().await;
+        let mut db = state.db.write().await;
+        *db_path = path.to_string();
+        *db = Some(Arc::clone(&planner));
+    }
+    
+    Ok(planner)
+}
+
+async fn handle_request(request: Request, state: &AppState) -> Response {
     let config = ZlfConfig::load();
     
     match request {
         Request::Init { path } => {
             let path = path.unwrap_or_else(|| config.db_path.clone());
-            match open_db(&path, true) {
-                Ok(_) => Response::Success { data: serde_json::json!({ "path": path }) },
-                Err(e) => Response::Error { code: "INIT_FAILED".to_string(), message: e },
+            let db_path = std::path::Path::new(&path);
+            
+            if db_path.exists() {
+                return Response::Error { 
+                    code: "INIT_FAILED".to_string(), 
+                    message: format!("Database already exists: {}", path) 
+                };
+            }
+            
+            match std::fs::create_dir_all(db_path) {
+                Ok(_) => {
+                    match QueryPlanner::open(db_path) {
+                        Ok(_) => Response::Success { data: serde_json::json!({ "path": path }) },
+                        Err(e) => Response::Error { code: "INIT_FAILED".to_string(), message: e.to_string() },
+                    }
+                }
+                Err(e) => Response::Error { code: "INIT_FAILED".to_string(), message: e.to_string() },
             }
         }
         Request::AddNode { path, labels, properties } => {
             let path = path.unwrap_or_else(|| config.db_path.clone());
-            match open_db(&path, false) {
+            match ensure_db(&state, &path).await {
                 Ok(db) => {
                     let props = json_to_properties(properties);
                     let node = Node::new(labels, props);
@@ -134,7 +172,7 @@ fn handle_request(request: Request) -> Response {
         }
         Request::GetNode { path, id } => {
             let path = path.unwrap_or_else(|| config.db_path.clone());
-            match open_db(&path, false) {
+            match ensure_db(&state, &path).await {
                 Ok(db) => {
                     match db.get_node(&id) {
                         Ok(Some(node)) => Response::Success { data: serde_json::to_value(node).unwrap() },
@@ -147,7 +185,7 @@ fn handle_request(request: Request) -> Response {
         }
         Request::AddEdge { path, edge_type, source, target, properties } => {
             let path = path.unwrap_or_else(|| config.db_path.clone());
-            match open_db(&path, false) {
+            match ensure_db(&state, &path).await {
                 Ok(db) => {
                     let props = json_to_properties(properties);
                     let edge = Edge::new(edge_type, source, target, props);
@@ -161,7 +199,7 @@ fn handle_request(request: Request) -> Response {
         }
         Request::GetEdge { path, id } => {
             let path = path.unwrap_or_else(|| config.db_path.clone());
-            match open_db(&path, false) {
+            match ensure_db(&state, &path).await {
                 Ok(db) => {
                     match db.get_edge(&id) {
                         Ok(Some(edge)) => Response::Success { data: serde_json::to_value(edge).unwrap() },
@@ -174,7 +212,7 @@ fn handle_request(request: Request) -> Response {
         }
         Request::Query { path, query } => {
             let path = path.unwrap_or_else(|| config.db_path.clone());
-            match open_db(&path, false) {
+            match ensure_db(&state, &path).await {
                 Ok(db) => {
                     match db.execute(&query) {
                         Ok(results) => Response::Success { data: serde_json::json!(results) },
@@ -186,7 +224,7 @@ fn handle_request(request: Request) -> Response {
         }
         Request::Search { path, query } => {
             let path = path.unwrap_or_else(|| config.db_path.clone());
-            match open_db(&path, false) {
+            match ensure_db(&state, &path).await {
                 Ok(db) => {
                     match db.search(&query) {
                         Ok(results) => {
@@ -203,7 +241,7 @@ fn handle_request(request: Request) -> Response {
         }
         Request::Similar { path, node_id, threshold, limit } => {
             let path = path.unwrap_or_else(|| config.db_path.clone());
-            match open_db(&path, false) {
+            match ensure_db(&state, &path).await {
                 Ok(db) => {
                     match db.similar(&node_id, threshold, limit) {
                         Ok(results) => {
@@ -220,7 +258,7 @@ fn handle_request(request: Request) -> Response {
         }
         Request::Import { path, file } => {
             let path = path.unwrap_or_else(|| config.db_path.clone());
-            match open_db(&path, false) {
+            match ensure_db(&state, &path).await {
                 Ok(db) => {
                     match import_json(&db, &file) {
                         Ok(count) => Response::Success { data: serde_json::json!({ "imported": count }) },
@@ -232,7 +270,7 @@ fn handle_request(request: Request) -> Response {
         }
         Request::Export { path, file } => {
             let path = path.unwrap_or_else(|| config.db_path.clone());
-            match open_db(&path, false) {
+            match ensure_db(&state, &path).await {
                 Ok(db) => {
                     match export_json(&db, file.as_deref()) {
                         Ok(data) => Response::Success { data },
@@ -244,7 +282,7 @@ fn handle_request(request: Request) -> Response {
         }
         Request::IndexText { path, node_id, text } => {
             let path = path.unwrap_or_else(|| config.db_path.clone());
-            match open_db(&path, false) {
+            match ensure_db(&state, &path).await {
                 Ok(db) => {
                     match db.index_text(&node_id, &text) {
                         Ok(_) => Response::Success { data: serde_json::json!({ "indexed": true }) },
@@ -256,17 +294,9 @@ fn handle_request(request: Request) -> Response {
         }
         Request::Embed { text, config: embed_config } => {
             let embed_config = embed_config.unwrap_or_else(|| config.to_embed_config());
-            // Use a thread pool for async embedding
-            let rt = tokio::runtime::Handle::current();
-            let (tx, rx) = std::sync::mpsc::channel();
-            rt.spawn(async move {
-                let provider = create_provider(embed_config);
-                let result = provider.embed(&text).await;
-                let _ = tx.send(result);
-            });
-            match rx.recv() {
-                Ok(Ok(embedding)) => Response::Success { data: serde_json::json!({ "embedding": embedding }) },
-                Ok(Err(e)) => Response::Error { code: "EMBED_FAILED".to_string(), message: e.to_string() },
+            let provider = create_provider(embed_config);
+            match provider.embed(&text).await {
+                Ok(embedding) => Response::Success { data: serde_json::json!({ "embedding": embedding }) },
                 Err(e) => Response::Error { code: "EMBED_FAILED".to_string(), message: e.to_string() },
             }
         }
@@ -278,17 +308,11 @@ fn handle_request(request: Request) -> Response {
                 ProviderType::OpenAI => "openai",
                 ProviderType::HuggingFace => "huggingface",
             }.to_string();
-            // Use a thread pool for async embedding
-            let rt = tokio::runtime::Handle::current();
-            let (tx, rx) = std::sync::mpsc::channel();
-            rt.spawn(async move {
-                let provider = create_provider(embed_config);
-                let result = provider.embed(&text).await;
-                let _ = tx.send(result);
-            });
-            match rx.recv() {
-                Ok(Ok(embedding)) => {
-                    match open_db(&path, false) {
+            
+            let provider = create_provider(embed_config);
+            match provider.embed(&text).await {
+                Ok(embedding) => {
+                    match ensure_db(&state, &path).await {
                         Ok(db) => {
                             match db.index_embedding(&node_id, &embedding, &provider_name) {
                                 Ok(_) => Response::Success { data: serde_json::json!({ "indexed": true, "dimension": embedding.len() }) },
@@ -298,7 +322,6 @@ fn handle_request(request: Request) -> Response {
                         Err(e) => Response::Error { code: "DB_OPEN_FAILED".to_string(), message: e },
                     }
                 }
-                Ok(Err(e)) => Response::Error { code: "EMBED_FAILED".to_string(), message: e.to_string() },
                 Err(e) => Response::Error { code: "EMBED_FAILED".to_string(), message: e.to_string() },
             }
         }
@@ -326,7 +349,6 @@ fn import_json(db: &QueryPlanner, file: &str) -> Result<usize, String> {
     
     let mut count = 0;
     
-    // Import nodes
     if let Some(nodes) = data.get("nodes").and_then(|n| n.as_array()) {
         for node_data in nodes {
             let labels = node_data.get("labels")
@@ -346,7 +368,6 @@ fn import_json(db: &QueryPlanner, file: &str) -> Result<usize, String> {
         }
     }
     
-    // Import edges
     if let Some(edges) = data.get("edges").and_then(|e| e.as_array()) {
         for edge_data in edges {
             let edge_type = edge_data.get("edge_type")
@@ -380,8 +401,6 @@ fn import_json(db: &QueryPlanner, file: &str) -> Result<usize, String> {
 }
 
 fn export_json(db: &QueryPlanner, file: Option<&str>) -> Result<serde_json::Value, String> {
-    // For now, export empty data structure
-    // In a real implementation, we would iterate over all nodes and edges
     let data = serde_json::json!({
         "nodes": [],
         "edges": []
@@ -396,13 +415,19 @@ fn export_json(db: &QueryPlanner, file: Option<&str>) -> Result<serde_json::Valu
 }
 
 async fn serve_http(port: u16) -> Result<()> {
+    let state = Arc::new(AppState {
+        db_path: RwLock::new(String::new()),
+        db: RwLock::new(None),
+    });
+    
     let app = Router::new()
         .route("/api", post(handle_http_request))
         .route("/health", axum::routing::get(|| async { "ok" }))
         .layer(CorsLayer::new()
             .allow_origin(Any)
             .allow_methods(Any)
-            .allow_headers(Any));
+            .allow_headers(Any))
+        .with_state(state);
     
     let addr = format!("0.0.0.0:{}", port);
     println!("zlf server listening on {}", addr);
@@ -413,54 +438,15 @@ async fn serve_http(port: u16) -> Result<()> {
     Ok(())
 }
 
-async fn handle_http_request(Json(request): Json<Request>) -> impl IntoResponse {
-    let response = handle_request_async(request).await;
+async fn handle_http_request(
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<Request>,
+) -> impl IntoResponse {
+    let response = handle_request(request, &state).await;
     Json(response)
 }
 
-async fn handle_request_async(request: Request) -> Response {
-    let config = ZlfConfig::load();
-    
-    match request {
-        Request::Embed { text, config: embed_config } => {
-            let embed_config = embed_config.unwrap_or_else(|| config.to_embed_config());
-            let provider = create_provider(embed_config);
-            match provider.embed(&text).await {
-                Ok(embedding) => Response::Success { data: serde_json::json!({ "embedding": embedding }) },
-                Err(e) => Response::Error { code: "EMBED_FAILED".to_string(), message: e.to_string() },
-            }
-        }
-        Request::IndexEmbedding { path, node_id, text, config: embed_config } => {
-            let path = path.unwrap_or_else(|| config.db_path.clone());
-            let embed_config = embed_config.unwrap_or_else(|| config.to_embed_config());
-            let provider_name = match embed_config.provider {
-                ProviderType::Ollama => "ollama",
-                ProviderType::OpenAI => "openai",
-                ProviderType::HuggingFace => "huggingface",
-            }.to_string();
-            
-            let provider = create_provider(embed_config);
-            match provider.embed(&text).await {
-                Ok(embedding) => {
-                    match open_db(&path, false) {
-                        Ok(db) => {
-                            match db.index_embedding(&node_id, &embedding, &provider_name) {
-                                Ok(_) => Response::Success { data: serde_json::json!({ "indexed": true, "dimension": embedding.len() }) },
-                                Err(e) => Response::Error { code: "INDEX_FAILED".to_string(), message: e.to_string() },
-                            }
-                        }
-                        Err(e) => Response::Error { code: "DB_OPEN_FAILED".to_string(), message: e },
-                    }
-                }
-                Err(e) => Response::Error { code: "EMBED_FAILED".to_string(), message: e.to_string() },
-            }
-        }
-        _ => handle_request(request),
-    }
-}
-
 fn main() -> Result<()> {
-    // Check for serve command in args
     let args: Vec<String> = std::env::args().collect();
     
     if args.len() > 1 && args[1] == "serve" {
@@ -483,7 +469,16 @@ fn main() -> Result<()> {
         }
         
         let response = match serde_json::from_str::<Request>(line) {
-            Ok(request) => handle_request(request),
+            Ok(request) => {
+                // Create a temporary state for STDIO mode
+                let state = AppState {
+                    db_path: RwLock::new(String::new()),
+                    db: RwLock::new(None),
+                };
+                // Use a tokio runtime for STDIO mode
+                let rt = tokio::runtime::Runtime::new().unwrap();
+                rt.block_on(handle_request(request, &state))
+            },
             Err(e) => Response::Error { 
                 code: "INVALID_REQUEST".to_string(), 
                 message: format!("Invalid JSON: {}", e) 
