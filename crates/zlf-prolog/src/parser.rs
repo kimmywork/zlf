@@ -129,8 +129,10 @@ impl PrologParser {
     }
 
     pub fn parse_query(input: &str) -> Result<Query> {
+        let input = input.trim();
+        
         // Try to parse as query first (with ? prefix)
-        if input.trim().starts_with('?') {
+        if input.starts_with('?') {
             let pairs = PrologParser::parse(Rule::query, input)
                 .map_err(|e| ZlfError::SyntaxError(0, e.to_string()))?;
             
@@ -161,6 +163,33 @@ impl PrologParser {
         if input.contains(":-") {
             let rule = Self::parse_rule(input)?;
             return Ok(Query::RuleDef(rule));
+        }
+        
+        // Try to parse as fact (term followed by .)
+        if input.ends_with('.') {
+            let pairs = PrologParser::parse(Rule::fact, input)
+                .map_err(|e| ZlfError::SyntaxError(0, e.to_string()))?;
+            
+            for pair in pairs {
+                match pair.as_rule() {
+                    Rule::fact => {
+                        for inner in pair.into_inner() {
+                            match inner.as_rule() {
+                                Rule::term => {
+                                    let term = Self::build_term(vec![inner])?;
+                                    // Convert fact to rule with empty body
+                                    return Ok(Query::RuleDef(PrologRule {
+                                        head: term,
+                                        body: vec![],
+                                    }));
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
         }
         
         Err(ZlfError::SyntaxError(0, "Invalid query format".to_string()))
