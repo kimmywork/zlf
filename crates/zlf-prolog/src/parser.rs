@@ -22,6 +22,16 @@ pub enum Term {
     List(Vec<Term>),
 }
 
+impl Term {
+    pub fn predicate_name(&self) -> String {
+        match self {
+            Term::Compound { name, .. } => name.clone(),
+            Term::Atom(name) => name.clone(),
+            _ => String::new(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Fact {
     pub head: Term,
@@ -110,32 +120,41 @@ impl PrologParser {
     }
 
     pub fn parse_query(input: &str) -> Result<Query> {
-        let pairs = PrologParser::parse(Rule::query, input)
-            .map_err(|e| ZlfError::SyntaxError(0, e.to_string()))?;
-        
-        let mut terms = Vec::new();
-        for pair in pairs {
-            match pair.as_rule() {
-                Rule::query => {
-                    for inner in pair.into_inner() {
-                        match inner.as_rule() {
-                            Rule::term => {
-                                let term = Self::build_term(vec![inner])?;
-                                terms.push(term);
+        // Try to parse as query first (with ? prefix)
+        if input.trim().starts_with('?') {
+            let pairs = PrologParser::parse(Rule::query, input)
+                .map_err(|e| ZlfError::SyntaxError(0, e.to_string()))?;
+            
+            let mut terms = Vec::new();
+            for pair in pairs {
+                match pair.as_rule() {
+                    Rule::query => {
+                        for inner in pair.into_inner() {
+                            match inner.as_rule() {
+                                Rule::term => {
+                                    let term = Self::build_term(vec![inner])?;
+                                    terms.push(term);
+                                }
+                                _ => {}
                             }
-                            _ => {}
                         }
                     }
+                    _ => {}
                 }
-                _ => {}
+            }
+            
+            if terms.len() == 1 {
+                return Ok(Query::Goal(terms.remove(0)));
             }
         }
         
-        if terms.len() == 1 {
-            Ok(Query::Goal(terms.remove(0)))
-        } else {
-            Err(ZlfError::SyntaxError(0, "Invalid query format".to_string()))
+        // Try to parse as rule (with :- separator)
+        if input.contains(":-") {
+            let rule = Self::parse_rule(input)?;
+            return Ok(Query::RuleDef(rule));
         }
+        
+        Err(ZlfError::SyntaxError(0, "Invalid query format".to_string()))
     }
 
     fn build_term(pairs: Vec<Pair<Rule>>) -> Result<Term> {
