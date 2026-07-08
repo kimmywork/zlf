@@ -41,7 +41,7 @@
 | Empty query handling | EC-008.1 | ✅ | Returns error |
 | Special characters | EC-008.2 | ✅ | |
 | Mixed language | EC-008.4 | ✅ | |
-| **Auto-indexing** | - | ❌ | Must call index_text manually |
+| **Auto-indexing** | - | ✅ | Text properties indexed on creation |
 
 ## 4. Semantic Search
 

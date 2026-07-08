@@ -6,7 +6,7 @@ use zlf_core::{Node, Edge, ZlfError, Result};
 use zlf_storage::Storage;
 use zlf_index::{TemporalIndex, BM25Index, VectorIndex};
 use zlf_index::temporal::TemporalEntry;
-use zlf_prolog::{PrologParser, Term, Query, PrologRule};
+use zlf_prolog::{PrologParser, Term, Query, PrologRule, EnhancedWAM};
 
 pub struct QueryPlanner {
     storage: Arc<Storage>,
@@ -134,92 +134,60 @@ impl QueryPlanner {
     }
     
     fn execute_rule(&self, rule: &PrologRule, query_args: &[Term]) -> Result<Vec<serde_json::Value>> {
-        let mut results = Vec::new();
+        // Use enhanced WAM for rule execution
+        let mut wam = EnhancedWAM::new(Arc::clone(&self.storage));
         
-        // Get rule head as compound term
-        if let Some((rule_name, rule_args)) = rule.head.as_compound() {
-            // Get query as compound term
-            if let Some((query_name, query_args_compound)) = query_args.first().and_then(|a| a.as_compound()) {
-                if rule_name != query_name {
-                    return Ok(results);
-                }
-                
-                // Create initial bindings from query arguments
-                let mut bindings = HashMap::new();
-                for (rule_arg, query_arg) in rule_args.iter().zip(query_args_compound.iter()) {
-                    if let Term::Variable(name) = rule_arg {
-                        bindings.insert(name.clone(), query_arg.clone());
-                    }
-                }
-                
-                // Execute rule body with backtracking
-                results = self.execute_rule_body(&rule.body, &bindings)?;
+        // Store all rules in WAM
+        let rules = self.rules.read().map_err(|e| ZlfError::Internal(e.to_string()))?;
+        for (_, rule) in rules.iter() {
+            wam.store_rule(rule.clone());
+        }
+        
+        // Create goal from query
+        let goal = if let Some((name, args)) = query_args.first().and_then(|a| a.as_compound()) {
+            Term::Compound {
+                name: name.to_string(),
+                args: args.to_vec(),
             }
+        } else {
+            return Ok(vec![]);
+        };
+        
+        // Execute with WAM
+        let solutions = wam.execute(&goal)?;
+        
+        // Convert solutions to JSON
+        let mut results = Vec::new();
+        for solution in solutions {
+            let mut result = serde_json::Map::new();
+            for (name, term) in &solution {
+                result.insert(name.clone(), self.term_to_json(term));
+            }
+            results.push(serde_json::Value::Object(result));
         }
         
         Ok(results)
     }
     
-    fn execute_rule_body(&self, body: &[Term], bindings: &HashMap<String, Term>) -> Result<Vec<serde_json::Value>> {
-        if body.is_empty() {
-            return Ok(vec![]);
-        }
-        
-        let mut all_results = Vec::new();
-        
-        // Execute first goal in body
-        let first_goal = &body[0];
-        let remaining_goals = &body[1..];
-        
-        // Get results for first goal
-        let goal_results = self.execute_goal_with_bindings(first_goal, bindings)?;
-        
-        // For each result, try to execute remaining goals
-        for goal_result in goal_results {
-            let mut new_bindings = bindings.clone();
-            
-            // For now, just add the result
-            // In a full implementation, we would extract bindings from the result
-            // and propagate them to remaining goals
-            
-            if remaining_goals.is_empty() {
-                // No more goals, add this result
-                all_results.push(goal_result);
-            } else {
-                // Execute remaining goals (simplified - just get all results)
-                let sub_results = self.execute_rule_body(remaining_goals, &new_bindings)?;
-                all_results.extend(sub_results);
-            }
-        }
-        
-        Ok(all_results)
-    }
-    
-    fn execute_goal_with_bindings(&self, goal: &Term, bindings: &HashMap<String, Term>) -> Result<Vec<serde_json::Value>> {
-        // Substitute variables in goal with bindings
-        let substituted = self.substitute_term(goal, bindings)?;
-        
-        // Execute the substituted goal
-        self.execute_goal(&substituted)
-    }
-    
-    fn substitute_term(&self, term: &Term, bindings: &HashMap<String, Term>) -> Result<Term> {
+    fn term_to_json(&self, term: &Term) -> serde_json::Value {
         match term {
-            Term::Variable(name) => {
-                if let Some(value) = bindings.get(name) {
-                    Ok(value.clone())
-                } else {
-                    Ok(term.clone())
-                }
-            }
+            Term::Variable(name) => serde_json::json!({ "variable": name }),
+            Term::Atom(name) => serde_json::json!(name),
+            Term::Number(n) => serde_json::json!(n),
+            Term::String(s) => serde_json::json!(s),
             Term::Compound { name, args } => {
-                let mut new_args = Vec::new();
-                for arg in args {
-                    new_args.push(self.substitute_term(arg, bindings)?);
-                }
-                Ok(Term::Compound { name: name.clone(), args: new_args })
+                let mut map = serde_json::Map::new();
+                map.insert("name".to_string(), serde_json::json!(name));
+                map.insert("args".to_string(), serde_json::json!(
+                    args.iter().map(|a| self.term_to_json(a)).collect::<Vec<_>>()
+                ));
+                serde_json::Value::Object(map)
             }
-            _ => Ok(term.clone()),
+            Term::List(items) => {
+                serde_json::json!(
+                    items.iter().map(|i| self.term_to_json(i)).collect::<Vec<_>>()
+                )
+            }
         }
     }
     
