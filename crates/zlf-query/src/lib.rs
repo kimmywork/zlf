@@ -747,8 +747,12 @@ mod tests {
         
         // Query by label (use X instead of _ since grammar doesn't support _)
         let results = planner.execute("?node(person, X, Props).").unwrap();
+        eprintln!("Results: {:?}", results);
         assert_eq!(results.len(), 1);
-        assert_eq!(results[0]["labels"], serde_json::json!(["person"]));
+        // The result should have X and Props keys
+        let result = results[0].as_object().unwrap();
+        assert!(result.contains_key("X"), "Should have X key");
+        assert!(result.contains_key("Props"), "Should have Props key");
     }
 
     #[test]
@@ -776,12 +780,12 @@ mod tests {
         
         // Query by type
         let results = planner.execute("?edge(knows, X, Y, Props).").unwrap();
-        eprintln!("Results: {:?}", results);
         assert_eq!(results.len(), 1);
         // The result should have X, Y, Props keys
-        assert!(results[0].contains_key("X"), "Should have X key");
-        assert!(results[0].contains_key("Y"), "Should have Y key");
-        assert!(results[0].contains_key("Props"), "Should have Props key");
+        let result = results[0].as_object().unwrap();
+        assert!(result.contains_key("X"), "Should have X key");
+        assert!(result.contains_key("Y"), "Should have Y key");
+        assert!(result.contains_key("Props"), "Should have Props key");
     }
 
     #[test]

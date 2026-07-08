@@ -309,11 +309,67 @@ impl WAMExecutor {
             match name {
                 "node" => self.query_nodes(args),
                 "edge" => self.query_edges(args),
+                "after" => self.query_after(args),
+                "before" => self.query_before(args),
+                "time_range" => self.query_time_range(args),
                 _ => Ok(vec![]),
             }
         } else {
             Ok(vec![])
         }
+    }
+    
+    /// 查询时间之后的节点
+    fn query_after(&self, args: &[Term]) -> Result<Vec<HashMap<String, Term>>> {
+        // 简化实现：返回所有节点
+        // 完整实现需要查询 temporal_index
+        let nodes = self.storage.get_all_nodes()?;
+        let mut solutions = Vec::new();
+        
+        for node in nodes {
+            let mut bindings = self.get_current_bindings();
+            
+            // 绑定 node_id 如果是变量
+            if let Some(id_var) = args.get(0) {
+                if let Term::Variable(name) = id_var {
+                    bindings.insert(name.clone(), Term::String(node.id.clone()));
+                }
+            }
+            
+            solutions.push(bindings);
+        }
+        
+        Ok(solutions)
+    }
+    
+    /// 查询时间之前的节点
+    fn query_before(&self, args: &[Term]) -> Result<Vec<HashMap<String, Term>>> {
+        // 简化实现：返回空结果
+        // 完整实现需要查询 temporal_index
+        Ok(vec![])
+    }
+    
+    /// 查询时间范围内的节点
+    fn query_time_range(&self, args: &[Term]) -> Result<Vec<HashMap<String, Term>>> {
+        // 简化实现：返回所有节点
+        // 完整实现需要查询 temporal_index
+        let nodes = self.storage.get_all_nodes()?;
+        let mut solutions = Vec::new();
+        
+        for node in nodes {
+            let mut bindings = self.get_current_bindings();
+            
+            // 绑定 node_id 如果是变量
+            if let Some(id_var) = args.get(0) {
+                if let Term::Variable(name) = id_var {
+                    bindings.insert(name.clone(), Term::String(node.id.clone()));
+                }
+            }
+            
+            solutions.push(bindings);
+        }
+        
+        Ok(solutions)
     }
     
     /// 查询节点
@@ -340,6 +396,16 @@ impl WAMExecutor {
         let mut solutions = Vec::new();
         for node in nodes {
             let mut bindings = self.get_current_bindings();
+            
+            // 绑定 label 如果是变量
+            if let Term::Variable(name) = &args[0] {
+                let label_term = if node.labels.is_empty() {
+                    Term::List(vec![])
+                } else {
+                    Term::List(node.labels.iter().map(|l| Term::String(l.clone())).collect())
+                };
+                bindings.insert(name.clone(), label_term);
+            }
             
             // 绑定 ID 如果是变量
             if let Some(id_var) = args.get(1) {
