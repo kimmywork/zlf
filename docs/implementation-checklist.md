@@ -23,9 +23,9 @@
 | Query by label | REQ-004 | ✅ | |
 | Query by edge type | REQ-004 | ✅ | |
 | Query all nodes | REQ-004 | ✅ | `?node(X, Y, Z).` |
-| **Rule definition** | REQ-003 | ❌ | Rules not stored |
-| **Rule execution** | REQ-004 | ❌ | Rules not executed |
-| **Backtracking** | REQ-004 | ❌ | Not integrated |
+| **Rule definition** | REQ-003 | ⚠️ | Rules stored in memory, not persisted |
+| **Rule execution** | REQ-004 | ⚠️ | Simplified - no full backtracking |
+| **Backtracking** | REQ-004 | ❌ | Not fully implemented |
 | **Recursive rules** | EC-003.1 | ❌ | Not implemented |
 | **Built-in predicates** | EC-003.3 | ❌ | Not implemented |
 | Invalid syntax handling | UP-003.1 | ✅ | Returns error |
