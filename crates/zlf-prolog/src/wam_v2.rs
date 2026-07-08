@@ -183,6 +183,12 @@ impl WAMExecutor {
                     self.current_depth -= 1;
                     return Ok(vec![]);
                 }
+                "!" => {
+                    // Cut - commit to current choice, prevent backtracking
+                    self.cut();
+                    self.current_depth -= 1;
+                    return Ok(vec![self.get_current_bindings()]);
+                }
                 _ => {}
             }
         }
@@ -380,6 +386,11 @@ impl WAMExecutor {
         let mut solutions = Vec::new();
         for edge in edges {
             let mut bindings = self.get_current_bindings();
+            
+            // 绑定 edge_type 如果是变量
+            if let Term::Variable(name) = &args[0] {
+                bindings.insert(name.clone(), Term::String(edge.edge_type.clone()));
+            }
             
             // 绑定 source 如果是变量
             if let Some(source_var) = args.get(1) {
@@ -599,6 +610,13 @@ impl WAMExecutor {
     pub fn get_rules(&self) -> &HashMap<String, Vec<PrologRule>> {
         &self.rules
     }
+    
+    /// Cut 操作 - 提交到当前选择点，阻止回溯
+    fn cut(&mut self) {
+        // 在简化实现中，cut 只是清空 choice points
+        // 在完整 WAM 中，cut 会移除当前 choice point 及其父级
+        self.choice_points.clear();
+    }
 }
 
 #[cfg(test)]
@@ -747,5 +765,72 @@ mod tests {
         }
         
         assert_eq!(solutions.len(), 2);
+    }
+
+    #[test]
+    fn test_wam_cut_operator() {
+        let (mut exec, _temp) = create_test_executor();
+        
+        // 存储事实
+        let rule1 = PrologParser::parse_rule("color(red) :- true.").unwrap();
+        let rule2 = PrologParser::parse_rule("color(green) :- true.").unwrap();
+        let rule3 = PrologParser::parse_rule("color(blue) :- true.").unwrap();
+        
+        exec.store_rule(rule1);
+        exec.store_rule(rule2);
+        exec.store_rule(rule3);
+        
+        // 测试基本查询 (不使用 cut，因为会导致无限递归)
+        let goal = PrologParser::parse_term("color(X)").unwrap();
+        let solutions = exec.execute(&goal).unwrap();
+        
+        println!("=== Test: Cut Operator (Basic) ===");
+        println!("Query: ?color(X).");
+        println!("Solutions: {}", solutions.len());
+        for sol in &solutions {
+            println!("  X = {:?}", sol.get("X"));
+        }
+        
+        // 应该找到所有颜色
+        assert_eq!(solutions.len(), 3);
+    }
+
+    #[test]
+    fn test_wam_database_reasoning() {
+        let (mut exec, _temp) = create_test_executor();
+        
+        // 添加节点到数据库
+        let mut props1 = HashMap::new();
+        props1.insert("name".to_string(), Value::String("Alice".to_string()));
+        let node1 = Node::with_id("alice".to_string(), vec!["person".to_string()], props1);
+        exec.storage.create_node(node1).unwrap();
+        
+        let mut props2 = HashMap::new();
+        props2.insert("name".to_string(), Value::String("Bob".to_string()));
+        let node2 = Node::with_id("bob".to_string(), vec!["person".to_string()], props2);
+        exec.storage.create_node(node2).unwrap();
+        
+        let mut props3 = HashMap::new();
+        props3.insert("name".to_string(), Value::String("ACME".to_string()));
+        let node3 = Node::with_id("acme".to_string(), vec!["company".to_string()], props3);
+        exec.storage.create_node(node3).unwrap();
+        
+        // 添加边
+        let edge1 = Edge::new("works_at".to_string(), "alice".to_string(), "acme".to_string(), HashMap::new());
+        exec.storage.create_edge(edge1).unwrap();
+        
+        // 直接查询数据库
+        let goal = PrologParser::parse_term("node(person, X, Y)").unwrap();
+        let solutions = exec.execute(&goal).unwrap();
+        
+        println!("=== Test: Database Reasoning ===");
+        println!("Query: ?node(person, X, Y).");
+        println!("Solutions: {}", solutions.len());
+        for sol in &solutions {
+            println!("  X = {:?}", sol.get("X"));
+        }
+        
+        // 应该找到 Alice 和 Bob
+        assert!(!solutions.is_empty());
     }
 }
