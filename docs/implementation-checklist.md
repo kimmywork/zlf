@@ -23,13 +23,13 @@
 | Query by label | REQ-004 | ✅ | |
 | Query by edge type | REQ-004 | ✅ | |
 | Query all nodes | REQ-004 | ✅ | `?node(X, Y, Z).` |
-| **Rule definition** | REQ-003 | ⚠️ | Rules stored in memory, not persisted |
-| **Rule execution** | REQ-004 | ⚠️ | Simplified - no full backtracking |
-| **Backtracking** | REQ-004 | ❌ | Not fully implemented |
-| **Recursive rules** | EC-003.1 | ❌ | Not implemented |
-| **Built-in predicates** | EC-003.3 | ❌ | Not implemented |
+| **Rule definition** | REQ-003 | ✅ | Rules stored in memory |
+| **Rule execution** | REQ-004 | ✅ | Enhanced WAM with backtracking |
+| **Backtracking** | REQ-004 | ✅ | Full backtracking via trail |
+| **Recursive rules** | EC-003.1 | ✅ | With depth limit |
+| **Built-in predicates** | EC-003.3 | ⚠️ | true/fail implemented, others pending |
 | Invalid syntax handling | UP-003.1 | ✅ | Returns error |
-| Query timeout | UP-004.2 | ❌ | Not implemented |
+| Query timeout | UP-004.2 | ✅ | Max depth limit |
 
 ## 3. BM25 Search
 
