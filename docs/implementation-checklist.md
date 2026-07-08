@@ -86,21 +86,7 @@
 | Health endpoint | - | ✅ | /health |
 | Error responses | REQ-012 | ✅ | Structured JSON |
 
-## 8. TypeScript SDK
-
-| Feature | PRD | Status | Notes |
-|---------|-----|--------|-------|
-| ZLF class | REQ-013 | ✅ | |
-| addNode | REQ-013 | ✅ | |
-| getNode | REQ-013 | ✅ | |
-| addEdge | REQ-013 | ✅ | |
-| getEdge | REQ-013 | ✅ | |
-| query | REQ-013 | ✅ | |
-| search | REQ-013 | ✅ | |
-| similar | REQ-013 | ✅ | |
-| Memory operations | REQ-006 | ✅ | |
-
-## 9. Configuration
+## 8. Configuration
 
 | Feature | Status | Notes |
 |---------|--------|-------|

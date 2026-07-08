@@ -561,7 +561,42 @@ impl QueryPlanner {
         };
         let _ = self.temporal_index.add_entry(entry);
         
+        // Auto-index text properties for BM25 search
+        self.auto_index_text(&created);
+        
         Ok(created)
+    }
+    
+    fn auto_index_text(&self, node: &Node) {
+        // Extract text from string properties and index them
+        let mut text_parts = Vec::new();
+        
+        // Add node ID as searchable text
+        text_parts.push(node.id.clone());
+        
+        // Add labels as searchable text
+        for label in &node.labels {
+            text_parts.push(label.clone());
+        }
+        
+        // Add string properties as searchable text
+        for (key, value) in &node.properties {
+            match value {
+                zlf_core::Value::String(s) => {
+                    text_parts.push(s.clone());
+                }
+                zlf_core::Value::Number(n) => {
+                    text_parts.push(n.to_string());
+                }
+                _ => {}
+            }
+        }
+        
+        // Join all text parts and index
+        if !text_parts.is_empty() {
+            let text = text_parts.join(" ");
+            let _ = self.bm25_index.index_text(&node.id, &text);
+        }
     }
 
     pub fn get_node(&self, id: &str) -> Result<Option<Node>> {
@@ -569,7 +604,43 @@ impl QueryPlanner {
     }
 
     pub fn add_edge(&self, edge: Edge) -> Result<Edge> {
-        self.storage.create_edge(edge)
+        let created = self.storage.create_edge(edge)?;
+        
+        // Auto-index edge properties for BM25 search
+        self.auto_index_edge(&created);
+        
+        Ok(created)
+    }
+    
+    fn auto_index_edge(&self, edge: &Edge) {
+        // Extract text from edge properties and index them
+        let mut text_parts = Vec::new();
+        
+        // Add edge type as searchable text
+        text_parts.push(edge.edge_type.clone());
+        
+        // Add source and target as searchable text
+        text_parts.push(edge.source.clone());
+        text_parts.push(edge.target.clone());
+        
+        // Add string properties as searchable text
+        for (key, value) in &edge.properties {
+            match value {
+                zlf_core::Value::String(s) => {
+                    text_parts.push(s.clone());
+                }
+                zlf_core::Value::Number(n) => {
+                    text_parts.push(n.to_string());
+                }
+                _ => {}
+            }
+        }
+        
+        // Join all text parts and index
+        if !text_parts.is_empty() {
+            let text = text_parts.join(" ");
+            let _ = self.bm25_index.index_text(&edge.id, &text);
+        }
     }
 
     pub fn get_edge(&self, id: &str) -> Result<Option<Edge>> {
@@ -790,6 +861,49 @@ mod tests {
             &Term::Atom("bob".to_string()),
             &mut bindings
         ).unwrap());
+    }
+
+    #[test]
+    fn test_auto_indexing() {
+        let (planner, _temp) = create_test_planner();
+        
+        // Add a node with text properties
+        let mut props = HashMap::new();
+        props.insert("name".to_string(), Value::String("Alice Smith".to_string()));
+        props.insert("bio".to_string(), Value::String("Software engineer".to_string()));
+        let node = Node::new(vec!["person".to_string()], props);
+        let created = planner.add_node(node).unwrap();
+        
+        // Search for the node by text
+        let results = planner.search("Alice").unwrap();
+        assert!(!results.is_empty(), "Should find Alice by text search");
+        assert_eq!(results[0].0, created.id);
+        
+        // Search by bio
+        let results = planner.search("engineer").unwrap();
+        assert!(!results.is_empty(), "Should find node by bio");
+    }
+
+    #[test]
+    fn test_auto_indexing_edge() {
+        let (planner, _temp) = create_test_planner();
+        
+        // Add nodes first
+        let node1 = Node::with_id("alice".to_string(), vec!["person".to_string()], HashMap::new());
+        planner.add_node(node1).unwrap();
+        
+        let node2 = Node::with_id("bob".to_string(), vec!["person".to_string()], HashMap::new());
+        planner.add_node(node2).unwrap();
+        
+        // Add edge with properties
+        let mut props = HashMap::new();
+        props.insert("role".to_string(), Value::String("engineer".to_string()));
+        let edge = Edge::new("works_at".to_string(), "alice".to_string(), "bob".to_string(), props);
+        let created = planner.add_edge(edge).unwrap();
+        
+        // Search for edge by text
+        let results = planner.search("works_at").unwrap();
+        assert!(!results.is_empty(), "Should find edge by type");
     }
 
     #[test]
