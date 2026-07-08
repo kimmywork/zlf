@@ -97,36 +97,39 @@ fn json_to_value(json: &serde_json::Value) -> zlf_core::Value {
 }
 
 async fn ensure_db(state: &AppState, path: &str) -> Result<Arc<QueryPlanner>, String> {
-    // Check if we need to open a new database
+    // Check if we already have this database open
     {
         let db_path = state.db_path.read().await;
         let db = state.db.read().await;
         
-        if *db_path == path {
-            if let Some(planner) = db.as_ref() {
-                return Ok(Arc::clone(planner));
-            }
+        if *db_path == path && db.is_some() {
+            return Ok(Arc::clone(db.as_ref().unwrap()));
         }
     }
     
-    // Open new database
-    let db_path = std::path::Path::new(path);
-    let planner = if db_path.exists() {
-        QueryPlanner::open_existing(db_path)
+    // Need to open new database - acquire write lock
+    let mut db_path = state.db_path.write().await;
+    let mut db = state.db.write().await;
+    
+    // Double-check after acquiring write lock
+    if *db_path == path && db.is_some() {
+        return Ok(Arc::clone(db.as_ref().unwrap()));
+    }
+    
+    // Open database
+    let db_path_std = std::path::Path::new(path);
+    let planner = if db_path_std.exists() {
+        QueryPlanner::open_existing(db_path_std)
     } else {
-        std::fs::create_dir_all(db_path).map_err(|e| e.to_string())?;
-        QueryPlanner::open(db_path)
+        std::fs::create_dir_all(db_path_std).map_err(|e| e.to_string())?;
+        QueryPlanner::open(db_path_std)
     }.map_err(|e| e.to_string())?;
     
     let planner = Arc::new(planner);
     
     // Update state
-    {
-        let mut db_path = state.db_path.write().await;
-        let mut db = state.db.write().await;
-        *db_path = path.to_string();
-        *db = Some(Arc::clone(&planner));
-    }
+    *db_path = path.to_string();
+    *db = Some(Arc::clone(&planner));
     
     Ok(planner)
 }
