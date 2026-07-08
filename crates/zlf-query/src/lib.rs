@@ -6,7 +6,7 @@ use zlf_core::{Node, Edge, ZlfError, Result};
 use zlf_storage::Storage;
 use zlf_index::{TemporalIndex, BM25Index, VectorIndex};
 use zlf_index::temporal::TemporalEntry;
-use zlf_prolog::{PrologParser, Term, Query, PrologRule, WAMExecutor};
+use zlf_prolog::{PrologParser, Term, Query, PrologRule, PrologEngine};
 
 pub struct QueryPlanner {
     storage: Arc<Storage>,
@@ -70,17 +70,17 @@ impl QueryPlanner {
         // Execute based on query type
         match query {
             Query::Goal(term) => {
-                // Create WAM executor with storage
-                let mut wam = WAMExecutor::new(Arc::clone(&self.storage));
+                // Create Prolog engine with storage
+                let mut engine = PrologEngine::new(Arc::clone(&self.storage));
                 
-                // Load rules into WAM
+                // Load rules into engine
                 let rules = self.rules.read().map_err(|e| ZlfError::Internal(e.to_string()))?;
                 for (_, rule) in rules.iter() {
-                    wam.store_rule(rule.clone());
+                    engine.store_rule(rule.clone());
                 }
                 
-                // Execute with WAM
-                let solutions = wam.execute(&term)?;
+                // Execute with Prolog engine
+                let solutions = engine.execute(&term)?;
                 
                 // Convert solutions to JSON
                 let mut results = Vec::new();
@@ -179,13 +179,13 @@ impl QueryPlanner {
     }
     
     fn execute_rule(&self, rule: &PrologRule, query_args: &[Term]) -> Result<Vec<serde_json::Value>> {
-        // Use WAMExecutor for rule execution
-        let mut wam = WAMExecutor::new(Arc::clone(&self.storage));
+        // Use PrologEngine for rule execution
+        let mut engine = PrologEngine::new(Arc::clone(&self.storage));
         
-        // Store all rules in WAM
+        // Store all rules in engine
         let rules = self.rules.read().map_err(|e| ZlfError::Internal(e.to_string()))?;
         for (_, rule) in rules.iter() {
-            wam.store_rule(rule.clone());
+            engine.store_rule(rule.clone());
         }
         
         // Create goal from query
@@ -198,8 +198,8 @@ impl QueryPlanner {
             return Ok(vec![]);
         };
         
-        // Execute with WAM
-        let solutions = wam.execute(&goal)?;
+        // Execute with engine
+        let solutions = engine.execute(&goal)?;
         
         // Convert solutions to JSON
         let mut results = Vec::new();

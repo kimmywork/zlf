@@ -101,8 +101,17 @@ impl PrologParser {
                             Rule::term => {
                                 if head.is_none() {
                                     head = Some(Self::build_term(vec![inner])?);
-                                } else {
-                                    body.push(Self::build_term(vec![inner])?);
+                                }
+                            }
+                            Rule::body => {
+                                // Parse body terms
+                                for body_inner in inner.into_inner() {
+                                    match body_inner.as_rule() {
+                                        Rule::term => {
+                                            body.push(Self::build_term(vec![body_inner])?);
+                                        }
+                                        _ => {}
+                                    }
                                 }
                             }
                             _ => {}

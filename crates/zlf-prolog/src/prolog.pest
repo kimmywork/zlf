@@ -1,12 +1,20 @@
-// zlf-prolog grammar
+// zlf-prolog grammar - Complete Prolog Spec
 
 // Entry rules
 query = { SOI ~ "?" ~ term ~ "." ~ EOI }
 fact = { term ~ "." }
-rule = { term ~ ":-" ~ term ~ ("," ~ term)* ~ "." }
+rule = { term ~ ":-" ~ body ~ "." }
+body = { term ~ ("," ~ term)* }
 
-// Terms - compound must come before atom to match correctly
-term = { compound | variable | atom | number | string | list }
+// Terms
+term = { compound | list | atom | number | string | variable }
+
+// Compound term: functor(args)
+compound = { atom ~ "(" ~ term ~ ("," ~ term)* ~ ")" }
+
+// List: [head | tail] or [a, b, c]
+list = { "[" ~ list_items ~ "]" }
+list_items = { term ~ ("," ~ term)* ~ ("|" ~ term)? }
 
 // Basic types
 variable = @{ 'A'..'Z' ~ (ASCII_ALPHANUMERIC | "_")* }
@@ -14,11 +22,9 @@ atom = @{ 'a'..'z' ~ (ASCII_ALPHANUMERIC | "_")* }
 number = @{ (ASCII_DIGIT+ ~ ("." ~ ASCII_DIGIT+)?) | ("-" ~ ASCII_DIGIT+ ~ ("." ~ ASCII_DIGIT+)?) }
 string = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
 
-// Compound term - must be before atom
-compound = { atom ~ "(" ~ term ~ ("," ~ term)* ~ ")" }
-
-// List
-list = { "[" ~ (term ~ ("," ~ term)*)? ~ "]" }
+// Built-in operators
+cut = { "!" }
+not = { "\\+" }
 
 // Whitespace
 WHITESPACE = _{ " " | "\t" | "\n" | "\r" }
