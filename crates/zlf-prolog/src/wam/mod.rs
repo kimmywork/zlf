@@ -16,6 +16,7 @@ pub mod executor;
 mod executor_index;
 pub mod executor_solve;
 mod executor_terms;
+pub mod fact_key;
 pub mod fact_provider;
 pub mod heap;
 pub mod index_provider;
@@ -33,6 +34,7 @@ pub mod rule_store;
 pub mod runtime;
 pub mod storage_index_writer;
 pub mod storage_provider;
+pub mod storage_retract;
 pub mod storage_writer;
 pub mod structure_mode;
 pub mod structure_ops;
@@ -51,6 +53,9 @@ pub use embedding_worker::EmbeddingWorker;
 pub use error::{WamError, WamResult};
 pub use execution_result::ExecutionResult;
 pub use executor::WamExecutor;
+pub use fact_key::{
+    term_to_delete_pattern, term_to_fact_key, DeletePattern, FactKey, MutationEvent,
+};
 pub use fact_provider::{FactProvider, StaticFactProvider};
 pub use heap::Heap;
 pub use index_provider::IndexFactProvider;

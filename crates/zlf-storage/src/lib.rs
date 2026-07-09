@@ -4,6 +4,7 @@ use std::sync::Arc;
 use rocksdb::{Options, DB};
 use zlf_core::{Edge, Node, Result, Value, ZlfError};
 
+mod delete;
 mod indexes;
 mod memory;
 mod query;

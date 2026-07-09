@@ -7,7 +7,7 @@ use zlf_core::{Edge, Node, Value};
 use zlf_storage::Storage;
 
 pub struct StorageFactWriter<'a> {
-    storage: &'a Storage,
+    pub(crate) storage: &'a Storage,
 }
 
 impl<'a> StorageFactWriter<'a> {
@@ -194,7 +194,7 @@ fn value_to_storage(term: &Term) -> WamResult<Value> {
     }
 }
 
-fn edge_id(source: &str, edge_type: &str, target: &str) -> String {
+pub fn edge_id(source: &str, edge_type: &str, target: &str) -> String {
     format!("{source}:{edge_type}:{target}")
 }
 

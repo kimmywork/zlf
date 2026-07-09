@@ -66,6 +66,8 @@ pub(crate) enum Request {
         #[serde(default)]
         config: Option<EmbeddingConfig>,
     },
+    #[serde(rename = "retract")]
+    Retract { path: Option<String>, fact: String },
     #[serde(rename = "config")]
     Config {
         #[serde(default)]

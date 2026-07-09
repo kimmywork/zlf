@@ -8,6 +8,7 @@ mod handler;
 mod io_data;
 mod protocol;
 mod repl;
+mod retract_handler;
 mod server;
 mod state;
 mod values;

@@ -60,11 +60,22 @@ fn print_help() {
     println!("  node(alice, [person], {{ name: \"Alice\" }}).");
     println!("  knows(alice, bob).");
     println!("  friend(X, Y) :- knows(X, Y).");
+    println!("  retract(person(alice)).");
+    println!("  retract(edge(alice, knows, bob)).");
+    println!("  retract(prop_name(alice, _)).");
 }
 
 fn eval_repl_source(db: &ZlfDatabase, source: &str) -> Result<serde_json::Value> {
     if source.starts_with('?') || source.contains(":-") {
         return Ok(serde_json::json!(db.query_prolog(source)?));
+    }
+
+    if source.starts_with("retract(") {
+        let retracted = db.retract_fact(source)?;
+        return Ok(serde_json::json!({
+            "retracted": retracted.is_some(),
+            "key": retracted.map(|k| format!("{:?}", k))
+        }));
     }
 
     let fact = PrologParser::parse_fact(source)?;

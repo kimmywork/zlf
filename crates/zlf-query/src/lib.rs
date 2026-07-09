@@ -8,6 +8,8 @@ use zlf_prolog::wam::{
     CompiledRuleArtifact, CompositeFactProvider, IndexFactProvider, IndexedStorageFactWriter,
     StorageFactProvider, StorageRuleStore, WamRuntime,
 };
+mod retract;
+
 use zlf_prolog::{PrologParser, PrologRule, Query, Term};
 use zlf_storage::Storage;
 
@@ -192,7 +194,7 @@ impl ZlfDatabase {
         let rows = runtime
             .query_all_with_provider(&query, &provider)
             .map_err(|e| ZlfError::Internal(e.to_string()))?;
-        Ok(rows.into_iter().map(solution_to_json).collect())
+        Ok(self.dedupe_results(rows.into_iter().map(solution_to_json).collect()))
     }
 
     fn index_node_text(&self, node: &Node) -> Result<()> {
