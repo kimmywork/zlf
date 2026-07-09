@@ -16,9 +16,17 @@ pub struct CompiledQuery {
 
 impl WamCodegen {
     pub fn compile_query_goal_with_bindings(goal: &Term) -> WamResult<CompiledQuery> {
+        let args = compound_args(goal).ok_or(WamError::ExpectedFunctor(0))?;
+        Self::compile_query_goal_with_binding_start(goal, args.len())
+    }
+
+    pub(crate) fn compile_query_goal_with_binding_start(
+        goal: &Term,
+        binding_start: usize,
+    ) -> WamResult<CompiledQuery> {
         let key = predicate_key(goal).ok_or(WamError::ExpectedFunctor(0))?;
         let args = compound_args(goal).ok_or(WamError::ExpectedFunctor(0))?;
-        let mut codegen = Self::with_temp_start(args.len());
+        let mut codegen = Self::with_temp_start(binding_start.max(args.len()));
         let mut instructions = Vec::new();
         for (index, arg) in args.iter().enumerate() {
             codegen.compile_put(arg, index, &mut instructions)?;

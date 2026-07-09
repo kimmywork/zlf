@@ -100,6 +100,21 @@ fn runtime_queries_rule_body_solution() {
     assert_eq!(solutions[0].get("Who"), Some(&atom("carol")));
 }
 
+#[test]
+fn runtime_preserves_query_binding_across_higher_arity_rule_body_goal() {
+    let mut runtime = WamRuntime::new(16);
+    runtime.add_fact(term("knows(alice, bob)"));
+    runtime.add_fact(term("property(bob, name, \"Bob\")"));
+    runtime.add_rule(rule(
+        "query_result(X) :- knows(alice, X), property(X, name, \"Bob\").",
+    ));
+
+    let solutions = runtime.query_all(&term("query_result(X)")).unwrap();
+
+    assert_eq!(solutions.len(), 1);
+    assert_eq!(solutions[0].get("X"), Some(&atom("bob")));
+}
+
 fn storage_fixture() -> Storage {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("db");

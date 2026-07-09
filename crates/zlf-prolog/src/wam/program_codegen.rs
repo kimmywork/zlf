@@ -21,7 +21,8 @@ pub fn compile_query_program_with_bindings(
     facts: &[Term],
     rules: &[PrologRule],
 ) -> WamResult<CompiledQuery> {
-    let compiled = WamCodegen::compile_query_goal_with_bindings(query)?;
+    let binding_start = max_program_arity(query, facts, rules, &[]);
+    let compiled = WamCodegen::compile_query_goal_with_binding_start(query, binding_start)?;
     let temp_start = query_temp_start(&compiled);
     let mut groups = ClauseGroups::new();
     for fact in facts {
@@ -45,7 +46,8 @@ pub fn compile_query_program_with_rule_artifacts(
     rules: &[PrologRule],
     artifacts: &[CompiledRuleArtifact],
 ) -> WamResult<CompiledQuery> {
-    let compiled = WamCodegen::compile_query_goal_with_bindings(query)?;
+    let binding_start = max_program_arity(query, facts, rules, artifacts);
+    let compiled = WamCodegen::compile_query_goal_with_binding_start(query, binding_start)?;
     let temp_start = query_temp_start(&compiled);
     let mut groups = ClauseGroups::new();
     for fact in facts {
@@ -87,6 +89,29 @@ fn assemble_query_program(
         program,
         bindings: compiled.bindings,
     })
+}
+
+fn max_program_arity(
+    query: &Term,
+    facts: &[Term],
+    rules: &[PrologRule],
+    artifacts: &[CompiledRuleArtifact],
+) -> usize {
+    std::iter::once(query)
+        .chain(facts.iter())
+        .chain(rules.iter().flat_map(rule_terms))
+        .chain(
+            artifacts
+                .iter()
+                .flat_map(|artifact| rule_terms(&artifact.source)),
+        )
+        .filter_map(|term| predicate_key(term).map(|key| key.arity))
+        .max()
+        .unwrap_or_default()
+}
+
+fn rule_terms(rule: &PrologRule) -> impl Iterator<Item = &Term> {
+    std::iter::once(&rule.head).chain(rule.body.iter())
 }
 
 fn query_temp_start(compiled: &CompiledQuery) -> usize {
