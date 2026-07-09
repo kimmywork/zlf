@@ -146,7 +146,19 @@ in_degree(Node, Degree).
 out_degree(Node, Degree).
 ```
 
-### R10. Production runtime foundations
+### R10. ISO/general Prolog programming capabilities
+
+Support the common programming capabilities expected from general Prolog systems, staged after mutation foundations and before full tabling:
+
+- canonical ISO list representation with `[H|T]` pattern matching;
+- arithmetic evaluator and arithmetic predicates;
+- string/atom/chars/codes conversion subset;
+- type tests and term decomposition predicates;
+- control predicates and meta-call subset;
+- ISO-style dynamic database predicates mapped to zlf storage/rule store;
+- practical standard-library subset, especially `library(lists)`.
+
+### R11. Production runtime foundations
 
 The roadmap items below are valid but should follow correctness and mutation foundations:
 

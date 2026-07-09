@@ -18,6 +18,7 @@ Use these implementation notes while executing the stages:
 - `research/builtin-predicates-and-node-view.md`: exact builtin/provider predicate contracts and node view shapes.
 - `research/graph-algorithms.md`: neighbors, degree, reachability, shortest path algorithms on RocksDB indexes.
 - `research/tabling-and-incremental-tabling.md`: deterministic tabling MVP, dependency tracking, invalidation, lazy recompute, and delta roadmap.
+- `research/iso-prolog-compatibility.md`: ISO/general Prolog feature gap, arithmetic, strings, canonical lists, control predicates, dynamic DB, and standard-library implementation plan.
 
 ## Goal
 
@@ -32,11 +33,12 @@ Stage 0: Fact identity + mutation semantics
 Stage 1: Introspection + predicate registry
 Stage 2: Node view + graph convenience predicates
 Stage 3: Graph algorithm builtins
-Stage 4: Proof terms / traceability
-Stage 5: Deterministic tabling MVP
-Stage 6: Incremental tabling invalidation
-Stage 7: Storage/performance foundations
-Stage 8: Optional advanced logic modules
+Stage 4: ISO/general Prolog core programming capabilities
+Stage 5: Proof terms / traceability
+Stage 6: Deterministic tabling MVP
+Stage 7: Incremental tabling invalidation
+Stage 8: Storage/performance foundations
+Stage 9: Optional advanced logic modules
 ```
 
 ## Stage 0: Fact identity, idempotent writes, and deletion
@@ -158,7 +160,36 @@ friend(X, Y) :- friend_edge(Y, X).
 - `reachable(alice, X, 3)` respects max depth.
 - `shortest_path(alice, carol, Path)` returns a shortest path list.
 
-## Stage 4: Proof terms and traceability
+## Stage 4: ISO/general Prolog core programming capabilities
+
+**Status:** todo  
+**Risk:** high
+
+### Why before full tabling
+
+Useful tabled recursive programs and standard graph/rule utilities need ordinary Prolog capabilities: canonical lists, `[H|T]` pattern matching, arithmetic, type tests, control predicates, and list predicates. These should be implemented before or alongside deterministic tabling.
+
+### Tasks
+
+- Replace temporary `list/N` lowering with ISO canonical `[]` and `'.'/2` cons representation.
+- Extend parser for `[H|T]`, quoted atoms, integer/float distinction, directives, and core operators.
+- Add builtin execution layer for deterministic builtins.
+- Add arithmetic evaluator and predicates: `is/2`, `=:=/2`, `=\\=/2`, `</2`, `=</2`, `>/2`, `>=/2`.
+- Add type and term builtins: `var/1`, `nonvar/1`, `atom/1`, `integer/1`, `float/1`, `number/1`, `functor/3`, `arg/3`, `=../2`.
+- Add list library MVP: `member/2`, `append/3`, `length/2`, `reverse/2`, `select/3`, `nth0/3`, `nth1/3`.
+- Add string/atom conversion subset.
+- Map ISO-style dynamic predicates to zlf storage/rule store: `assertz/1`, `asserta/1`, `retract/1`, `retractall/1`, `clause/2`, `current_predicate/1`.
+
+### Acceptance
+
+- `[H|T] = [a,b,c]` returns `H = a`, `T = [b,c]`.
+- `X is 1 + 2 * 3` returns `X = 7`.
+- `functor(parent(alice,bob), Name, Arity)` returns `parent`, `2`.
+- `parent(alice,bob) =.. L` returns `[parent, alice, bob]`.
+- `member(X, [a,b,c])` enumerates `a,b,c`.
+- `assertz(likes(alice, tea))`, query, and `retract(likes(alice, tea))` work.
+
+## Stage 5: Proof terms and traceability
 
 **Status:** todo  
 **Risk:** medium-high
@@ -177,7 +208,7 @@ friend(X, Y) :- friend_edge(Y, X).
 - Proof-enabled query returns answer + proof tree.
 - Backtracking rolls proof stack back correctly.
 
-## Stage 5: Deterministic tabling MVP
+## Stage 6: Deterministic tabling MVP
 
 **Status:** todo  
 **Risk:** high
@@ -206,7 +237,7 @@ friend(X, Y) :- friend_edge(Y, X).
 - Repeated subgoals reuse table answers.
 - Non-tabled predicates keep existing WAM behavior.
 
-## Stage 6: Incremental tabling invalidation
+## Stage 7: Incremental tabling invalidation
 
 **Status:** todo  
 **Risk:** high
@@ -232,7 +263,7 @@ Incremental tabling requires base table correctness plus dependencies from facts
 - Next query returns refreshed results without full process restart.
 - Unrelated tables remain valid.
 
-## Stage 7: Storage and performance foundations
+## Stage 8: Storage and performance foundations
 
 **Status:** todo  
 **Risk:** high
@@ -251,7 +282,7 @@ Incremental tabling requires base table correctness plus dependencies from facts
 - Query plans expose pushed-down constraints.
 - Memory growth is bounded in long-running table/proof scenarios.
 
-## Stage 8: Optional advanced logic modules
+## Stage 9: Optional advanced logic modules
 
 **Status:** deferred
 

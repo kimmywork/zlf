@@ -18,8 +18,9 @@ Detailed implementation notes live under `docs/track/zlf-kernel-enhancements/res
 - `research/builtin-predicates-and-node-view.md`
 - `research/graph-algorithms.md`
 - `research/tabling-and-incremental-tabling.md`
+- `research/iso-prolog-compatibility.md`
 
-These research notes define the concrete RocksDB key layouts, predicate contracts, graph algorithms, and tabling/incremental tabling algorithms that this design depends on.
+These research notes define the concrete RocksDB key layouts, predicate contracts, graph algorithms, tabling/incremental tabling algorithms, and ISO/general Prolog compatibility plan that this design depends on.
 
 ## Design principles
 
