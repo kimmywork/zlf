@@ -23,6 +23,7 @@ pub struct WamExecutor {
     pub(crate) environments: EnvironmentStack,
     pub(crate) choice_points: Vec<ChoicePointFrame>,
     pub(crate) call_stack: Vec<usize>,
+    pub(crate) cut_base_stack: Vec<usize>,
 }
 
 impl WamExecutor {
@@ -35,6 +36,7 @@ impl WamExecutor {
             environments: EnvironmentStack::new(),
             choice_points: Vec::new(),
             call_stack: Vec::new(),
+            cut_base_stack: Vec::new(),
         }
     }
 
@@ -67,6 +69,7 @@ impl WamExecutor {
         self.environments.clear();
         self.choice_points.clear();
         self.call_stack.clear();
+        self.cut_base_stack.clear();
     }
 
     pub(crate) fn step_or_jump(
@@ -80,6 +83,7 @@ impl WamExecutor {
                 self.call(key)?;
                 return Ok(program.entry(key).map_or(StepOutcome::Continue, |target| {
                     self.call_stack.push(return_pc);
+                    self.cut_base_stack.push(self.choice_points.len());
                     StepOutcome::Jump(target)
                 }));
             }
@@ -147,6 +151,7 @@ impl WamExecutor {
             Instruction::TryMeElse(next) => self.try_me_else(*next),
             Instruction::RetryMeElse(next) => self.retry_me_else(*next),
             Instruction::TrustMe => self.trust_me(),
+            Instruction::Cut => self.cut(),
             _ => Ok(true),
         }
     }
@@ -165,7 +170,11 @@ impl WamExecutor {
     }
 
     pub(crate) fn return_from_call(&mut self) -> Option<usize> {
-        self.call_stack.pop()
+        let target = self.call_stack.pop();
+        if target.is_some() {
+            self.cut_base_stack.pop();
+        }
+        target
     }
 
     fn put_variable(&mut self, register: usize) -> WamResult<bool> {
@@ -268,7 +277,12 @@ impl WamExecutor {
     }
 
     fn allocate(&mut self) -> WamResult<bool> {
-        self.environments.allocate(None);
+        let cut_base = self
+            .cut_base_stack
+            .last()
+            .copied()
+            .unwrap_or(self.choice_points.len());
+        self.environments.allocate(None, cut_base);
         Ok(true)
     }
 
@@ -283,6 +297,7 @@ impl WamExecutor {
             &self.machine,
             &self.registers,
             &self.call_stack,
+            &self.cut_base_stack,
             next,
         );
         Ok(true)
@@ -294,6 +309,7 @@ impl WamExecutor {
             &mut self.machine,
             &mut self.registers,
             &mut self.call_stack,
+            &mut self.cut_base_stack,
             next,
         )?;
         Ok(true)
@@ -305,7 +321,18 @@ impl WamExecutor {
             &mut self.machine,
             &mut self.registers,
             &mut self.call_stack,
+            &mut self.cut_base_stack,
         )?;
+        Ok(true)
+    }
+
+    fn cut(&mut self) -> WamResult<bool> {
+        let base = self
+            .environments
+            .cut_base()
+            .unwrap_or(self.choice_points.len());
+        self.choice_points
+            .truncate(base.min(self.choice_points.len()));
         Ok(true)
     }
 }

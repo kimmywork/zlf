@@ -22,6 +22,19 @@ fn runtime_queries_multi_fact_solutions() {
 }
 
 #[test]
+fn runtime_cut_commits_choices_created_after_predicate_call() {
+    let mut runtime = WamRuntime::new(12);
+    runtime.add_fact(term("color(red)"));
+    runtime.add_fact(term("color(green)"));
+    runtime.add_rule(rule("first_color(X) :- color(X), !."));
+
+    let solutions = runtime.query_all(&term("first_color(X)")).unwrap();
+
+    assert_eq!(solutions.len(), 1);
+    assert_eq!(solutions[0].get("X"), Some(&atom("red")));
+}
+
+#[test]
 fn runtime_queries_facts_from_provider() {
     let runtime = WamRuntime::new(8);
     let provider = StaticFactProvider::new(vec![

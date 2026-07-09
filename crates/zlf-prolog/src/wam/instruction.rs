@@ -58,6 +58,7 @@ pub enum Instruction {
     Call(PredicateKey),
     Execute(PredicateKey),
     Proceed,
+    Cut,
     Allocate,
     Deallocate,
     TryMeElse(usize),

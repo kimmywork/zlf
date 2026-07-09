@@ -7,7 +7,7 @@ rule = { term ~ ":-" ~ body ~ "." }
 body = { term ~ ("," ~ term)* }
 
 // Terms
-term = { inequality | object | compound | list | atom | number | string | variable }
+term = { cut | inequality | object | compound | list | atom | number | string | variable }
 simple_term = { object | compound | list | atom | number | string | variable }
 inequality = { simple_term ~ "\\=" ~ simple_term }
 

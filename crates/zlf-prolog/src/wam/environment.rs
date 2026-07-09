@@ -7,15 +7,22 @@ pub struct EnvironmentFrame {
     slots: HashMap<String, Option<Term>>,
     continuation: Option<usize>,
     previous: Option<usize>,
+    cut_base: usize,
 }
 
 impl EnvironmentFrame {
-    pub fn allocate(vars: &[String], continuation: Option<usize>, previous: Option<usize>) -> Self {
+    pub fn allocate(
+        vars: &[String],
+        continuation: Option<usize>,
+        previous: Option<usize>,
+        cut_base: usize,
+    ) -> Self {
         let slots = vars.iter().map(|name| (name.clone(), None)).collect();
         Self {
             slots,
             continuation,
             previous,
+            cut_base,
         }
     }
 
@@ -38,6 +45,10 @@ impl EnvironmentFrame {
 
     pub fn previous(&self) -> Option<usize> {
         self.previous
+    }
+
+    pub fn cut_base(&self) -> usize {
+        self.cut_base
     }
 
     pub fn slot_count(&self) -> usize {

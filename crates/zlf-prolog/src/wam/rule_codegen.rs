@@ -35,6 +35,10 @@ impl WamCodegen {
         goal: &Term,
         instructions: &mut Vec<Instruction>,
     ) -> WamResult<()> {
+        if matches!(goal, Term::Atom(name) if name == "!") {
+            instructions.push(Instruction::Cut);
+            return Ok(());
+        }
         let key = predicate_key(goal).ok_or(WamError::ExpectedFunctor(0))?;
         let args = compound_args(goal).ok_or(WamError::ExpectedFunctor(0))?;
         for (index, arg) in args.iter().enumerate() {

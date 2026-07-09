@@ -8,6 +8,7 @@ pub struct ChoicePointFrame {
     trail_checkpoint: usize,
     registers: Vec<Option<usize>>,
     call_stack: Vec<usize>,
+    cut_base_stack: Vec<usize>,
     continuation: Option<usize>,
     next_alternative: usize,
 }
@@ -24,6 +25,7 @@ impl ChoicePointFrame {
             trail_checkpoint: machine.trail_checkpoint(),
             registers: registers.snapshot(),
             call_stack: Vec::new(),
+            cut_base_stack: Vec::new(),
             continuation,
             next_alternative,
         }
@@ -33,6 +35,7 @@ impl ChoicePointFrame {
         machine: &M0Machine,
         registers: &RegisterFile,
         call_stack: &[usize],
+        cut_base_stack: &[usize],
         continuation: Option<usize>,
         next_alternative: usize,
     ) -> Self {
@@ -41,6 +44,7 @@ impl ChoicePointFrame {
             trail_checkpoint: machine.trail_checkpoint(),
             registers: registers.snapshot(),
             call_stack: call_stack.to_vec(),
+            cut_base_stack: cut_base_stack.to_vec(),
             continuation,
             next_alternative,
         }
@@ -55,6 +59,10 @@ impl ChoicePointFrame {
 
     pub fn call_stack(&self) -> Vec<usize> {
         self.call_stack.clone()
+    }
+
+    pub fn cut_base_stack(&self) -> Vec<usize> {
+        self.cut_base_stack.clone()
     }
 
     pub fn continuation(&self) -> Option<usize> {

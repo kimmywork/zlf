@@ -15,10 +15,14 @@ impl EnvironmentStack {
         self.frames.clear();
     }
 
-    pub fn allocate(&mut self, continuation: Option<usize>) {
+    pub fn allocate(&mut self, continuation: Option<usize>, cut_base: usize) {
         let previous = self.frames.len().checked_sub(1);
-        self.frames
-            .push(EnvironmentFrame::allocate(&[], continuation, previous));
+        self.frames.push(EnvironmentFrame::allocate(
+            &[],
+            continuation,
+            previous,
+            cut_base,
+        ));
     }
 
     pub fn deallocate(&mut self) -> WamResult<()> {
@@ -26,6 +30,10 @@ impl EnvironmentStack {
             .pop()
             .map(|_| ())
             .ok_or(WamError::InvalidInstructionState("deallocate"))
+    }
+
+    pub fn cut_base(&self) -> Option<usize> {
+        self.frames.last().map(EnvironmentFrame::cut_base)
     }
 
     pub fn depth(&self) -> usize {

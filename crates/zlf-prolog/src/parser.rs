@@ -184,6 +184,9 @@ impl PrologParser {
                     let name = pair.as_str().to_string();
                     return Ok(Term::Atom(name));
                 }
+                Rule::cut => {
+                    return Ok(Term::Atom("!".to_string()));
+                }
                 Rule::number => {
                     let value: f64 = pair
                         .as_str()
