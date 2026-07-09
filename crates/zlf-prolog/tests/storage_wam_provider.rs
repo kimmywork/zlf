@@ -174,6 +174,7 @@ fn indexed_writer_updates_embedding_vector_for_text_properties() {
     assert!(solutions[0].contains_key("Score"));
 }
 
+#[allow(clippy::too_many_lines)]
 #[test]
 fn storage_writer_persists_prolog_facts_to_database() {
     let dir = tempfile::tempdir().unwrap();

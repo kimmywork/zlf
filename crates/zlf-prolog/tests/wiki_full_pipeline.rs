@@ -28,6 +28,7 @@ impl Embedder for FakeWikiEmbedder {
 
 #[test]
 #[ignore = "requires local wiki markdown folder"]
+#[allow(clippy::too_many_lines)]
 fn wiki_markdown_full_pipeline_with_compiled_rules_and_worker() {
     let wiki_dir = wiki_dir();
     let files = markdown_files(&wiki_dir);

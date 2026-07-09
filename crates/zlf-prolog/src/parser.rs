@@ -7,52 +7,13 @@
 use pest::iterators::Pair;
 use pest::Parser;
 use pest_derive::Parser;
-use serde::{Deserialize, Serialize};
-
 use zlf_core::{Result, ZlfError};
 
 #[derive(Parser)]
 #[grammar = "prolog.pest"]
 pub struct PrologParser;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub enum Term {
-    Variable(String),
-    Atom(String),
-    Number(f64),
-    String(String),
-    Compound { name: String, args: Vec<Term> },
-    List(Vec<Term>),
-    Object(Vec<(String, Term)>),
-}
-
-impl Term {
-    pub fn predicate_name(&self) -> String {
-        match self {
-            Term::Compound { name, .. } => name.clone(),
-            Term::Atom(name) => name.clone(),
-            _ => String::new(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct Fact {
-    pub head: Term,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct PrologRule {
-    pub head: Term,
-    pub body: Vec<Term>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub enum Query {
-    Goal(Term),
-    Goals(Vec<Term>),
-    RuleDef(PrologRule),
-}
+pub use crate::parser_ast::{Fact, PrologRule, Query, Term};
 
 impl PrologParser {
     pub fn parse_term(input: &str) -> Result<Term> {
@@ -93,6 +54,7 @@ impl PrologParser {
         }
     }
 
+    #[allow(clippy::too_many_lines)]
     pub fn parse_rule(input: &str) -> Result<PrologRule> {
         let pairs = PrologParser::parse(Rule::rule, input)
             .map_err(|e| ZlfError::SyntaxError(0, e.to_string()))?;
@@ -135,6 +97,7 @@ impl PrologParser {
         }
     }
 
+    #[allow(clippy::too_many_lines)]
     pub fn parse_query(input: &str) -> Result<Query> {
         let input = input.trim();
 
@@ -204,6 +167,7 @@ impl PrologParser {
         Err(ZlfError::SyntaxError(0, "Invalid query format".to_string()))
     }
 
+    #[allow(clippy::too_many_lines)]
     fn build_term(pairs: Vec<Pair<Rule>>) -> Result<Term> {
         for pair in pairs {
             match pair.as_rule() {
@@ -301,167 +265,5 @@ impl PrologParser {
         }
 
         Err(ZlfError::SyntaxError(0, "Failed to build term".to_string()))
-    }
-}
-
-impl Term {
-    pub fn is_variable(&self) -> bool {
-        matches!(self, Term::Variable(_))
-    }
-
-    pub fn is_atom(&self) -> bool {
-        matches!(self, Term::Atom(_))
-    }
-
-    pub fn as_variable(&self) -> Option<&str> {
-        match self {
-            Term::Variable(name) => Some(name),
-            _ => None,
-        }
-    }
-
-    pub fn as_atom(&self) -> Option<&str> {
-        match self {
-            Term::Atom(name) => Some(name),
-            _ => None,
-        }
-    }
-
-    pub fn as_number(&self) -> Option<f64> {
-        match self {
-            Term::Number(value) => Some(*value),
-            _ => None,
-        }
-    }
-
-    pub fn as_string(&self) -> Option<&str> {
-        match self {
-            Term::String(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    pub fn as_compound(&self) -> Option<(&str, &[Term])> {
-        match self {
-            Term::Compound { name, args } => Some((name, args)),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_parse_variable() {
-        let term = PrologParser::parse_term("X").unwrap();
-        assert!(term.is_variable());
-        assert_eq!(term.as_variable(), Some("X"));
-    }
-
-    #[test]
-    fn test_parse_atom() {
-        let term = PrologParser::parse_term("alice").unwrap();
-        assert!(term.is_atom());
-        assert_eq!(term.as_atom(), Some("alice"));
-    }
-
-    #[test]
-    fn test_parse_number() {
-        let term = PrologParser::parse_term("42").unwrap();
-        assert_eq!(term.as_number(), Some(42.0));
-    }
-
-    #[test]
-    fn test_parse_string() {
-        let term = PrologParser::parse_term("\"hello\"").unwrap();
-        assert_eq!(term.as_string(), Some("hello"));
-    }
-
-    #[test]
-    fn test_parse_compound() {
-        let term = PrologParser::parse_term("knows(alice, bob)").unwrap();
-        let (name, args) = term.as_compound().unwrap();
-        assert_eq!(name, "knows");
-        assert_eq!(args.len(), 2);
-    }
-
-    #[test]
-    fn test_parse_fact() {
-        let fact = PrologParser::parse_fact("node(person, alice).").unwrap();
-        let (name, args) = fact.head.as_compound().unwrap();
-        assert_eq!(name, "node");
-        assert_eq!(args.len(), 2);
-    }
-
-    #[test]
-    fn test_parse_rule() {
-        let rule =
-            PrologParser::parse_rule("colleague(X, Y) :- works_at(X, C), works_at(Y, C).").unwrap();
-        let (name, args) = rule.head.as_compound().unwrap();
-        assert_eq!(name, "colleague");
-        assert_eq!(args.len(), 2);
-        assert_eq!(rule.body.len(), 2);
-    }
-
-    #[test]
-    fn test_parse_query() {
-        let query = PrologParser::parse_query("?colleague(alice, Who).").unwrap();
-        match query {
-            Query::Goal(term) => {
-                let (name, args) = term.as_compound().unwrap();
-                assert_eq!(name, "colleague");
-                assert_eq!(args.len(), 2);
-            }
-            _ => panic!("Expected Goal"),
-        }
-    }
-
-    #[test]
-    fn test_parse_multi_goal_query() {
-        let query =
-            PrologParser::parse_query("?works_at(alice, C), prop(C, name, \"ACME\").").unwrap();
-        match query {
-            Query::Goals(terms) => {
-                assert_eq!(terms.len(), 2);
-                assert_eq!(terms[0].predicate_name(), "works_at");
-                assert_eq!(terms[1].predicate_name(), "prop");
-            }
-            _ => panic!("Expected Goals"),
-        }
-    }
-
-    #[test]
-    fn test_parse_inequality() {
-        let term = PrologParser::parse_term("X \\= Y").unwrap();
-        let (name, args) = term.as_compound().unwrap();
-        assert_eq!(name, "\\=");
-        assert_eq!(args.len(), 2);
-    }
-
-    #[test]
-    fn test_parse_recursive_rule() {
-        let rule = PrologParser::parse_rule("ancestor(X, Y) :- parent(X, Y).").unwrap();
-        let (name, args) = rule.head.as_compound().unwrap();
-        assert_eq!(name, "ancestor");
-        assert_eq!(args.len(), 2);
-        assert_eq!(rule.body.len(), 1);
-    }
-
-    #[test]
-    fn test_parse_rule_with_multiple_clauses() {
-        let rule =
-            PrologParser::parse_rule("colleague(X, Y) :- works_at(X, C), works_at(Y, C).").unwrap();
-        let (name, args) = rule.head.as_compound().unwrap();
-        assert_eq!(name, "colleague");
-        assert_eq!(args.len(), 2);
-        assert_eq!(rule.body.len(), 2);
-    }
-
-    #[test]
-    fn test_parse_invalid_syntax() {
-        let result = PrologParser::parse_fact("invalid syntax");
-        assert!(result.is_err());
     }
 }

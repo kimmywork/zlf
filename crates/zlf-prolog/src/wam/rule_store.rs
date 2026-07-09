@@ -94,6 +94,7 @@ fn max_goal_arity(rule: &PrologRule) -> usize {
         .unwrap_or_default()
 }
 
+#[allow(clippy::too_many_lines)]
 fn relocate_instruction(instruction: &Instruction, base: usize, delta: usize) -> Instruction {
     use Instruction::*;
     match instruction {

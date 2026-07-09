@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use zlf_core::{Edge, Node, Value};
 use zlf_query::ZlfDatabase;
 
+#[allow(clippy::too_many_lines)]
 fn main() {
     let test_dir = std::env::temp_dir().join("zlf_example_test");
     let _ = std::fs::remove_dir_all(&test_dir);

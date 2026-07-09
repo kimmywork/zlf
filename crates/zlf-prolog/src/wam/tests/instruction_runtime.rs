@@ -272,6 +272,7 @@ fn instruction_runtime_matches_existing_structure() {
     assert_eq!(executor.register_term(1).unwrap(), atom("two"));
 }
 
+#[allow(clippy::too_many_lines)]
 fn grandparent_program(parent: PredicateKey, grandparent: PredicateKey) -> WamProgram {
     WamProgram::new(vec![
         Instruction::put_constant("alice", 0),

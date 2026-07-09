@@ -107,6 +107,7 @@ impl WamExecutor {
             .map(ChoicePointFrame::next_alternative)
     }
 
+    #[allow(clippy::too_many_lines)]
     fn step(&mut self, instruction: &Instruction) -> WamResult<bool> {
         match instruction {
             Instruction::PutVariable { register } => self.put_variable(*register),

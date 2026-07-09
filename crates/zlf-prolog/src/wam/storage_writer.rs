@@ -57,6 +57,11 @@ impl<'a> StorageFactWriter<'a> {
         props: HashMap<String, Value>,
     ) -> WamResult<()> {
         if self.node_exists(id)? {
+            if !labels.is_empty() {
+                self.storage
+                    .add_labels(id, labels)
+                    .map_err(provider_error)?;
+            }
             return self.merge_properties(id, props);
         }
         self.storage

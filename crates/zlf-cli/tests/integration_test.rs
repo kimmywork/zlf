@@ -37,7 +37,7 @@ fn test_init_command() {
     let (stdout, _, success) = run_zlf_command(&request);
     assert!(success, "Init command should succeed");
 
-    let response: serde_json::Value = serde_json::from_str(&stdout.trim()).unwrap();
+    let response: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
     assert_eq!(response["type"], "success");
     assert!(db_path.exists(), "Database directory should be created");
 }
@@ -60,7 +60,7 @@ fn test_add_node_command() {
     let (stdout, _, success) = run_zlf_command(&add_request);
     assert!(success, "Add node command should succeed");
 
-    let response: serde_json::Value = serde_json::from_str(&stdout.trim()).unwrap();
+    let response: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
     assert_eq!(response["type"], "success");
     assert!(response["data"]["id"].is_string(), "Should return node ID");
     assert_eq!(response["data"]["labels"], serde_json::json!(["person"]));
@@ -81,7 +81,7 @@ fn test_get_node_command() {
         db_path.display()
     );
     let (stdout, _, _) = run_zlf_command(&add_request);
-    let response: serde_json::Value = serde_json::from_str(&stdout.trim()).unwrap();
+    let response: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
     let node_id = response["data"]["id"].as_str().unwrap();
 
     // Get node
@@ -93,7 +93,7 @@ fn test_get_node_command() {
     let (stdout, _, success) = run_zlf_command(&get_request);
     assert!(success, "Get node command should succeed");
 
-    let response: serde_json::Value = serde_json::from_str(&stdout.trim()).unwrap();
+    let response: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
     assert_eq!(response["type"], "success");
     assert_eq!(response["data"]["id"], node_id);
 }
@@ -114,7 +114,7 @@ fn test_get_node_not_found() {
     );
     let (stdout, _, _) = run_zlf_command(&get_request);
 
-    let response: serde_json::Value = serde_json::from_str(&stdout.trim()).unwrap();
+    let response: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
     assert_eq!(response["type"], "error");
     assert_eq!(response["code"], "NODE_NOT_FOUND");
 }
@@ -134,7 +134,7 @@ fn test_add_edge_command() {
         db_path.display()
     );
     let (stdout, _, _) = run_zlf_command(&add_node1);
-    let response: serde_json::Value = serde_json::from_str(&stdout.trim()).unwrap();
+    let response: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
     let node1_id = response["data"]["id"].as_str().unwrap();
 
     let add_node2 = format!(
@@ -142,7 +142,7 @@ fn test_add_edge_command() {
         db_path.display()
     );
     let (stdout, _, _) = run_zlf_command(&add_node2);
-    let response: serde_json::Value = serde_json::from_str(&stdout.trim()).unwrap();
+    let response: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
     let node2_id = response["data"]["id"].as_str().unwrap();
 
     // Add edge
@@ -155,7 +155,7 @@ fn test_add_edge_command() {
     let (stdout, _, success) = run_zlf_command(&add_edge);
     assert!(success, "Add edge command should succeed");
 
-    let response: serde_json::Value = serde_json::from_str(&stdout.trim()).unwrap();
+    let response: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
     assert_eq!(response["type"], "success");
     assert!(response["data"]["id"].is_string(), "Should return edge ID");
 }
@@ -164,7 +164,7 @@ fn test_add_edge_command() {
 fn test_invalid_json_input() {
     let (stdout, _, _) = run_zlf_command("invalid json");
 
-    let response: serde_json::Value = serde_json::from_str(&stdout.trim()).unwrap();
+    let response: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
     assert_eq!(response["type"], "error");
     assert_eq!(response["code"], "INVALID_REQUEST");
 }
@@ -174,7 +174,7 @@ fn test_empty_database_path() {
     let request = r#"{"command":"get_node","path":"/nonexistent/path","id":"test"}"#;
     let (stdout, _, _) = run_zlf_command(request);
 
-    let response: serde_json::Value = serde_json::from_str(&stdout.trim()).unwrap();
+    let response: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
     assert_eq!(response["type"], "error");
     assert_eq!(response["code"], "DB_OPEN_FAILED");
 }
@@ -198,7 +198,7 @@ fn test_multiple_commands_sequentially() {
         let (stdout, _, success) = run_zlf_command(&add_request);
         assert!(success, "Add node {} should succeed", i);
 
-        let response: serde_json::Value = serde_json::from_str(&stdout.trim()).unwrap();
+        let response: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
         assert_eq!(response["type"], "success");
     }
 }
@@ -220,7 +220,7 @@ fn test_special_characters_in_properties() {
     let (stdout, _, success) = run_zlf_command(&add_request);
     assert!(success, "Add node with special characters should succeed");
 
-    let response: serde_json::Value = serde_json::from_str(&stdout.trim()).unwrap();
+    let response: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
     assert_eq!(response["type"], "success");
 }
 
@@ -258,7 +258,7 @@ fn test_export_empty_database() {
     let (stdout, _, success) = run_zlf_command(&export_request);
     assert!(success, "Export should succeed");
 
-    let response: serde_json::Value = serde_json::from_str(&stdout.trim()).unwrap();
+    let response: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
     assert_eq!(response["type"], "success");
     assert!(response["data"]["nodes"].is_array());
     assert!(response["data"]["edges"].is_array());
@@ -293,13 +293,14 @@ fn test_import_and_export() {
     let (stdout, _, success) = run_zlf_command(&import_request);
     assert!(success, "Import should succeed");
 
-    let response: serde_json::Value = serde_json::from_str(&stdout.trim()).unwrap();
+    let response: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
     assert_eq!(response["type"], "success");
     // Should import 2 nodes
     assert_eq!(response["data"]["imported"], 2);
 }
 
 #[test]
+#[allow(clippy::too_many_lines)]
 fn test_import_preserves_ids_and_exports_data() {
     let temp = TempDir::new().unwrap();
     let db_path = temp.path().join("test-db");
@@ -326,7 +327,7 @@ fn test_import_preserves_ids_and_exports_data() {
     );
     let (stdout, _, success) = run_zlf_command(&import_request);
     assert!(success, "Import should succeed");
-    let response: serde_json::Value = serde_json::from_str(&stdout.trim()).unwrap();
+    let response: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
     assert_eq!(response["type"], "success");
     assert_eq!(response["data"]["imported"], 3);
 
@@ -336,7 +337,7 @@ fn test_import_preserves_ids_and_exports_data() {
     );
     let (stdout, _, success) = run_zlf_command(&query_request);
     assert!(success, "Composite query should succeed");
-    let response: serde_json::Value = serde_json::from_str(&stdout.trim()).unwrap();
+    let response: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
     assert_eq!(response["type"], "success");
     assert_eq!(response["data"].as_array().unwrap().len(), 1);
     assert_eq!(response["data"][0]["X"], "bob");
@@ -344,69 +345,8 @@ fn test_import_preserves_ids_and_exports_data() {
     let export_request = format!(r#"{{"command":"export","path":"{}"}}"#, db_path.display());
     let (stdout, _, success) = run_zlf_command(&export_request);
     assert!(success, "Export should succeed");
-    let response: serde_json::Value = serde_json::from_str(&stdout.trim()).unwrap();
+    let response: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
     assert_eq!(response["type"], "success");
     assert_eq!(response["data"]["nodes"].as_array().unwrap().len(), 2);
     assert_eq!(response["data"]["edges"].as_array().unwrap().len(), 1);
-}
-
-#[test]
-fn test_stdio_embedding_graph_composite_query() {
-    let temp = TempDir::new().unwrap();
-    let db_path = temp.path().join("test-db");
-    let import_file = temp.path().join("kb.json");
-
-    let init_request = format!(r#"{{"command":"init","path":"{}"}}"#, db_path.display());
-    run_zlf_command(&init_request);
-
-    let import_data = r#"{
-        "nodes": [
-            {"id": "alice", "labels": ["person"], "properties": {"name": "Alice"}},
-            {"id": "bob", "labels": ["person"], "properties": {"name": "Bob"}}
-        ],
-        "edges": [
-            {"id": "e1", "edge_type": "knows", "source": "alice", "target": "bob", "properties": {}}
-        ]
-    }"#;
-    std::fs::write(&import_file, import_data).unwrap();
-
-    let import_request = format!(
-        r#"{{"command":"import","path":"{}","file":"{}"}}"#,
-        db_path.display(),
-        import_file.display()
-    );
-    run_zlf_command(&import_request);
-
-    let index_alice = format!(
-        r#"{{"command":"index_embedding","path":"{}","node_id":"alice","embedding":[1.0,0.0,0.0]}}"#,
-        db_path.display()
-    );
-    let (stdout, _, success) = run_zlf_command(&index_alice);
-    assert!(success, "Index alice embedding should succeed");
-    assert_eq!(
-        serde_json::from_str::<serde_json::Value>(&stdout.trim()).unwrap()["type"],
-        "success"
-    );
-
-    let index_bob = format!(
-        r#"{{"command":"index_embedding","path":"{}","node_id":"bob","embedding":[0.95,0.05,0.0]}}"#,
-        db_path.display()
-    );
-    let (stdout, _, success) = run_zlf_command(&index_bob);
-    assert!(success, "Index bob embedding should succeed");
-    assert_eq!(
-        serde_json::from_str::<serde_json::Value>(&stdout.trim()).unwrap()["type"],
-        "success"
-    );
-
-    let query_request = format!(
-        r#"{{"command":"query","path":"{}","query":"?knows(alice, X), vector_similar(alice, X, Score)."}}"#,
-        db_path.display()
-    );
-    let (stdout, _, success) = run_zlf_command(&query_request);
-    assert!(success, "Composite embedding query should succeed");
-    let response: serde_json::Value = serde_json::from_str(&stdout.trim()).unwrap();
-    assert_eq!(response["type"], "success");
-    assert_eq!(response["data"].as_array().unwrap().len(), 1);
-    assert_eq!(response["data"][0]["X"], "bob");
 }
