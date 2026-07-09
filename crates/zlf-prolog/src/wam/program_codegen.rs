@@ -115,7 +115,10 @@ fn instruction_registers(instruction: &Instruction) -> Vec<usize> {
         | Instruction::GetStructure { register, .. }
         | Instruction::GetList { register, .. }
         | Instruction::UnifyVariable { register }
-        | Instruction::UnifyValue { register } => vec![*register],
+        | Instruction::UnifyValue { register }
+        | Instruction::SwitchOnTerm { register, .. }
+        | Instruction::SwitchOnConstant { register, .. }
+        | Instruction::SwitchOnStructure { register, .. } => vec![*register],
         Instruction::PutValue { source, target }
         | Instruction::GetValue {
             left: source,

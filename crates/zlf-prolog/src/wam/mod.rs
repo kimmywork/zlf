@@ -13,6 +13,7 @@ pub mod environment_stack;
 pub mod error;
 pub mod execution_result;
 pub mod executor;
+mod executor_index;
 pub mod executor_solve;
 mod executor_terms;
 pub mod fact_provider;

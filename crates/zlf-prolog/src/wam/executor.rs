@@ -77,6 +77,9 @@ impl WamExecutor {
         program: &WamProgram,
         return_pc: usize,
     ) -> WamResult<StepOutcome> {
+        if let Some(outcome) = self.switch_step(instruction)? {
+            return Ok(outcome);
+        }
         match instruction {
             Instruction::Call(key) => {
                 self.call(key)?;

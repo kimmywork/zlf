@@ -96,6 +96,23 @@ pub enum Instruction {
     TryMeElse(usize),
     RetryMeElse(usize),
     TrustMe,
+    SwitchOnTerm {
+        register: usize,
+        variable: Option<usize>,
+        constant: Option<usize>,
+        list: Option<usize>,
+        structure: Option<usize>,
+    },
+    SwitchOnConstant {
+        register: usize,
+        cases: Vec<(String, usize)>,
+        default: Option<usize>,
+    },
+    SwitchOnStructure {
+        register: usize,
+        cases: Vec<(String, usize, usize)>,
+        default: Option<usize>,
+    },
 }
 
 impl Instruction {

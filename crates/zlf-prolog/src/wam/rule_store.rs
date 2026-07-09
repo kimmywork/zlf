@@ -169,6 +169,37 @@ fn relocate_instruction(instruction: &Instruction, base: usize, delta: usize) ->
             left: relocate(*left, base, delta),
             right: relocate(*right, base, delta),
         },
+        SwitchOnTerm {
+            register,
+            variable,
+            constant,
+            list,
+            structure,
+        } => SwitchOnTerm {
+            register: relocate(*register, base, delta),
+            variable: *variable,
+            constant: *constant,
+            list: *list,
+            structure: *structure,
+        },
+        SwitchOnConstant {
+            register,
+            cases,
+            default,
+        } => SwitchOnConstant {
+            register: relocate(*register, base, delta),
+            cases: cases.clone(),
+            default: *default,
+        },
+        SwitchOnStructure {
+            register,
+            cases,
+            default,
+        } => SwitchOnStructure {
+            register: relocate(*register, base, delta),
+            cases: cases.clone(),
+            default: *default,
+        },
         _ => instruction.clone(),
     }
 }
