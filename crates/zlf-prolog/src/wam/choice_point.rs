@@ -1,3 +1,4 @@
+use super::environment_stack::EnvironmentStack;
 use super::error::WamResult;
 use super::machine::M0Machine;
 use super::register::RegisterFile;
@@ -7,6 +8,7 @@ pub struct ChoicePointFrame {
     heap_checkpoint: usize,
     trail_checkpoint: usize,
     registers: Vec<Option<usize>>,
+    environments: EnvironmentStack,
     call_stack: Vec<usize>,
     cut_base_stack: Vec<usize>,
     continuation: Option<usize>,
@@ -17,6 +19,7 @@ impl ChoicePointFrame {
     pub fn capture(
         machine: &M0Machine,
         registers: &RegisterFile,
+        environments: &EnvironmentStack,
         continuation: Option<usize>,
         next_alternative: usize,
     ) -> Self {
@@ -24,6 +27,7 @@ impl ChoicePointFrame {
             heap_checkpoint: machine.heap_checkpoint(),
             trail_checkpoint: machine.trail_checkpoint(),
             registers: registers.snapshot(),
+            environments: environments.clone(),
             call_stack: Vec::new(),
             cut_base_stack: Vec::new(),
             continuation,
@@ -34,6 +38,7 @@ impl ChoicePointFrame {
     pub fn capture_with_call_stack(
         machine: &M0Machine,
         registers: &RegisterFile,
+        environments: &EnvironmentStack,
         call_stack: &[usize],
         cut_base_stack: &[usize],
         continuation: Option<usize>,
@@ -43,6 +48,7 @@ impl ChoicePointFrame {
             heap_checkpoint: machine.heap_checkpoint(),
             trail_checkpoint: machine.trail_checkpoint(),
             registers: registers.snapshot(),
+            environments: environments.clone(),
             call_stack: call_stack.to_vec(),
             cut_base_stack: cut_base_stack.to_vec(),
             continuation,
@@ -50,10 +56,16 @@ impl ChoicePointFrame {
         }
     }
 
-    pub fn restore(&self, machine: &mut M0Machine, registers: &mut RegisterFile) -> WamResult<()> {
+    pub fn restore(
+        &self,
+        machine: &mut M0Machine,
+        registers: &mut RegisterFile,
+        environments: &mut EnvironmentStack,
+    ) -> WamResult<()> {
         machine.unwind_trail(self.trail_checkpoint)?;
         machine.unwind_heap(self.heap_checkpoint)?;
         registers.restore(self.registers.clone());
+        *environments = self.environments.clone();
         Ok(())
     }
 

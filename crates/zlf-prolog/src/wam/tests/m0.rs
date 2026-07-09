@@ -1,5 +1,6 @@
 use crate::PrologParser;
 
+use super::super::environment_stack::EnvironmentStack;
 use super::super::{Cell, ChoicePointFrame, M0Compiler, M0Machine, RegisterFile};
 
 #[test]
@@ -55,12 +56,15 @@ fn choice_point_frame_restores_heap_trail_and_registers() {
     let mut registers = RegisterFile::new(2);
     let x = machine.set_variable();
     registers.set(0, x).unwrap();
-    let frame = ChoicePointFrame::capture(&machine, &registers, Some(42), 1);
+    let mut environments = EnvironmentStack::new();
+    let frame = ChoicePointFrame::capture(&machine, &registers, &environments, Some(42), 1);
 
     let alice = machine.put_constant("alice");
     assert!(machine.unify(x, alice).unwrap());
     registers.set(0, alice).unwrap();
-    frame.restore(&mut machine, &mut registers).unwrap();
+    frame
+        .restore(&mut machine, &mut registers, &mut environments)
+        .unwrap();
 
     assert!(machine.heap().is_unbound_ref(x).unwrap());
     assert_eq!(registers.get(0).unwrap(), x);

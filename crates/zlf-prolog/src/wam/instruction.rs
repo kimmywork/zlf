@@ -11,6 +11,10 @@ pub enum Instruction {
         source: usize,
         target: usize,
     },
+    PutPermanentValue {
+        slot: usize,
+        register: usize,
+    },
     PutConstant {
         value: String,
         register: usize,
@@ -25,6 +29,9 @@ pub enum Instruction {
     },
     SetValue {
         register: usize,
+    },
+    SetPermanentValue {
+        slot: usize,
     },
     SetConstant {
         value: String,
@@ -42,6 +49,10 @@ pub enum Instruction {
         left: usize,
         right: usize,
     },
+    GetPermanentValue {
+        slot: usize,
+        register: usize,
+    },
     UnifyConstant {
         value: String,
     },
@@ -50,6 +61,9 @@ pub enum Instruction {
     },
     UnifyValue {
         register: usize,
+    },
+    UnifyPermanentValue {
+        slot: usize,
     },
     UnifyRegisters {
         left: usize,
@@ -60,6 +74,9 @@ pub enum Instruction {
     Proceed,
     Cut,
     Allocate,
+    AllocatePermanent {
+        permanent_count: usize,
+    },
     Deallocate,
     TryMeElse(usize),
     RetryMeElse(usize),

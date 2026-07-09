@@ -104,11 +104,13 @@ fn max_register(clause: &WamProgram) -> Option<usize> {
 fn instruction_registers(instruction: &Instruction) -> Vec<usize> {
     match instruction {
         Instruction::PutVariable { register }
+        | Instruction::PutPermanentValue { register, .. }
         | Instruction::PutConstant { register, .. }
         | Instruction::PutStructure { register, .. }
         | Instruction::SetVariable { register }
         | Instruction::SetValue { register }
         | Instruction::GetConstant { register, .. }
+        | Instruction::GetPermanentValue { register, .. }
         | Instruction::GetStructure { register, .. }
         | Instruction::UnifyVariable { register }
         | Instruction::UnifyValue { register } => vec![*register],

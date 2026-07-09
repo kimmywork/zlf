@@ -105,6 +105,10 @@ fn relocate_instruction(instruction: &Instruction, base: usize, delta: usize) ->
             source: relocate(*source, base, delta),
             target: relocate(*target, base, delta),
         },
+        PutPermanentValue { slot, register } => PutPermanentValue {
+            slot: *slot,
+            register: relocate(*register, base, delta),
+        },
         PutConstant { value, register } => PutConstant {
             value: value.clone(),
             register: relocate(*register, base, delta),
@@ -124,6 +128,7 @@ fn relocate_instruction(instruction: &Instruction, base: usize, delta: usize) ->
         SetValue { register } => SetValue {
             register: relocate(*register, base, delta),
         },
+        SetPermanentValue { slot } => SetPermanentValue { slot: *slot },
         GetConstant { value, register } => GetConstant {
             value: value.clone(),
             register: relocate(*register, base, delta),
@@ -141,12 +146,17 @@ fn relocate_instruction(instruction: &Instruction, base: usize, delta: usize) ->
             left: relocate(*left, base, delta),
             right: relocate(*right, base, delta),
         },
+        GetPermanentValue { slot, register } => GetPermanentValue {
+            slot: *slot,
+            register: relocate(*register, base, delta),
+        },
         UnifyVariable { register } => UnifyVariable {
             register: relocate(*register, base, delta),
         },
         UnifyValue { register } => UnifyValue {
             register: relocate(*register, base, delta),
         },
+        UnifyPermanentValue { slot } => UnifyPermanentValue { slot: *slot },
         UnifyRegisters { left, right } => UnifyRegisters {
             left: relocate(*left, base, delta),
             right: relocate(*right, base, delta),

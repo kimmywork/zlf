@@ -1,7 +1,7 @@
 use super::environment::EnvironmentFrame;
 use super::error::{WamError, WamResult};
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct EnvironmentStack {
     frames: Vec<EnvironmentFrame>,
 }
@@ -15,13 +15,19 @@ impl EnvironmentStack {
         self.frames.clear();
     }
 
-    pub fn allocate(&mut self, continuation: Option<usize>, cut_base: usize) {
+    pub fn allocate(
+        &mut self,
+        continuation: Option<usize>,
+        cut_base: usize,
+        permanent_count: usize,
+    ) {
         let previous = self.frames.len().checked_sub(1);
         self.frames.push(EnvironmentFrame::allocate(
             &[],
             continuation,
             previous,
             cut_base,
+            permanent_count,
         ));
     }
 
@@ -34,6 +40,22 @@ impl EnvironmentStack {
 
     pub fn cut_base(&self) -> Option<usize> {
         self.frames.last().map(EnvironmentFrame::cut_base)
+    }
+
+    pub fn permanent_slot(&self, slot: usize) -> WamResult<Option<usize>> {
+        self.frames
+            .last()
+            .and_then(|frame| frame.permanent_slot(slot))
+            .ok_or(WamError::InvalidInstructionState("permanent slot"))
+    }
+
+    pub fn set_permanent_slot(&mut self, slot: usize, addr: usize) -> WamResult<()> {
+        if let Some(frame) = self.frames.last_mut() {
+            if frame.set_permanent_slot(slot, addr) {
+                return Ok(());
+            }
+        }
+        Err(WamError::InvalidInstructionState("permanent slot"))
     }
 
     pub fn depth(&self) -> usize {

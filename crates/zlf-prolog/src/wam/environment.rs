@@ -5,6 +5,7 @@ use crate::parser::Term;
 #[derive(Debug, Clone, Default)]
 pub struct EnvironmentFrame {
     slots: HashMap<String, Option<Term>>,
+    permanent_slots: Vec<Option<usize>>,
     continuation: Option<usize>,
     previous: Option<usize>,
     cut_base: usize,
@@ -16,10 +17,12 @@ impl EnvironmentFrame {
         continuation: Option<usize>,
         previous: Option<usize>,
         cut_base: usize,
+        permanent_count: usize,
     ) -> Self {
         let slots = vars.iter().map(|name| (name.clone(), None)).collect();
         Self {
             slots,
+            permanent_slots: vec![None; permanent_count],
             continuation,
             previous,
             cut_base,
@@ -49,6 +52,19 @@ impl EnvironmentFrame {
 
     pub fn cut_base(&self) -> usize {
         self.cut_base
+    }
+
+    pub fn permanent_slot(&self, slot: usize) -> Option<Option<usize>> {
+        self.permanent_slots.get(slot).copied()
+    }
+
+    pub fn set_permanent_slot(&mut self, slot: usize, addr: usize) -> bool {
+        if let Some(value) = self.permanent_slots.get_mut(slot) {
+            *value = Some(addr);
+            true
+        } else {
+            false
+        }
     }
 
     pub fn slot_count(&self) -> usize {
