@@ -4,7 +4,8 @@ use super::dependency_graph::RuleDependencyGraph;
 use super::error::WamResult;
 use super::fact_provider::FactProvider;
 use super::predicate::PredicateKey;
-use super::predicate_registry::{builtin_predicates, PredicateKind, PredicateRegistry};
+use super::predicate_catalog::builtin_predicates;
+use super::predicate_registry::{PredicateKind, PredicateRegistry};
 
 /// A FactProvider that materializes introspection predicates
 /// (predicate/3, builtin_predicate/3, rule/3, rule_depends_on/2)

@@ -19,6 +19,7 @@ pub mod executor_solve;
 mod executor_terms;
 pub mod fact_key;
 pub mod fact_provider;
+pub mod graph_view_provider;
 pub mod heap;
 pub mod index_provider;
 pub mod instruction;
@@ -27,6 +28,7 @@ pub mod machine;
 pub mod permanent_vars;
 pub mod persistent_embedding_queue;
 pub mod predicate;
+pub mod predicate_catalog;
 pub mod predicate_registry;
 pub mod program;
 pub mod program_codegen;
@@ -44,6 +46,7 @@ pub mod structure_ops;
 pub mod term_reader;
 pub mod trail;
 pub mod unification;
+pub mod view_helpers;
 
 pub use cell::Cell;
 pub use choice_point::ChoicePointFrame;
@@ -61,6 +64,7 @@ pub use fact_key::{
     term_to_delete_pattern, term_to_fact_key, DeletePattern, FactKey, MutationEvent,
 };
 pub use fact_provider::{FactProvider, StaticFactProvider};
+pub use graph_view_provider::GraphViewProvider;
 pub use heap::Heap;
 pub use index_provider::IndexFactProvider;
 pub use instruction::Instruction;
@@ -68,9 +72,8 @@ pub use introspection_provider::IntrospectionProvider;
 pub use machine::M0Machine;
 pub use persistent_embedding_queue::{PersistentEmbeddingJob, PersistentEmbeddingQueue};
 pub use predicate::{compound_args, predicate_key, PredicateKey};
-pub use predicate_registry::{
-    builtin_predicates, index_predicates, PredicateKind, PredicateRegistry,
-};
+pub use predicate_catalog::{builtin_predicates, graph_view_predicates, index_predicates};
+pub use predicate_registry::{PredicateKind, PredicateRegistry};
 pub use program::WamProgram;
 pub use program_codegen::{compile_query_program, compile_query_program_with_bindings};
 pub use query_codegen::CompiledQuery;
