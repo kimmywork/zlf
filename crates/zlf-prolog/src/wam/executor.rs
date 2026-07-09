@@ -75,12 +75,21 @@ impl WamExecutor {
         program: &WamProgram,
         return_pc: usize,
     ) -> WamResult<StepOutcome> {
-        if let Instruction::Call(key) = instruction {
-            self.call(key)?;
-            return Ok(program.entry(key).map_or(StepOutcome::Continue, |target| {
-                self.call_stack.push(return_pc);
-                StepOutcome::Jump(target)
-            }));
+        match instruction {
+            Instruction::Call(key) => {
+                self.call(key)?;
+                return Ok(program.entry(key).map_or(StepOutcome::Continue, |target| {
+                    self.call_stack.push(return_pc);
+                    StepOutcome::Jump(target)
+                }));
+            }
+            Instruction::Execute(key) => {
+                self.call(key)?;
+                return Ok(program
+                    .entry(key)
+                    .map_or(StepOutcome::Continue, StepOutcome::Jump));
+            }
+            _ => {}
         }
         if self.step(instruction)? {
             Ok(StepOutcome::Continue)
@@ -132,7 +141,7 @@ impl WamExecutor {
             Instruction::UnifyVariable { register } => self.unify_variable(*register),
             Instruction::UnifyValue { register } => self.unify_value(*register),
             Instruction::UnifyRegisters { left, right } => self.unify_registers(*left, *right),
-            Instruction::Call(key) => self.call(key),
+            Instruction::Call(key) | Instruction::Execute(key) => self.call(key),
             Instruction::Allocate => self.allocate(),
             Instruction::Deallocate => self.deallocate(),
             Instruction::TryMeElse(next) => self.try_me_else(*next),

@@ -56,6 +56,7 @@ pub enum Instruction {
         right: usize,
     },
     Call(PredicateKey),
+    Execute(PredicateKey),
     Proceed,
     Allocate,
     Deallocate,

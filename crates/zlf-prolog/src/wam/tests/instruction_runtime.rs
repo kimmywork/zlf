@@ -78,7 +78,7 @@ fn instruction_runtime_reads_existing_structure_args() {
 }
 
 #[test]
-fn instruction_runtime_call_jumps_to_predicate_entry() {
+fn instruction_runtime_execute_tail_calls_without_pushing_continuation() {
     let mut executor = WamExecutor::new(2);
     let key = PredicateKey {
         name: "parent".to_string(),
@@ -87,15 +87,14 @@ fn instruction_runtime_call_jumps_to_predicate_entry() {
     let program = WamProgram::new(vec![
         Instruction::put_constant("alice", 0),
         Instruction::PutVariable { register: 1 },
-        Instruction::Call(key.clone()),
-        Instruction::Proceed,
-        Instruction::get_constant("carol", 0),
+        Instruction::Execute(key.clone()),
+        Instruction::get_constant("should_not_resume_here", 1),
         Instruction::Proceed,
         Instruction::get_constant("alice", 0),
         Instruction::get_constant("bob", 1),
         Instruction::Proceed,
     ])
-    .with_entry(key, 6);
+    .with_entry(key, 5);
 
     assert!(executor.execute(&program).unwrap().success);
     assert_eq!(executor.register_term(1).unwrap(), atom("bob"));
