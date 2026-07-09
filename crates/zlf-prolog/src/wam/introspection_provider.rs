@@ -1,10 +1,10 @@
 use crate::parser::Term;
 
+use super::builtin_catalog::builtin_predicates;
 use super::dependency_graph::RuleDependencyGraph;
 use super::error::WamResult;
 use super::fact_provider::FactProvider;
 use super::predicate::PredicateKey;
-use super::predicate_catalog::builtin_predicates;
 use super::predicate_registry::{PredicateKind, PredicateRegistry};
 
 /// A FactProvider that materializes introspection predicates

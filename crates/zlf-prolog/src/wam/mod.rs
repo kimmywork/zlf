@@ -1,3 +1,5 @@
+pub mod builtin_catalog;
+pub mod builtin_provider;
 pub mod cell;
 pub mod choice_control;
 pub mod choice_point;
@@ -49,6 +51,8 @@ pub mod trail;
 pub mod unification;
 pub mod view_helpers;
 
+pub use builtin_catalog::builtin_predicates;
+pub use builtin_provider::BuiltinProvider;
 pub use cell::Cell;
 pub use choice_point::ChoicePointFrame;
 pub use codegen::WamCodegen;
@@ -74,9 +78,7 @@ pub use introspection_provider::IntrospectionProvider;
 pub use machine::M0Machine;
 pub use persistent_embedding_queue::{PersistentEmbeddingJob, PersistentEmbeddingQueue};
 pub use predicate::{compound_args, predicate_key, PredicateKey};
-pub use predicate_catalog::{
-    builtin_predicates, graph_algorithm_predicates, graph_view_predicates, index_predicates,
-};
+pub use predicate_catalog::{graph_algorithm_predicates, graph_view_predicates, index_predicates};
 pub use predicate_registry::{PredicateKind, PredicateRegistry};
 pub use program::WamProgram;
 pub use program_codegen::{compile_query_program, compile_query_program_with_bindings};
