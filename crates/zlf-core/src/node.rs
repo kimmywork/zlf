@@ -118,10 +118,7 @@ mod tests {
     fn test_get_set_property() {
         let mut node = Node::new(vec![], HashMap::new());
 
-        node.set_property(
-            "name".to_string(),
-            Value::String("Alice".to_string()),
-        );
+        node.set_property("name".to_string(), Value::String("Alice".to_string()));
         assert_eq!(
             node.get_property("name"),
             Some(&Value::String("Alice".to_string()))
@@ -159,10 +156,10 @@ mod tests {
     fn test_nested_properties() {
         let mut nested = HashMap::new();
         nested.insert("inner".to_string(), Value::String("value".to_string()));
-        
+
         let mut props = HashMap::new();
         props.insert("nested".to_string(), Value::Object(nested));
-        
+
         let node = Node::new(vec![], props.clone());
         assert_eq!(node.properties, props);
     }
@@ -173,7 +170,7 @@ mod tests {
         let large_string = "x".repeat(2000);
         let mut props = HashMap::new();
         props.insert("large".to_string(), Value::String(large_string.clone()));
-        
+
         let node = Node::new(vec![], props);
         assert_eq!(
             node.properties.get("large"),

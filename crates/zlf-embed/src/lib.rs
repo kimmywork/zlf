@@ -5,13 +5,13 @@ use thiserror::Error;
 pub enum EmbedError {
     #[error("HTTP request failed: {0}")]
     Http(#[from] reqwest::Error),
-    
+
     #[error("JSON parse error: {0}")]
     Json(#[from] serde_json::Error),
-    
+
     #[error("Provider error: {0}")]
     Provider(String),
-    
+
     #[error("Invalid response: {0}")]
     InvalidResponse(String),
 }
@@ -73,21 +73,26 @@ impl EmbeddingProvider for OllamaProvider {
             "model": self.config.model,
             "prompt": text
         });
-        
-        let response = self.client
+
+        let response = self
+            .client
             .post(format!("{}/api/embeddings", self.config.api_endpoint))
             .json(&request)
             .send()
             .await?;
-        
+
         let response_json: serde_json::Value = response.json().await?;
-        
+
         response_json["embedding"]
             .as_array()
-            .map(|arr| arr.iter().filter_map(|v| v.as_f64().map(|f| f as f32)).collect())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_f64().map(|f| f as f32))
+                    .collect()
+            })
             .ok_or_else(|| EmbedError::InvalidResponse("No embedding in response".to_string()))
     }
-    
+
     async fn embed_batch(&self, texts: &[&str]) -> Result<Vec<Vec<f32>>> {
         let mut results = Vec::new();
         for text in texts {
@@ -95,11 +100,11 @@ impl EmbeddingProvider for OllamaProvider {
         }
         Ok(results)
     }
-    
+
     fn dimension(&self) -> usize {
         self.config.dimension
     }
-    
+
     fn name(&self) -> &str {
         "ollama"
     }
@@ -126,71 +131,78 @@ impl EmbeddingProvider for OpenAIProvider {
             "model": self.config.model,
             "input": text
         });
-        
+
         let url = if self.config.api_endpoint.ends_with("/v1") {
             format!("{}/embeddings", self.config.api_endpoint)
         } else {
             format!("{}/v1/embeddings", self.config.api_endpoint)
         };
-        
-        let mut builder = self.client
-            .post(&url)
-            .json(&request);
-        
+
+        let mut builder = self.client.post(&url).json(&request);
+
         if let Some(api_key) = &self.config.api_key {
             builder = builder.header("Authorization", format!("Bearer {}", api_key));
         }
-        
+
         let response = builder.send().await?;
         let response_json: serde_json::Value = response.json().await?;
-        
+
         response_json["data"][0]["embedding"]
             .as_array()
-            .map(|arr| arr.iter().filter_map(|v| v.as_f64().map(|f| f as f32)).collect())
-            .ok_or_else(|| EmbedError::InvalidResponse(format!("No embedding in response: {:?}", response_json)))
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_f64().map(|f| f as f32))
+                    .collect()
+            })
+            .ok_or_else(|| {
+                EmbedError::InvalidResponse(format!(
+                    "No embedding in response: {:?}",
+                    response_json
+                ))
+            })
     }
-    
+
     async fn embed_batch(&self, texts: &[&str]) -> Result<Vec<Vec<f32>>> {
         let request = serde_json::json!({
             "model": self.config.model,
             "input": texts
         });
-        
+
         let url = if self.config.api_endpoint.ends_with("/v1") {
             format!("{}/embeddings", self.config.api_endpoint)
         } else {
             format!("{}/v1/embeddings", self.config.api_endpoint)
         };
-        
-        let mut builder = self.client
-            .post(&url)
-            .json(&request);
-        
+
+        let mut builder = self.client.post(&url).json(&request);
+
         if let Some(api_key) = &self.config.api_key {
             builder = builder.header("Authorization", format!("Bearer {}", api_key));
         }
-        
+
         let response = builder.send().await?;
         let response_json: serde_json::Value = response.json().await?;
-        
+
         response_json["data"]
             .as_array()
             .map(|arr| {
                 arr.iter()
                     .filter_map(|item| {
-                        item["embedding"]
-                            .as_array()
-                            .map(|emb| emb.iter().filter_map(|v| v.as_f64().map(|f| f as f32)).collect())
+                        item["embedding"].as_array().map(|emb| {
+                            emb.iter()
+                                .filter_map(|v| v.as_f64().map(|f| f as f32))
+                                .collect()
+                        })
                     })
                     .collect()
             })
             .ok_or_else(|| EmbedError::InvalidResponse("No embeddings in response".to_string()))
     }
-    
+
     fn dimension(&self) -> usize {
         self.config.dimension
     }
-    
+
     fn name(&self) -> &str {
         "openai"
     }
@@ -216,30 +228,39 @@ impl EmbeddingProvider for HuggingFaceProvider {
         let request = serde_json::json!({
             "inputs": text
         });
-        
-        let mut builder = self.client
-            .post(format!("{}/{}", self.config.api_endpoint, self.config.model))
+
+        let mut builder = self
+            .client
+            .post(format!(
+                "{}/{}",
+                self.config.api_endpoint, self.config.model
+            ))
             .json(&request);
-        
+
         if let Some(api_key) = &self.config.api_key {
             builder = builder.header("Authorization", format!("Bearer {}", api_key));
         }
-        
+
         let response = builder.send().await?;
         let response_json: serde_json::Value = response.json().await?;
-        
+
         // HuggingFace returns embedding directly or in nested array
         if let Some(arr) = response_json.as_array() {
             if let Some(first) = arr.first() {
                 if let Some(emb) = first.as_array() {
-                    return Ok(emb.iter().filter_map(|v| v.as_f64().map(|f| f as f32)).collect());
+                    return Ok(emb
+                        .iter()
+                        .filter_map(|v| v.as_f64().map(|f| f as f32))
+                        .collect());
                 }
             }
         }
-        
-        Err(EmbedError::InvalidResponse("No embedding in response".to_string()))
+
+        Err(EmbedError::InvalidResponse(
+            "No embedding in response".to_string(),
+        ))
     }
-    
+
     async fn embed_batch(&self, texts: &[&str]) -> Result<Vec<Vec<f32>>> {
         let mut results = Vec::new();
         for text in texts {
@@ -247,11 +268,11 @@ impl EmbeddingProvider for HuggingFaceProvider {
         }
         Ok(results)
     }
-    
+
     fn dimension(&self) -> usize {
         self.config.dimension
     }
-    
+
     fn name(&self) -> &str {
         "huggingface"
     }
@@ -268,7 +289,7 @@ pub fn create_provider(config: EmbeddingConfig) -> Box<dyn EmbeddingProvider> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_config_serialization() {
         let config = EmbeddingConfig {
@@ -278,10 +299,10 @@ mod tests {
             model: "bge-m3".to_string(),
             dimension: 1024,
         };
-        
+
         let json = serde_json::to_string(&config).unwrap();
         let parsed: EmbeddingConfig = serde_json::from_str(&json).unwrap();
-        
+
         assert_eq!(parsed.provider, ProviderType::Ollama);
         assert_eq!(parsed.model, "bge-m3");
     }

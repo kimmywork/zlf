@@ -108,10 +108,7 @@ mod tests {
     #[test]
     fn test_error_messages() {
         let err = ZlfError::NodeNotFound("alice".to_string());
-        assert_eq!(
-            err.to_string(),
-            "Node with ID 'alice' not found"
-        );
+        assert_eq!(err.to_string(), "Node with ID 'alice' not found");
 
         let err = ZlfError::EmptyEdgeType;
         assert_eq!(err.to_string(), "Edge type cannot be empty");

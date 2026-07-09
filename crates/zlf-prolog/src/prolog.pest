@@ -1,23 +1,30 @@
 // zlf-prolog grammar - Complete Prolog Spec
 
 // Entry rules
-query = { SOI ~ "?" ~ term ~ "." ~ EOI }
+query = { SOI ~ "?" ~ body ~ "." ~ EOI }
 fact = { term ~ "." }
 rule = { term ~ ":-" ~ body ~ "." }
 body = { term ~ ("," ~ term)* }
 
 // Terms
-term = { compound | list | atom | number | string | variable }
+term = { inequality | object | compound | list | atom | number | string | variable }
+simple_term = { object | compound | list | atom | number | string | variable }
+inequality = { simple_term ~ "\\=" ~ simple_term }
 
 // Compound term: functor(args)
 compound = { atom ~ "(" ~ term ~ ("," ~ term)* ~ ")" }
 
 // List: [head | tail] or [a, b, c]
-list = { "[" ~ list_items ~ "]" }
+list = { "[" ~ list_items? ~ "]" }
 list_items = { term ~ ("," ~ term)* ~ ("|" ~ term)? }
 
+// Object: { key: value, age: 17 }
+object = { "{" ~ object_pairs? ~ "}" }
+object_pairs = { object_pair ~ ("," ~ object_pair)* }
+object_pair = { atom ~ ":" ~ term }
+
 // Basic types
-variable = @{ 'A'..'Z' ~ (ASCII_ALPHANUMERIC | "_")* }
+variable = @{ ("_" | 'A'..'Z') ~ (ASCII_ALPHANUMERIC | "_")* }
 atom = @{ 'a'..'z' ~ (ASCII_ALPHANUMERIC | "_")* }
 number = @{ (ASCII_DIGIT+ ~ ("." ~ ASCII_DIGIT+)?) | ("-" ~ ASCII_DIGIT+ ~ ("." ~ ASCII_DIGIT+)?) }
 string = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" }

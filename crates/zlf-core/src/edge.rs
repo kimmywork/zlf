@@ -78,12 +78,7 @@ impl Edge {
 
 impl Default for Edge {
     fn default() -> Self {
-        Self::new(
-            String::new(),
-            String::new(),
-            String::new(),
-            HashMap::new(),
-        )
+        Self::new(String::new(), String::new(), String::new(), HashMap::new())
     }
 }
 
@@ -154,10 +149,7 @@ mod tests {
         );
 
         edge.set_property("since".to_string(), Value::Number(2020.0));
-        assert_eq!(
-            edge.get_property("since"),
-            Some(&Value::Number(2020.0))
-        );
+        assert_eq!(edge.get_property("since"), Some(&Value::Number(2020.0)));
 
         edge.remove_property("since");
         assert_eq!(edge.get_property("since"), None);
