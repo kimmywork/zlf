@@ -10,6 +10,17 @@ source_requirements:
 
 # Solution Design v1: Kernel Enhancement Roadmap Integration
 
+## Implementation research references
+
+Detailed implementation notes live under `docs/track/zlf-kernel-enhancements/research/`:
+
+- `research/fact-storage-indexing.md`
+- `research/builtin-predicates-and-node-view.md`
+- `research/graph-algorithms.md`
+- `research/tabling-and-incremental-tabling.md`
+
+These research notes define the concrete RocksDB key layouts, predicate contracts, graph algorithms, and tabling/incremental tabling algorithms that this design depends on.
+
 ## Design principles
 
 1. Correct mutation semantics before advanced inference.

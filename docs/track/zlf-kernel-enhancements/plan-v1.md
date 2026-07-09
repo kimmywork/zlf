@@ -10,6 +10,15 @@ source_requirements:
 
 # Plan v1: Kernel Enhancement Implementation Track
 
+## Implementation research references
+
+Use these implementation notes while executing the stages:
+
+- `research/fact-storage-indexing.md`: canonical fact identity, RocksDB graph indexes, deletion, mutation events.
+- `research/builtin-predicates-and-node-view.md`: exact builtin/provider predicate contracts and node view shapes.
+- `research/graph-algorithms.md`: neighbors, degree, reachability, shortest path algorithms on RocksDB indexes.
+- `research/tabling-and-incremental-tabling.md`: deterministic tabling MVP, dependency tracking, invalidation, lazy recompute, and delta roadmap.
+
 ## Goal
 
 Deliver the next production-readiness layer for zlf's WAM-backed Prolog graph database: stable fact mutation semantics, graph/query introspection, graph convenience predicates, proof metadata, graph algorithm builtins, deterministic tabling, and eventually incremental tabling.
