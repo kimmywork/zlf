@@ -58,6 +58,22 @@ impl EnvironmentStack {
         Err(WamError::InvalidInstructionState("permanent slot"))
     }
 
+    pub fn cut_level(&self, slot: usize) -> WamResult<Option<usize>> {
+        self.frames
+            .last()
+            .and_then(|frame| frame.cut_level(slot))
+            .ok_or(WamError::InvalidInstructionState("cut level"))
+    }
+
+    pub fn set_cut_level(&mut self, slot: usize, level: usize) -> WamResult<()> {
+        if let Some(frame) = self.frames.last_mut() {
+            if frame.set_cut_level(slot, level) {
+                return Ok(());
+            }
+        }
+        Err(WamError::InvalidInstructionState("cut level"))
+    }
+
     pub fn depth(&self) -> usize {
         self.frames.len()
     }

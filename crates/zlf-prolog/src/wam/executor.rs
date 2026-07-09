@@ -161,7 +161,9 @@ impl WamExecutor {
             Instruction::TryMeElse(next) => self.try_me_else(*next),
             Instruction::RetryMeElse(next) => self.retry_me_else(*next),
             Instruction::TrustMe => self.trust_me(),
-            Instruction::Cut => self.cut(),
+            Instruction::Cut | Instruction::NeckCut => self.cut(),
+            Instruction::GetLevel { slot } => self.get_level(*slot),
+            Instruction::CutLevel { slot } => self.cut_level(*slot),
             _ => Ok(true),
         }
     }
@@ -246,12 +248,25 @@ impl WamExecutor {
     }
 
     fn cut(&mut self) -> WamResult<bool> {
-        let base = self
-            .environments
-            .cut_base()
-            .unwrap_or(self.choice_points.len());
-        self.choice_points
-            .truncate(base.min(self.choice_points.len()));
+        let base = self.environments.cut_base().unwrap_or_default();
+        self.truncate_choice_points(base);
         Ok(true)
+    }
+
+    fn get_level(&mut self, slot: usize) -> WamResult<bool> {
+        let level = self.environments.cut_base().unwrap_or_default();
+        self.environments.set_cut_level(slot, level)?;
+        Ok(true)
+    }
+
+    fn cut_level(&mut self, slot: usize) -> WamResult<bool> {
+        let level = self.environments.cut_level(slot)?.unwrap_or_default();
+        self.truncate_choice_points(level);
+        Ok(true)
+    }
+
+    fn truncate_choice_points(&mut self, level: usize) {
+        self.choice_points
+            .truncate(level.min(self.choice_points.len()));
     }
 }

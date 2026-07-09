@@ -81,6 +81,13 @@ pub enum Instruction {
     Execute(PredicateKey),
     Proceed,
     Cut,
+    NeckCut,
+    GetLevel {
+        slot: usize,
+    },
+    CutLevel {
+        slot: usize,
+    },
     Allocate,
     AllocatePermanent {
         permanent_count: usize,

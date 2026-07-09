@@ -239,6 +239,48 @@ fn instruction_runtime_trust_restores_and_discards_choice_point() {
 }
 
 #[test]
+fn instruction_runtime_neck_cut_discards_choice_points() {
+    let mut executor = WamExecutor::new(1);
+    let program = WamProgram::new(vec![
+        Instruction::PutVariable { register: 0 },
+        Instruction::TryMeElse(5),
+        Instruction::get_constant("red", 0),
+        Instruction::NeckCut,
+        Instruction::Proceed,
+        Instruction::TrustMe,
+        Instruction::get_constant("green", 0),
+        Instruction::Proceed,
+    ]);
+
+    let solutions = executor.execute_all_registers(&program, &[0]).unwrap();
+
+    assert_eq!(solutions, vec![vec![atom("red")]]);
+}
+
+#[test]
+fn instruction_runtime_get_level_and_cut_level_discard_choice_points() {
+    let mut executor = WamExecutor::new(1);
+    let program = WamProgram::new(vec![
+        Instruction::PutVariable { register: 0 },
+        Instruction::AllocatePermanent { permanent_count: 1 },
+        Instruction::GetLevel { slot: 0 },
+        Instruction::TryMeElse(8),
+        Instruction::get_constant("red", 0),
+        Instruction::CutLevel { slot: 0 },
+        Instruction::Deallocate,
+        Instruction::Proceed,
+        Instruction::TrustMe,
+        Instruction::get_constant("green", 0),
+        Instruction::Deallocate,
+        Instruction::Proceed,
+    ]);
+
+    let solutions = executor.execute_all_registers(&program, &[0]).unwrap();
+
+    assert_eq!(solutions, vec![vec![atom("red")]]);
+}
+
+#[test]
 fn instruction_runtime_rejects_retry_without_choice_point() {
     let mut executor = WamExecutor::new(1);
     let program = WamProgram::new(vec![Instruction::RetryMeElse(1), Instruction::Proceed]);
