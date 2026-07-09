@@ -1,6 +1,8 @@
 use anyhow::Result;
+use clap::Parser;
 use std::io::{self, BufRead, Write};
 
+mod cli;
 mod embed_commands;
 mod handler;
 mod io_data;
@@ -10,30 +12,28 @@ mod server;
 mod state;
 mod values;
 
+use cli::{Cli, CliCommand};
 use handler::handle_request;
 use protocol::{Request, Response};
 use repl::run_repl;
 use server::serve_http;
 use state::AppState;
 
-#[allow(clippy::too_many_lines)]
 fn main() -> Result<()> {
-    let args: Vec<String> = std::env::args().collect();
-
-    if args.len() > 1 && args[1] == "repl" {
-        return run_repl(args.get(2).map(String::as_str));
+    match Cli::parse().command.unwrap_or(CliCommand::Stdio) {
+        CliCommand::Stdio => run_stdio(),
+        CliCommand::Repl { db_path } => run_repl(db_path.as_deref()),
+        CliCommand::Serve { port } => run_server(port),
     }
+}
 
-    if args.len() > 1 && args[1] == "serve" {
-        let port = args
-            .get(2)
-            .and_then(|p| p.parse::<u16>().ok())
-            .unwrap_or(8520);
-        let rt = tokio::runtime::Runtime::new()?;
-        rt.block_on(serve_http(port))?;
-        return Ok(());
-    }
+fn run_server(port: u16) -> Result<()> {
+    let rt = tokio::runtime::Runtime::new()?;
+    rt.block_on(serve_http(port))?;
+    Ok(())
+}
 
+fn run_stdio() -> Result<()> {
     let stdin = io::stdin();
     let stdout = io::stdout();
 
