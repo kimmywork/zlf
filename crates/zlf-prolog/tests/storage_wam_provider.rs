@@ -266,6 +266,29 @@ fn storage_rule_store_persists_and_loads_rules_for_runtime() {
 }
 
 #[test]
+fn storage_rule_store_persists_cut_rules_for_runtime() {
+    let storage = storage_fixture();
+    let store = StorageRuleStore::new(&storage);
+    let rule = rule("first_person(X) :- person(X), !.");
+    let key = zlf_prolog::wam::predicate_key(&rule.head).unwrap();
+
+    store.add_rule(&rule).unwrap();
+    let loaded = store.rules_for(&key).unwrap();
+    let provider = StorageFactProvider::new(&storage);
+    let mut runtime = WamRuntime::new(12);
+    for artifact in loaded {
+        runtime.add_compiled_rule(artifact);
+    }
+
+    let solutions = runtime
+        .query_all_with_provider(&term("first_person(X)"), &provider)
+        .unwrap();
+
+    assert_eq!(solutions.len(), 1);
+    assert_eq!(solutions[0].get("X"), Some(&atom("alice")));
+}
+
+#[test]
 fn storage_provider_reads_properties_edges_and_edge_type_shortcuts() {
     let storage = storage_fixture();
     let provider = StorageFactProvider::new(&storage);
