@@ -24,6 +24,10 @@ pub enum Instruction {
         arity: usize,
         register: usize,
     },
+    PutList {
+        arity: usize,
+        register: usize,
+    },
     SetVariable {
         register: usize,
     },
@@ -42,6 +46,10 @@ pub enum Instruction {
     },
     GetStructure {
         name: String,
+        arity: usize,
+        register: usize,
+    },
+    GetList {
         arity: usize,
         register: usize,
     },

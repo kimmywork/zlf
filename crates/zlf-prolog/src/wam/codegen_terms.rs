@@ -46,6 +46,20 @@ impl WamCodegen {
         self.emit_set_args(args, &nested, instructions)
     }
 
+    pub(crate) fn put_list(
+        &mut self,
+        items: &[Term],
+        register: usize,
+        instructions: &mut Vec<Instruction>,
+    ) -> WamResult<()> {
+        let nested = self.precompile_nested(items, instructions)?;
+        instructions.push(Instruction::PutList {
+            arity: items.len(),
+            register,
+        });
+        self.emit_set_args(items, &nested, instructions)
+    }
+
     pub(crate) fn precompile_nested(
         &mut self,
         args: &[Term],
@@ -53,7 +67,7 @@ impl WamCodegen {
     ) -> WamResult<HashMap<usize, usize>> {
         let mut nested = HashMap::new();
         for (index, arg) in args.iter().enumerate() {
-            if matches!(arg, Term::Compound { .. }) {
+            if matches!(arg, Term::Compound { .. } | Term::List(_)) {
                 let register = self.allocate_temp();
                 self.compile_put(arg, register, instructions)?;
                 nested.insert(index, register);
@@ -160,6 +174,27 @@ impl WamCodegen {
             arity: args.len(),
             register,
         });
+        self.emit_get_args(args, instructions)
+    }
+
+    pub(crate) fn get_list(
+        &mut self,
+        items: &[Term],
+        register: usize,
+        instructions: &mut Vec<Instruction>,
+    ) -> WamResult<()> {
+        instructions.push(Instruction::GetList {
+            arity: items.len(),
+            register,
+        });
+        self.emit_get_args(items, instructions)
+    }
+
+    fn emit_get_args(
+        &mut self,
+        args: &[Term],
+        instructions: &mut Vec<Instruction>,
+    ) -> WamResult<()> {
         let pending = self.emit_unify_args(args, instructions)?;
         for (term, register) in pending {
             self.compile_get(&term, register, instructions)?;
@@ -176,7 +211,9 @@ impl WamCodegen {
         for arg in args {
             match arg {
                 Term::Variable(name) => self.unify_variable(name, instructions),
-                Term::Compound { .. } => self.unify_nested(arg, instructions, &mut pending),
+                Term::Compound { .. } | Term::List(_) => {
+                    self.unify_nested(arg, instructions, &mut pending)
+                }
                 _ => instructions.push(Instruction::UnifyConstant {
                     value: constant_value(arg)?,
                 }),

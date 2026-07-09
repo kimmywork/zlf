@@ -122,6 +122,10 @@ fn relocate_instruction(instruction: &Instruction, base: usize, delta: usize) ->
             arity: *arity,
             register: relocate(*register, base, delta),
         },
+        PutList { arity, register } => PutList {
+            arity: *arity,
+            register: relocate(*register, base, delta),
+        },
         SetVariable { register } => SetVariable {
             register: relocate(*register, base, delta),
         },
@@ -139,6 +143,10 @@ fn relocate_instruction(instruction: &Instruction, base: usize, delta: usize) ->
             register,
         } => GetStructure {
             name: name.clone(),
+            arity: *arity,
+            register: relocate(*register, base, delta),
+        },
+        GetList { arity, register } => GetList {
             arity: *arity,
             register: relocate(*register, base, delta),
         },

@@ -35,6 +35,21 @@ fn runtime_cut_commits_choices_created_after_predicate_call() {
 }
 
 #[test]
+fn runtime_queries_list_terms() {
+    let mut runtime = WamRuntime::new(12);
+    runtime.add_fact(term("tags(alice, [person, developer])"));
+    runtime.add_rule(rule("has_tags(X, Tags) :- tags(X, Tags)."));
+
+    let solutions = runtime.query_all(&term("has_tags(alice, Tags)")).unwrap();
+
+    assert_eq!(solutions.len(), 1);
+    assert_eq!(
+        solutions[0].get("Tags"),
+        Some(&crate::Term::List(vec![atom("person"), atom("developer")]))
+    );
+}
+
+#[test]
 fn runtime_queries_facts_from_provider() {
     let runtime = WamRuntime::new(8);
     let provider = StaticFactProvider::new(vec![

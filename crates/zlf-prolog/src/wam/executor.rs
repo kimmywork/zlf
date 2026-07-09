@@ -133,6 +133,7 @@ impl WamExecutor {
                 arity,
                 register,
             } => self.put_structure(name, *arity, *register),
+            Instruction::PutList { arity, register } => self.put_list(*arity, *register),
             Instruction::SetVariable { register } => self.set_variable(*register),
             Instruction::SetValue { register } => self.set_value(*register),
             Instruction::SetPermanentValue { slot } => self.set_permanent_value(*slot),
@@ -143,6 +144,7 @@ impl WamExecutor {
                 arity,
                 register,
             } => self.get_structure(name, *arity, *register),
+            Instruction::GetList { arity, register } => self.get_list(*arity, *register),
             Instruction::GetValue { left, right } => self.unify_registers(*left, *right),
             Instruction::GetPermanentValue { slot, register } => {
                 self.get_permanent_value(*slot, *register)

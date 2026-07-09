@@ -78,6 +78,7 @@ impl WamCodegen {
         match term {
             Term::Variable(name) => self.put_variable(name, register, instructions),
             Term::Compound { name, args } => self.put_structure(name, args, register, instructions),
+            Term::List(items) => self.put_list(items, register, instructions),
             _ => self.put_constant(term, register, instructions),
         }
     }
@@ -91,6 +92,7 @@ impl WamCodegen {
         match term {
             Term::Variable(name) => self.get_variable(name, register, instructions),
             Term::Compound { name, args } => self.get_structure(name, args, register, instructions),
+            Term::List(items) => self.get_list(items, register, instructions),
             _ => self.get_constant(term, register, instructions),
         }
     }

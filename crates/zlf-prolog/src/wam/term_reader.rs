@@ -19,8 +19,12 @@ fn structure_from_heap(heap: &Heap, addr: usize) -> WamResult<Term> {
     let args = (0..arity)
         .map(|offset| term_from_heap(heap, first_arg + offset))
         .collect::<WamResult<Vec<_>>>()?;
-    Ok(Term::Compound {
-        name: name.to_string(),
-        args,
-    })
+    if name == "list" {
+        Ok(Term::List(args))
+    } else {
+        Ok(Term::Compound {
+            name: name.to_string(),
+            args,
+        })
+    }
 }

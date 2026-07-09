@@ -44,6 +44,10 @@ impl WamExecutor {
         )
     }
 
+    pub(crate) fn put_list(&mut self, arity: usize, register: usize) -> WamResult<bool> {
+        self.put_structure("list", arity, register)
+    }
+
     pub(crate) fn set_variable(&mut self, register: usize) -> WamResult<bool> {
         let addr = self.machine.set_variable();
         self.registers.set(register, addr)?;
@@ -101,6 +105,10 @@ impl WamExecutor {
             arity,
             register,
         )
+    }
+
+    pub(crate) fn get_list(&mut self, arity: usize, register: usize) -> WamResult<bool> {
+        self.get_structure("list", arity, register)
     }
 
     pub(crate) fn unify_constant(&mut self, value: &str) -> WamResult<bool> {
