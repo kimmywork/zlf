@@ -1,7 +1,7 @@
 use zlf_core::{Result, ZlfError};
 use zlf_prolog::wam::{
-    builtin_predicates, graph_view_predicates, index_predicates, CompiledRuleArtifact,
-    PredicateKind, PredicateRegistry,
+    builtin_predicates, graph_algorithm_predicates, graph_view_predicates, index_predicates,
+    CompiledRuleArtifact, PredicateKind, PredicateRegistry,
 };
 use zlf_storage::Storage;
 
@@ -20,6 +20,10 @@ pub fn populate_registry(
     // Register graph view predicates
     for key in graph_view_predicates() {
         registry.register(key, PredicateKind::StorageProvider);
+    }
+    // Register graph algorithm predicates
+    for key in graph_algorithm_predicates() {
+        registry.register(key, PredicateKind::GraphAlgorithm);
     }
     // Register index predicates
     for key in index_predicates() {

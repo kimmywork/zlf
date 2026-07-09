@@ -155,6 +155,36 @@ pub fn graph_view_predicates() -> Vec<PredicateKey> {
     ]
 }
 
+/// Graph algorithm provider predicates.
+pub fn graph_algorithm_predicates() -> Vec<PredicateKey> {
+    vec![
+        PredicateKey {
+            name: "reachable".into(),
+            arity: 2,
+        },
+        PredicateKey {
+            name: "reachable".into(),
+            arity: 3,
+        },
+        PredicateKey {
+            name: "shortest_path".into(),
+            arity: 3,
+        },
+        PredicateKey {
+            name: "degree".into(),
+            arity: 2,
+        },
+        PredicateKey {
+            name: "in_degree".into(),
+            arity: 2,
+        },
+        PredicateKey {
+            name: "out_degree".into(),
+            arity: 2,
+        },
+    ]
+}
+
 /// Index provider predicates.
 pub fn index_predicates() -> Vec<PredicateKey> {
     vec![

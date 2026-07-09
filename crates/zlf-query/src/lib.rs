@@ -4,9 +4,9 @@ use std::sync::{Arc, RwLock};
 use zlf_core::{Edge, Node, Result, ZlfError};
 use zlf_index::{BM25Index, TemporalEntry, TemporalIndex, VectorEntry, VectorIndex};
 use zlf_prolog::wam::{
-    CompiledRuleArtifact, CompositeFactProvider, GraphViewProvider, IndexFactProvider,
-    IndexedStorageFactWriter, IntrospectionProvider, PredicateRegistry, RuleDependencyGraph,
-    StorageFactProvider, StorageRuleStore, WamRuntime,
+    CompiledRuleArtifact, CompositeFactProvider, GraphAlgorithmProvider, GraphViewProvider,
+    IndexFactProvider, IndexedStorageFactWriter, IntrospectionProvider, PredicateRegistry,
+    RuleDependencyGraph, StorageFactProvider, StorageRuleStore, WamRuntime,
 };
 mod helpers;
 mod registry;
@@ -190,11 +190,13 @@ impl ZlfDatabase {
         let dep_graph = RuleDependencyGraph::from_rules(&self.rules.read().map_err(lock_error)?);
         let introspection = IntrospectionProvider::new(reg.clone(), dep_graph);
         let graph_view = GraphViewProvider::new(self.storage.as_ref());
+        let graph_algo = GraphAlgorithmProvider::new(self.storage.as_ref());
         let provider = CompositeFactProvider::new()
             .with(&storage_provider)
             .with(&index_provider)
             .with(&introspection)
-            .with(&graph_view);
+            .with(&graph_view)
+            .with(&graph_algo);
         let mut runtime = WamRuntime::new(64);
         for artifact in self.rules.read().map_err(lock_error)?.iter().cloned() {
             runtime.add_compiled_rule(artifact);

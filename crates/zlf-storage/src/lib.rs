@@ -5,6 +5,7 @@ use rocksdb::{Options, DB};
 use zlf_core::{Edge, Node, Result, Value, ZlfError};
 
 mod delete;
+mod graph_query;
 mod indexes;
 mod memory;
 mod query;
