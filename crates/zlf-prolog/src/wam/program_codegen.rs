@@ -23,19 +23,17 @@ pub fn compile_query_program_with_bindings(
 ) -> WamResult<CompiledQuery> {
     let binding_start = max_program_arity(query, facts, rules, &[]);
     let compiled = WamCodegen::compile_query_goal_with_binding_start(query, binding_start)?;
-    let temp_start = query_temp_start(&compiled);
+    let mut clause_temp_start = query_temp_start(&compiled);
     let mut groups = ClauseGroups::new();
     for fact in facts {
-        groups.push(
-            fact,
-            WamCodegen::compile_fact_head_with_temp_start(fact, temp_start)?,
-        )?;
+        let clause = WamCodegen::compile_fact_head_with_temp_start(fact, clause_temp_start)?;
+        clause_temp_start = next_clause_temp(clause_temp_start, &clause);
+        groups.push(fact, clause)?;
     }
     for rule in rules {
-        groups.push(
-            &rule.head,
-            WamCodegen::compile_rule_clause_with_temp_start(rule, temp_start)?,
-        )?;
+        let clause = WamCodegen::compile_rule_clause_with_temp_start(rule, clause_temp_start)?;
+        clause_temp_start = next_clause_temp(clause_temp_start, &clause);
+        groups.push(&rule.head, clause)?;
     }
     assemble_query_program(compiled, groups)
 }
@@ -48,22 +46,22 @@ pub fn compile_query_program_with_rule_artifacts(
 ) -> WamResult<CompiledQuery> {
     let binding_start = max_program_arity(query, facts, rules, artifacts);
     let compiled = WamCodegen::compile_query_goal_with_binding_start(query, binding_start)?;
-    let temp_start = query_temp_start(&compiled);
+    let mut clause_temp_start = query_temp_start(&compiled);
     let mut groups = ClauseGroups::new();
     for fact in facts {
-        groups.push(
-            fact,
-            WamCodegen::compile_fact_head_with_temp_start(fact, temp_start)?,
-        )?;
+        let clause = WamCodegen::compile_fact_head_with_temp_start(fact, clause_temp_start)?;
+        clause_temp_start = next_clause_temp(clause_temp_start, &clause);
+        groups.push(fact, clause)?;
     }
     for rule in rules {
-        groups.push(
-            &rule.head,
-            WamCodegen::compile_rule_clause_with_temp_start(rule, temp_start)?,
-        )?;
+        let clause = WamCodegen::compile_rule_clause_with_temp_start(rule, clause_temp_start)?;
+        clause_temp_start = next_clause_temp(clause_temp_start, &clause);
+        groups.push(&rule.head, clause)?;
     }
     for artifact in artifacts {
-        groups.push_key(artifact.key.clone(), artifact.materialize(temp_start));
+        let clause = artifact.materialize(clause_temp_start);
+        clause_temp_start = next_clause_temp(clause_temp_start, &clause);
+        groups.push_key(artifact.key.clone(), clause);
     }
     assemble_query_program(compiled, groups)
 }
@@ -89,6 +87,42 @@ fn assemble_query_program(
         program,
         bindings: compiled.bindings,
     })
+}
+
+fn next_clause_temp(current: usize, clause: &WamProgram) -> usize {
+    max_register(clause).map_or(current, |register| current.max(register + 1))
+}
+
+fn max_register(clause: &WamProgram) -> Option<usize> {
+    clause
+        .instructions()
+        .iter()
+        .flat_map(instruction_registers)
+        .max()
+}
+
+fn instruction_registers(instruction: &Instruction) -> Vec<usize> {
+    match instruction {
+        Instruction::PutVariable { register }
+        | Instruction::PutConstant { register, .. }
+        | Instruction::PutStructure { register, .. }
+        | Instruction::SetVariable { register }
+        | Instruction::SetValue { register }
+        | Instruction::GetConstant { register, .. }
+        | Instruction::GetStructure { register, .. }
+        | Instruction::UnifyVariable { register }
+        | Instruction::UnifyValue { register } => vec![*register],
+        Instruction::PutValue { source, target }
+        | Instruction::GetValue {
+            left: source,
+            right: target,
+        }
+        | Instruction::UnifyRegisters {
+            left: source,
+            right: target,
+        } => vec![*source, *target],
+        _ => Vec::new(),
+    }
 }
 
 fn max_program_arity(

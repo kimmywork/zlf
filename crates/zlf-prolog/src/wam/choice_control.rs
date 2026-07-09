@@ -7,9 +7,11 @@ pub(crate) fn try_me_else(
     stack: &mut Vec<ChoicePointFrame>,
     machine: &M0Machine,
     registers: &RegisterFile,
+    call_stack: &[usize],
     next: usize,
 ) {
-    let frame = ChoicePointFrame::capture(machine, registers, None, next);
+    let frame =
+        ChoicePointFrame::capture_with_call_stack(machine, registers, call_stack, None, next);
     stack.push(frame);
 }
 
@@ -17,12 +19,14 @@ pub(crate) fn retry_me_else(
     stack: &mut [ChoicePointFrame],
     machine: &mut M0Machine,
     registers: &mut RegisterFile,
+    call_stack: &mut Vec<usize>,
     next: usize,
 ) -> WamResult<()> {
     let frame = stack
         .last_mut()
         .ok_or(WamError::InvalidInstructionState("retry_me_else"))?;
     frame.restore(machine, registers)?;
+    *call_stack = frame.call_stack();
     frame.retarget(next);
     Ok(())
 }
@@ -31,9 +35,12 @@ pub(crate) fn trust_me(
     stack: &mut Vec<ChoicePointFrame>,
     machine: &mut M0Machine,
     registers: &mut RegisterFile,
+    call_stack: &mut Vec<usize>,
 ) -> WamResult<()> {
     let frame = stack
         .pop()
         .ok_or(WamError::InvalidInstructionState("trust_me"))?;
-    frame.restore(machine, registers)
+    frame.restore(machine, registers)?;
+    *call_stack = frame.call_stack();
+    Ok(())
 }

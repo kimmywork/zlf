@@ -115,6 +115,24 @@ fn runtime_preserves_query_binding_across_higher_arity_rule_body_goal() {
     assert_eq!(solutions[0].get("X"), Some(&atom("bob")));
 }
 
+#[test]
+fn runtime_preserves_bindings_after_nested_rule_call_in_rule_body() {
+    let mut runtime = WamRuntime::new(24);
+    runtime.add_fact(term("person(zlf)"));
+    runtime.add_fact(term("person(tongtong)"));
+    runtime.add_fact(term("knows(zlf, tongtong)"));
+    runtime.add_fact(term("prop_name(zlf, \"峰哥亡命天涯\")"));
+    runtime.add_fact(term("prop_name(tongtong, \"散仙彤彤子\")"));
+    runtime.add_rule(rule("friend(X, Y) :- person(X), person(Y), knows(X, Y)."));
+    runtime.add_rule(rule("q(X, Z) :- friend(zlf, X), prop_name(X, Z)."));
+
+    let solutions = runtime.query_all(&term("q(X, Z)")).unwrap();
+
+    assert_eq!(solutions.len(), 1);
+    assert_eq!(solutions[0].get("X"), Some(&atom("tongtong")));
+    assert_eq!(solutions[0].get("Z"), Some(&atom("散仙彤彤子")));
+}
+
 fn storage_fixture() -> Storage {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("db");

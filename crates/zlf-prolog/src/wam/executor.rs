@@ -273,6 +273,7 @@ impl WamExecutor {
             &mut self.choice_points,
             &self.machine,
             &self.registers,
+            &self.call_stack,
             next,
         );
         Ok(true)
@@ -283,6 +284,7 @@ impl WamExecutor {
             &mut self.choice_points,
             &mut self.machine,
             &mut self.registers,
+            &mut self.call_stack,
             next,
         )?;
         Ok(true)
@@ -293,6 +295,7 @@ impl WamExecutor {
             &mut self.choice_points,
             &mut self.machine,
             &mut self.registers,
+            &mut self.call_stack,
         )?;
         Ok(true)
     }

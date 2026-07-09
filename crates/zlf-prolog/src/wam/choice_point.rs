@@ -7,6 +7,7 @@ pub struct ChoicePointFrame {
     heap_checkpoint: usize,
     trail_checkpoint: usize,
     registers: Vec<Option<usize>>,
+    call_stack: Vec<usize>,
     continuation: Option<usize>,
     next_alternative: usize,
 }
@@ -22,6 +23,24 @@ impl ChoicePointFrame {
             heap_checkpoint: machine.heap_checkpoint(),
             trail_checkpoint: machine.trail_checkpoint(),
             registers: registers.snapshot(),
+            call_stack: Vec::new(),
+            continuation,
+            next_alternative,
+        }
+    }
+
+    pub fn capture_with_call_stack(
+        machine: &M0Machine,
+        registers: &RegisterFile,
+        call_stack: &[usize],
+        continuation: Option<usize>,
+        next_alternative: usize,
+    ) -> Self {
+        Self {
+            heap_checkpoint: machine.heap_checkpoint(),
+            trail_checkpoint: machine.trail_checkpoint(),
+            registers: registers.snapshot(),
+            call_stack: call_stack.to_vec(),
             continuation,
             next_alternative,
         }
@@ -32,6 +51,10 @@ impl ChoicePointFrame {
         machine.unwind_heap(self.heap_checkpoint)?;
         registers.restore(self.registers.clone());
         Ok(())
+    }
+
+    pub fn call_stack(&self) -> Vec<usize> {
+        self.call_stack.clone()
     }
 
     pub fn continuation(&self) -> Option<usize> {

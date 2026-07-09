@@ -187,10 +187,7 @@ impl ZlfDatabase {
         }
         let (query, wrapper) = query_plan(terms)?;
         if let Some(rule) = wrapper {
-            runtime.add_compiled_rule(
-                CompiledRuleArtifact::compile(&rule)
-                    .map_err(|e| ZlfError::Internal(e.to_string()))?,
-            );
+            runtime.add_rule(rule);
         }
         let rows = runtime
             .query_all_with_provider(&query, &provider)
