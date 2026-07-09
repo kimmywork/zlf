@@ -395,13 +395,306 @@ Later:
 sin/cos/tan/log/exp/sqrt/floor/ceiling/round/truncate
 ```
 
-## 8. Standard library subset
+## 8. Meta-call and `call/N`
 
-There is no single universal ISO standard library equivalent to SWI's full library set. zlf should ship a practical compatibility library set.
+Meta-call is required for ordinary Prolog programming and for libraries such as `apply`, `maplist`, `include`, `exclude`, and DCG helper predicates.
 
-### 8.1 `library(lists)`
+### 8.1 Supported predicates
 
-Implement as Prolog source where possible after canonical list support exists.
+Minimum set:
+
+```prolog
+call(Goal).
+call(Closure, A1).
+call(Closure, A1, A2).
+call(Closure, A1, A2, A3).
+call(Closure, A1, A2, A3, A4).
+```
+
+Practical upper bound:
+
+```prolog
+call/1 .. call/8
+```
+
+SWI supports more via generated definitions, but `call/1..8` is enough for common libraries.
+
+### 8.2 Callable terms
+
+A term is callable if it is:
+
+- an atom, e.g. `true`;
+- a compound term, e.g. `member(X, Xs)`;
+- a closure term to which `call/N` appends extra arguments.
+
+Examples:
+
+```prolog
+call(true).
+call(member(X), [a,b,c]).        % expands to member(X, [a,b,c])
+call(edge(alice, knows), X).     % expands to edge(alice, knows, X)
+```
+
+Closure expansion algorithm:
+
+```text
+expand_call(Closure, ExtraArgs):
+  if Closure is atom A:
+      return compound(A, ExtraArgs)
+  if Closure is compound F(Args):
+      return compound(F, Args ++ ExtraArgs)
+  if Closure is variable:
+      instantiation_error
+  otherwise:
+      type_error(callable, Closure)
+```
+
+### 8.3 WAM integration strategy
+
+There are two possible implementation paths.
+
+#### Option A: Native meta-call builtin
+
+`call/N` is a builtin implemented in Rust:
+
+1. Read callable term from WAM registers.
+2. Expand closure with extra arguments.
+3. Convert expanded term to a `PredicateKey` and argument registers.
+4. Dispatch through the same predicate resolution path used by ordinary `Call`:
+   - compiled program entry;
+   - builtin registry;
+   - storage/index providers;
+   - rule store/provider materialization.
+5. Preserve caller continuation and choice point semantics.
+
+This is the recommended MVP.
+
+#### Option B: Compile-time expansion where statically known
+
+If the compiler sees:
+
+```prolog
+call(foo(X)).
+```
+
+it can emit a direct `Call(foo/1)`.
+
+This is an optimization only. The runtime builtin is still required for dynamic higher-order code.
+
+### 8.4 Continuations and choice points
+
+`call/N` must behave like a normal predicate call:
+
+- if the called goal has multiple answers, `call/N` should expose them on backtracking;
+- cut inside the called goal cuts only within that called predicate according to normal cut scope;
+- caller choice points must remain intact unless cut semantics require otherwise.
+
+Implementation detail:
+
+```text
+call/N builtin should not simply run a nested query to completion and return a Vec.
+```
+
+That would lose Prolog backtracking semantics. The MVP can initially materialize answer choice points, but long-term it should dispatch into the WAM call path.
+
+### 8.5 Error behavior
+
+| Case | Error |
+|---|---|
+| `call(X)` with X unbound | instantiation_error |
+| `call(3)` | type_error(callable, 3) |
+| expanded predicate missing | existence_error(procedure, Name/Arity) or fail depending unknown flag |
+
+## 9. Standard library implementation model
+
+There is no single universal ISO standard library equivalent to SWI's full library set. zlf should ship a practical compatibility library set and load it through a `library(...)` mechanism.
+
+### 9.1 `library(Name)` is a source spec, not a normal predicate
+
+In Prolog systems, `library(lists)` is normally used inside loading directives:
+
+```prolog
+:- use_module(library(lists)).
+:- ensure_loaded(library(lists)).
+```
+
+zlf should support these directive forms:
+
+```prolog
+:- use_module(library(lists)).
+:- ensure_loaded(library(lists)).
+```
+
+For a no-module MVP, `use_module/1` and `ensure_loaded/1` can both mean:
+
+```text
+load the named standard library into the current runtime if not already loaded
+```
+
+`library/1` itself should be parsed as a compound source spec:
+
+```prolog
+library(lists)
+```
+
+not as a callable runtime predicate.
+
+### 9.2 Standard library registry
+
+Add a registry:
+
+```rust
+struct StdLibRegistry {
+    libs: HashMap<String, StdLibDescriptor>,
+}
+
+struct StdLibDescriptor {
+    name: String,
+    source_units: Vec<EmbeddedPrologSource>,
+    native_predicates: Vec<PredicateKey>,
+    dependencies: Vec<String>,
+}
+```
+
+Runtime state:
+
+```rust
+struct LoadedLibraries {
+    loaded: HashSet<String>,
+}
+```
+
+Loading algorithm:
+
+```text
+load_library(Name):
+  if Name already loaded: return ok
+  desc = registry.get(Name) else existence_error(source_sink, library(Name))
+  for dep in desc.dependencies:
+      load_library(dep)
+  register desc.native_predicates with builtin registry
+  parse desc.source_units
+  compile source rules into system rule store / in-memory rule set
+  mark Name loaded
+```
+
+### 9.3 Rust builtin vs Prolog source decision
+
+Use three implementation classes.
+
+#### Class A: Rust native builtins
+
+Use Rust for predicates that are:
+
+- arithmetic or type-sensitive;
+- impure or runtime-inspective;
+- require WAM heap/control integration;
+- performance-critical with complex modes.
+
+Examples:
+
+```prolog
+is/2
+=:=/2
+var/1
+nonvar/1
+functor/3
+arg/3
+=../2
+call/N
+findall/3
+length/2  % recommended native or hybrid
+sort/2
+keysort/2
+assertz/1
+retract/1
+```
+
+#### Class B: Prolog source libraries
+
+Use embedded Prolog source for pure relational predicates that naturally express recursion.
+
+Examples:
+
+```prolog
+member/2
+append/3
+select/3
+prefix/2
+suffix/2
+sublist/2
+maplist/2..N  % after call/N
+include/3
+exclude/3
+foldl/4
+```
+
+Example embedded source:
+
+```prolog
+member(X, [X|_]).
+member(X, [_|Xs]) :- member(X, Xs).
+
+append([], Ys, Ys).
+append([X|Xs], Ys, [X|Zs]) :- append(Xs, Ys, Zs).
+```
+
+#### Class C: Hybrid predicates
+
+Use a Rust fast path plus Prolog fallback when modes are relational.
+
+Examples:
+
+```prolog
+length/2
+reverse/2
+permutation/2
+```
+
+For `length/2`:
+
+- `length(+List, -N)` native count;
+- `length(-List, +N)` native finite generation;
+- `length(-List, -N)` should throw instantiation_error or be deferred to avoid infinite generation.
+
+### 9.4 Source layout
+
+Recommended crate layout:
+
+```text
+crates/zlf-prolog/src/stdlib/
+  mod.rs
+  registry.rs
+  builtins.rs
+  sources/
+    lists.pl
+    apply.pl
+    ordsets.pl
+    dcg.pl
+```
+
+Embed Prolog sources:
+
+```rust
+const LISTS_PL: &str = include_str!("sources/lists.pl");
+```
+
+Compile these into a system rule layer:
+
+```text
+builtin registry -> system stdlib rules -> user persisted rules -> storage/index providers
+```
+
+Precedence recommendation:
+
+1. core builtins;
+2. loaded stdlib rules;
+3. user rules;
+4. provider facts.
+
+Do not persist stdlib rules into RocksDB by default. They are versioned with the binary and loaded into runtime memory. Persist only the user's `use_module/1` directive if source files later become user-loadable.
+
+### 9.5 `library(lists)`
 
 Required predicates:
 
@@ -432,21 +725,33 @@ MVP order:
 5. `select/3`
 6. `nth0/3`, `nth1/3`
 
-Some should be native for performance and mode safety, especially `length/2`.
+Some should be native for performance and mode safety, especially `length/2`, `sort/2`, `keysort/2`.
 
-### 8.2 `library(apply)` subset
+### 9.6 `library(apply)` subset
 
 ```prolog
 maplist/2
 maplist/3
+maplist/4
 include/3
 exclude/3
 foldl/4
 ```
 
-Requires `call/N` support.
+Requires `call/N`.
 
-### 8.3 `library(ordsets)` subset
+Example source:
+
+```prolog
+maplist(_, []).
+maplist(P, [X|Xs]) :- call(P, X), maplist(P, Xs).
+
+include(_, [], []).
+include(P, [X|Xs], [X|Ys]) :- call(P, X), !, include(P, Xs, Ys).
+include(P, [_|Xs], Ys) :- include(P, Xs, Ys).
+```
+
+### 9.7 `library(ordsets)` subset
 
 ```prolog
 list_to_ord_set/2
@@ -456,9 +761,9 @@ ord_intersection/3
 ord_subtract/3
 ```
 
-Useful for graph algorithms and tabling tests.
+Use Rust native `sort/2` to implement `list_to_ord_set/2`, then Prolog source for simple set operations.
 
-### 8.4 Aggregation subset
+### 9.8 Aggregation subset
 
 ```prolog
 findall/3
@@ -474,28 +779,226 @@ Implementation idea:
 ```text
 findall(Template, Goal, Bag):
   run Goal collecting all Template instances
-  bind Bag to list(instances)
+  copy each Template instance out of the WAM heap
+  bind Bag to canonical list(instances)
 ```
 
-Requires copying terms out of WAM heap safely.
+`findall/3` is best implemented as Rust native because it needs controlled nested execution and term copying.
 
-### 8.5 DCG basics
+## 10. DCG implementation
 
-Support parser expansion:
+DCG is essential for practical Prolog parsing code. It should be implemented as a source-to-source expansion before WAM rule compilation.
+
+### 10.1 Surface syntax
+
+Examples:
+
+```prolog
+sentence --> noun_phrase, verb_phrase.
+noun_phrase --> determiner, noun.
+determiner --> [the].
+noun --> [cat].
+```
+
+Query via `phrase/2`:
+
+```prolog
+?- phrase(sentence, [the, cat]).
+```
+
+### 10.2 Core expansion model
+
+A DCG nonterminal `p//N` expands to predicate `p/(N+2)` with difference-list arguments.
 
 ```prolog
 sentence --> noun_phrase, verb_phrase.
 ```
 
-into:
+expands to:
 
 ```prolog
-sentence(S0, S) :- noun_phrase(S0, S1), verb_phrase(S1, S).
+sentence(S0, S) :-
+    noun_phrase(S0, S1),
+    verb_phrase(S1, S).
 ```
 
-Defer until operator/directive infrastructure is stable.
+A nonterminal with arguments:
 
-### 8.6 String/atom library subset
+```prolog
+integer(N) --> digits(Ds), { number_codes(N, Ds) }.
+```
+
+expands to:
+
+```prolog
+integer(N, S0, S) :-
+    digits(Ds, S0, S1),
+    number_codes(N, Ds),
+    S1 = S.
+```
+
+### 10.3 Terminal expansion
+
+Terminals are list matches.
+
+```prolog
+[a]
+```
+
+expands to:
+
+```prolog
+S0 = [a|S]
+```
+
+Multiple terminals:
+
+```prolog
+[a,b,c]
+```
+
+expands to:
+
+```prolog
+S0 = [a,b,c|S]
+```
+
+or a sequence of cons unifications.
+
+### 10.4 Embedded Prolog goals
+
+Curly goals are copied into the body without consuming input:
+
+```prolog
+number(N) --> [N], { integer(N) }.
+```
+
+expands to:
+
+```prolog
+number(N, S0, S) :-
+    S0 = [N|S1],
+    integer(N),
+    S1 = S.
+```
+
+### 10.5 DCG body expansion algorithm
+
+```text
+expand_dcg_rule(Head --> Body):
+  create fresh variables S0, S
+  expanded_head = append_args(Head, [S0, S])
+  expanded_body = expand_dcg_sequence(Body, S0, S)
+  return Rule(expanded_head :- expanded_body)
+```
+
+For body sequence:
+
+```text
+expand_dcg_sequence((A, B), S0, S):
+  fresh S1
+  expand A from S0 to S1
+  expand B from S1 to S
+```
+
+For alternatives:
+
+```text
+expand_dcg_sequence((A ; B), S0, S):
+  (expand A S0 S ; expand B S0 S)
+```
+
+For nonterminal call:
+
+```text
+expand_dcg_goal(p(Args), S0, S):
+  p(Args..., S0, S)
+
+expand_dcg_goal(atom_nonterminal, S0, S):
+  atom_nonterminal(S0, S)
+```
+
+For terminal list:
+
+```text
+expand_dcg_goal([T1,T2,...], S0, S):
+  S0 = [T1,T2,...|S]
+```
+
+For embedded goal:
+
+```text
+expand_dcg_goal({Goal}, S0, S):
+  Goal, S0 = S
+```
+
+### 10.6 `phrase/2` and `phrase/3`
+
+```prolog
+phrase(GrammarBody, List).
+phrase(GrammarBody, List, Rest).
+```
+
+Semantics:
+
+```prolog
+phrase(Body, List) :- phrase(Body, List, []).
+phrase(Body, List, Rest) :- call(expanded_body(Body, List, Rest)).
+```
+
+Implementation options:
+
+1. Native Rust builtin expands grammar body at runtime and calls it.
+2. Prolog source wrapper plus native helper.
+
+Recommended MVP:
+
+- compile DCG rules at load time into ordinary rules;
+- implement `phrase/2` and `phrase/3` as Rust native builtins that append difference-list args and meta-call the expanded nonterminal.
+
+### 10.7 Required parser support for DCG
+
+Add parsing for:
+
+```prolog
+Head --> Body.
+{ Goal }
+terminal lists inside DCG body
+```
+
+Represent DCG rules before expansion:
+
+```rust
+struct DcgRule {
+    head: Term,
+    body: Term,
+}
+```
+
+Then expand to `PrologRule` before WAM codegen.
+
+### 10.8 DCG verification cases
+
+```prolog
+det --> [the].
+noun --> [cat].
+np --> det, noun.
+```
+
+Tests:
+
+```prolog
+?- phrase(np, [the, cat]).
+true.
+
+?- phrase(np, [the, dog]).
+false.
+
+?- phrase(np, [the, cat, sleeps], Rest).
+Rest = [sleeps].
+```
+
+## 11. String/atom library subset
 
 ```prolog
 atom_string/2
@@ -509,11 +1012,11 @@ atom_concat/3
 string_concat/3
 ```
 
-## 9. Dynamic database predicates
+## 12. Dynamic database predicates
 
 zlf already has storage-backed fact writing. ISO-style dynamic DB should map to it carefully.
 
-### 9.1 Declarations
+### 12.1 Declarations
 
 ```prolog
 :- dynamic p/2.
@@ -521,7 +1024,7 @@ zlf already has storage-backed fact writing. ISO-style dynamic DB should map to 
 
 For zlf graph facts, builtins such as `node/1`, `edge/3`, `label/2`, `property/3` are already dynamic provider predicates.
 
-### 9.2 Assert
+### 12.2 Assert
 
 ```prolog
 assertz(FactOrRule).
@@ -535,7 +1038,7 @@ MVP:
 - `asserta` and `assertz` can initially behave the same if rule ordering is not implemented;
 - later preserve clause order.
 
-### 9.3 Retract
+### 12.3 Retract
 
 ```prolog
 retract(Head).
@@ -549,7 +1052,7 @@ MVP:
 - support user rule retraction by exact source/hash later;
 - `retractall/1` removes all matching graph facts/rules.
 
-### 9.4 Clause inspection
+### 12.4 Clause inspection
 
 ```prolog
 clause(Head, Body).
@@ -558,7 +1061,7 @@ current_predicate(Name/Arity).
 
 Map to rule store + predicate registry.
 
-## 10. Error model
+## 13. Error model
 
 Use ISO-style error categories internally even if the Rust error enum remains compact.
 
@@ -583,7 +1086,7 @@ Examples:
 | `arg(0, f(a), X)` | domain_error(not_less_than_one, 0) |
 | `unknown_predicate(X)` depending flag | existence_error(procedure, unknown_predicate/1) |
 
-## 11. Implementation phases
+## 14. Implementation phases
 
 ### Phase ISO-0: parser and term model foundation
 
@@ -630,9 +1133,9 @@ Examples:
 - `library(ordsets)` subset.
 - DCG basics.
 
-## 12. Verification strategy
+## 15. Verification strategy
 
-### 12.1 ISO-style unit tests
+### 15.1 ISO-style unit tests
 
 Create tests by category:
 
@@ -645,7 +1148,7 @@ crates/zlf-prolog/tests/iso_dynamic.rs
 crates/zlf-prolog/tests/iso_libraries.rs
 ```
 
-### 12.2 Example test cases
+### 15.2 Example test cases
 
 Lists:
 
@@ -702,7 +1205,7 @@ Findall:
 Xs = [a,b,c].
 ```
 
-## 13. Recommendation
+## 16. Recommendation
 
 Add ISO/general Prolog support as a parallel track after Stage 0 fact mutation begins, but before full tabling. The best next order is:
 
