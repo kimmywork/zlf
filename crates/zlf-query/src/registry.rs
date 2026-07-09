@@ -1,0 +1,58 @@
+use zlf_core::{Result, ZlfError};
+use zlf_prolog::wam::{
+    builtin_predicates, index_predicates, CompiledRuleArtifact, PredicateKind, PredicateRegistry,
+};
+use zlf_storage::Storage;
+
+/// Populate a PredicateRegistry by scanning storage for labels, edge types,
+/// and property keys, and registering builtin and index predicates.
+#[allow(clippy::too_many_lines)]
+pub fn populate_registry(
+    storage: &Storage,
+    rules: &[CompiledRuleArtifact],
+    registry: &mut PredicateRegistry,
+) -> Result<()> {
+    // Register builtin predicates
+    for (key, _) in builtin_predicates() {
+        registry.register(key, PredicateKind::BuiltinCore);
+    }
+    // Register index predicates
+    for key in index_predicates() {
+        registry.register(key, PredicateKind::IndexProvider);
+    }
+    // Register user rules
+    for artifact in rules {
+        registry.register(artifact.key.clone(), PredicateKind::UserRule);
+    }
+    // Discover shortcuts from storage
+    let nodes = storage
+        .get_all_nodes()
+        .map_err(|e| ZlfError::Internal(e.to_string()))?;
+    let mut all_labels = Vec::new();
+    let mut all_prop_keys = Vec::new();
+    for node in &nodes {
+        for label in &node.labels {
+            if !all_labels.contains(label) {
+                all_labels.push(label.clone());
+            }
+        }
+        for key in node.properties.keys() {
+            if !all_prop_keys.contains(key) {
+                all_prop_keys.push(key.clone());
+            }
+        }
+    }
+    let edges = storage
+        .get_all_edges()
+        .map_err(|e| ZlfError::Internal(e.to_string()))?;
+    let mut all_edge_types = Vec::new();
+    for edge in &edges {
+        if !all_edge_types.contains(&edge.edge_type) {
+            all_edge_types.push(edge.edge_type.clone());
+        }
+    }
+    registry.sync_label_shortcuts(&all_labels);
+    registry.sync_edge_shortcuts(&all_edge_types);
+    registry.sync_property_shortcuts(&all_prop_keys);
+    Ok(())
+}

@@ -1,13 +1,15 @@
-use std::collections::HashMap;
 use std::path::Path;
 use std::sync::{Arc, RwLock};
 
-use zlf_core::{Edge, Node, Result, Value, ZlfError};
+use zlf_core::{Edge, Node, Result, ZlfError};
 use zlf_index::{BM25Index, TemporalEntry, TemporalIndex, VectorEntry, VectorIndex};
 use zlf_prolog::wam::{
     CompiledRuleArtifact, CompositeFactProvider, IndexFactProvider, IndexedStorageFactWriter,
-    StorageFactProvider, StorageRuleStore, WamRuntime,
+    IntrospectionProvider, PredicateRegistry, RuleDependencyGraph, StorageFactProvider,
+    StorageRuleStore, WamRuntime,
 };
+mod helpers;
+mod registry;
 mod retract;
 
 use zlf_prolog::{PrologParser, PrologRule, Query, Term};
@@ -19,6 +21,7 @@ pub struct ZlfDatabase {
     bm25: Arc<BM25Index>,
     vector: Arc<VectorIndex>,
     rules: RwLock<Vec<CompiledRuleArtifact>>,
+    registry: RwLock<PredicateRegistry>,
 }
 
 impl ZlfDatabase {
@@ -53,12 +56,15 @@ impl ZlfDatabase {
         let rules = StorageRuleStore::new(storage.as_ref())
             .all_rules()
             .map_err(|e| ZlfError::Internal(e.to_string()))?;
+        let mut pred_registry = PredicateRegistry::new();
+        registry::populate_registry(&storage, &rules, &mut pred_registry)?;
         Ok(Self {
             storage,
             temporal: Arc::new(temporal),
             bm25: Arc::new(bm25),
             vector: Arc::new(vector),
             rules: RwLock::new(rules),
+            registry: RwLock::new(pred_registry),
         })
     }
 
@@ -180,118 +186,37 @@ impl ZlfDatabase {
             .with_bm25(self.bm25.as_ref())
             .with_vector(self.vector.as_ref())
             .with_temporal(self.temporal.as_ref());
+        let reg = self.registry.read().map_err(lock_error)?;
+        let dep_graph = RuleDependencyGraph::from_rules(&self.rules.read().map_err(lock_error)?);
+        let introspection = IntrospectionProvider::new(reg.clone(), dep_graph);
         let provider = CompositeFactProvider::new()
             .with(&storage_provider)
-            .with(&index_provider);
+            .with(&index_provider)
+            .with(&introspection);
         let mut runtime = WamRuntime::new(64);
         for artifact in self.rules.read().map_err(lock_error)?.iter().cloned() {
             runtime.add_compiled_rule(artifact);
         }
-        let (query, wrapper) = query_plan(terms)?;
+        let (query, wrapper) = helpers::query_plan(terms);
         if let Some(rule) = wrapper {
             runtime.add_rule(rule);
         }
         let rows = runtime
             .query_all_with_provider(&query, &provider)
             .map_err(|e| ZlfError::Internal(e.to_string()))?;
-        Ok(self.dedupe_results(rows.into_iter().map(solution_to_json).collect()))
+        Ok(self.dedupe_results(rows.into_iter().map(helpers::solution_to_json).collect()))
     }
 
     fn index_node_text(&self, node: &Node) -> Result<()> {
         let mut parts = vec![node.id.clone()];
         parts.extend(node.labels.iter().cloned());
         for value in node.properties.values() {
-            collect_text(value, &mut parts);
+            helpers::collect_text(value, &mut parts);
         }
         self.bm25.index_text(&node.id, &parts.join(" "))
     }
 }
 
-fn query_plan(terms: &[Term]) -> Result<(Term, Option<PrologRule>)> {
-    if terms.len() == 1 {
-        return Ok((terms[0].clone(), None));
-    }
-    let vars = query_variables(terms);
-    let head = Term::Compound {
-        name: "__query".to_string(),
-        args: vars
-            .iter()
-            .map(|name| Term::Variable(name.clone()))
-            .collect(),
-    };
-    Ok((
-        head.clone(),
-        Some(PrologRule {
-            head,
-            body: terms.to_vec(),
-        }),
-    ))
-}
-
-fn query_variables(terms: &[Term]) -> Vec<String> {
-    let mut vars = Vec::new();
-    for term in terms {
-        collect_variables(term, &mut vars);
-    }
-    vars
-}
-
-fn collect_variables(term: &Term, vars: &mut Vec<String>) {
-    match term {
-        Term::Variable(name) if name != "_" && !vars.contains(name) => vars.push(name.clone()),
-        Term::Compound { args, .. } | Term::List(args) => {
-            for arg in args {
-                collect_variables(arg, vars);
-            }
-        }
-        Term::Object(entries) => {
-            for (_, value) in entries {
-                collect_variables(value, vars);
-            }
-        }
-        _ => {}
-    }
-}
-
-fn solution_to_json(solution: HashMap<String, Term>) -> serde_json::Value {
-    serde_json::Value::Object(
-        solution
-            .into_iter()
-            .filter(|(name, _)| name != "_")
-            .map(|(name, term)| (name, term_to_json(&term)))
-            .collect(),
-    )
-}
-
-fn term_to_json(term: &Term) -> serde_json::Value {
-    match term {
-        Term::Variable(name) => serde_json::json!({ "variable": name }),
-        Term::Atom(name) | Term::String(name) => serde_json::json!(name),
-        Term::Number(number) => serde_json::json!(number),
-        Term::Compound { name, args } => serde_json::json!({
-            "name": name,
-            "args": args.iter().map(term_to_json).collect::<Vec<_>>()
-        }),
-        Term::List(items) => serde_json::json!(items.iter().map(term_to_json).collect::<Vec<_>>()),
-        Term::Object(entries) => serde_json::Value::Object(
-            entries
-                .iter()
-                .map(|(key, value)| (key.clone(), term_to_json(value)))
-                .collect(),
-        ),
-    }
-}
-
-fn collect_text(value: &Value, parts: &mut Vec<String>) {
-    match value {
-        Value::String(text) => parts.push(text.clone()),
-        Value::Number(number) => parts.push(number.to_string()),
-        Value::Array(items) => items.iter().for_each(|item| collect_text(item, parts)),
-        Value::Object(map) => map.values().for_each(|item| collect_text(item, parts)),
-        _ => {}
-    }
-}
-
 fn lock_error(error: impl std::fmt::Display) -> ZlfError {
-    ZlfError::Internal(error.to_string())
+    helpers::lock_error(error)
 }
