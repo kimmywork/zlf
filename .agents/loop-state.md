@@ -1,54 +1,35 @@
 # Loop State: zlf
 
-## Current Phase: Enhancement (Final verification pending)
+## Current Phase
 
-## Progress
+Requirement discovery and current-state investigation.
 
-### Completed Features
-- Core storage (Node/Edge CRUD, versioning) ✅
-- BM25 search (Chinese/English) ✅
-- Prolog queries (node/edge) ✅
-- Import/Export ✅
-- Temporal index integration ✅
-- Embedding provider (Ollama/OpenAI) ✅
-- Config file support ✅
-- HTTP daemon mode ✅
-- README + Usage guide ✅
+## Active Track
 
-### Pending
-- Final verification and delivery
+`docs/track/2026-07-10-03-hybrid-knowledge-retrieval/`
 
-## Architecture
+Goal: productionize BM25, vector/embedding, and temporal indexes; compose them with WAM graph/rule queries; validate quality, lifecycle correctness, and scale on general knowledge-base workloads.
 
-```
-User → HTTP Server (axum) → Rust Core
-User → CLI (STDIO) → Rust Core
-User → TypeScript SDK → CLI → Rust Core
-```
+## Pending Track
 
-## Test Results
+`docs/track/2026-07-10-02-roadmap-stage9/`
 
-| Component | Tests | Status |
-|-----------|-------|--------|
-| zlf-core | 17 | ✅ Passing |
-| zlf-storage | 15 | ✅ Passing |
-| zlf-index | 21 | ✅ Passing |
-| zlf-prolog | 20 | ✅ Passing |
-| zlf-query | 10 | ✅ Passing |
-| zlf-api | 5 | ✅ Passing |
-| zlf-cli | 12 | ✅ Passing |
-| TypeScript SDK | 14 | ✅ Passing |
-| zlf-embed | 4 | ✅ Passing |
-| **Total** | **118** | **All passing** |
+Deferred by product decision on 2026-07-10. Do not begin stratified negation, CLP, WFS, probability, MIL, or advanced runtime work until explicitly resumed.
 
-## Key Decisions Made
+## Delivered Baseline
 
-1. Rust Core + TypeScript SDK architecture
-2. RocksDB for storage
-3. pest for Prolog parsing
-4. jieba-rs for Chinese tokenization
-5. JSON-over-STDIO FFI
-6. HTTP daemon mode (axum)
-7. Configurable embedding provider (Ollama/OpenAI)
-7. Temporal queries: variable first arg = match all nodes
-8. Embedding config: API endpoint, API key, model ID
+- Kernel enhancement Stages 0–8 are complete.
+- Canonical storage mutation, graph providers/algorithms, ISO core builtins, proof terms, deterministic positive tabling, persistent selective invalidation, bound storage pushdown, and query planning are available.
+- NCBI Taxonomy bulk/scale track is complete.
+
+## Immediate Discovery Decisions
+
+1. First-release temporal model.
+2. Embedded ANN dependency policy.
+3. Synchronous versus durable eventual index consistency.
+4. Chunk ownership boundary.
+5. Public benchmark datasets and full-tier resource budget.
+
+## Local Exclusions
+
+`.agents/prompt-history/`, `data/`, generated corpora, embeddings, indexes, and raw benchmark outputs remain untracked unless a compact curated report is intentionally added under a track's `research/` folder.

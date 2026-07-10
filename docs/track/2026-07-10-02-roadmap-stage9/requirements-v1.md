@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: pending
 scope_type: parent
 created: 2026-07-10
 version: 1

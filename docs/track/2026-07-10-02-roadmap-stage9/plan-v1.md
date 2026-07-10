@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: pending
 scope_type: parent
 created: 2026-07-10
 version: 1
@@ -16,7 +16,7 @@ This is a parent plan, not authorization to implement every optional module. Ope
 
 ## S0 — Baseline and contracts
 
-**Status:** next
+**Status:** pending
 
 - Curate positive/negative recursion and mode-analysis corpora.
 - Add long-running memory/performance harness and machine-readable report schema.
