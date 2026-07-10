@@ -29,7 +29,7 @@ Replace token-frequency accumulation with a real, update-safe, field/chunk-aware
 - Hand-calculated miniature corpora verify TF, IDF, length normalization, updates, and deletes.
 - Differential tests compare scores/ranks with an independent reference implementation or script within a specified floating-point tolerance.
 - Retrieval datasets report MRR, nDCG@10, Recall@10/100, index build/update throughput, p50/p95/p99 query latency, peak RSS, and index size.
-- Tiers cover 10K, 100K, 1M, and selected full corpus where feasible.
+- Local tiers cover 1K–10K smoke and at most 100K chunks on the current M2 Pro/32-GiB machine.
 - Warm and fresh-process/cold behavior are reported separately.
 
 ## Non-goals

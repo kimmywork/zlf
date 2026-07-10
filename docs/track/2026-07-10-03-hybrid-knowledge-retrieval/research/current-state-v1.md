@@ -83,7 +83,13 @@ Primary sources: `crates/zlf-query/src/lib.rs`, `crates/zlf-prolog/src/wam/stora
 
 **Confidence: cross-referenced.** `IndexFactProvider::facts_for_goal` returns vectors of terms. BM25 has no top-k; `vector_similar` hard-codes threshold `0.0` and limit `100`; temporal range has no limit. Existing tests prove these relations can join with graph predicates through the normal WAM call path. Sources: `crates/zlf-prolog/src/wam/providers/index.rs`, `crates/zlf-cli/tests/embedding_query.rs`, and `crates/zlf-prolog/tests/index_wam_provider.rs`.
 
-### F12. Existing benchmark evidence is not sufficient for production claims
+### F12. Edge property creation exists but edge property update is incomplete
+
+**Confidence: cross-referenced.** `Edge` stores a property map and Prolog `edge/4`/typed-edge `/3` lowering accepts object properties at creation. However, the storage writer returns immediately when the triple already exists, `Storage` has no persisted `update_edge` method, and generic `SetProperty` follows the node path. Sources: `crates/zlf-core/src/edge.rs`, `crates/zlf-prolog/src/wam/storage/fact_lowering.rs`, `storage_writer.rs`, and `crates/zlf-storage/src/lib.rs`.
+
+**Impact:** relationship metadata such as confidence, validity, and role cannot be safely patched after creation and cannot drive reliable index mutation.
+
+### F13. Existing benchmark evidence is not sufficient for production claims
 
 **Confidence: confirmed.** `scripts/benchmark.py` starts a fresh CLI process per operation, indexes 100 text records, reports averages, has no relevance judgments, no vector retrieval benchmark, no temporal benchmark, and does not record commit/machine/checksums/percentiles beyond limited medians. The ignored wiki pipeline checks only non-empty BM25/vector behavior and may use synthetic embeddings. Sources: `scripts/benchmark.py` and `crates/zlf-prolog/tests/wiki_full_pipeline.rs`.
 

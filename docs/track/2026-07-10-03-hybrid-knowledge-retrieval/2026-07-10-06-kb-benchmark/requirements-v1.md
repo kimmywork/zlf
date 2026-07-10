@@ -19,17 +19,18 @@ Demonstrate that zlf works as a combined knowledge engine—not three isolated i
 3. **General knowledge graph + text**: evaluate a Wikipedia/KILT, Wikidata-derived, or similarly auditable corpus that can provide text, entity links, and multi-hop relations.
 4. **Agent memory**: investigate a license-compatible temporal/long-context memory benchmark such as LoCoMo or LongMemEval; adopt only after schema and ground truth are verified.
 5. **Mutation workload**: mixed inserts, revisions, deletes, embedding retries, index restart, and consistency-watermark checks.
+6. **ACL-style graph filtering**: users/groups/classifications/grants and Prolog access rules filter hybrid candidates; this validates composition, not a complete security subsystem.
 
-Dataset names above are candidates, not approved dependencies, until license/checksum/resource research is recorded.
+The approved candidate sequence is: (1) EnterpriseKB + SciFact; (2) FiQA + a MIRACL Chinese/English subset; (3) one HotpotQA/KILT multi-hop subset + one investigated agent-memory dataset such as LoCoMo or LongMemEval. Dataset-specific adoption remains contingent on license/checksum/schema/ground-truth research. License-compatible data may be downloaded on demand into ignored `data/benchmarks/`; repository artifacts are limited to manifests, attribution/license notes, checksums, deterministic conversion/sampling scripts, and compact reports. Non-redistributable datasets require manual placement instructions.
 
 ## Tiering
 
-- smoke: 1K–10K indexed units, deterministic CI subset;
-- medium: 100K;
-- large: 1M;
-- full: selected dataset maximum within approved machine/time/storage budget.
+All benchmarks run on the current Apple M2 Pro/10-core/32-GiB development machine:
 
-Each tier fixes seed, sampling, chunking, model, dimensions, analyzers, graph construction, temporal distribution, and queries.
+- smoke/CI: 1K–10K indexed chunks;
+- full local: at most 100K indexed chunks.
+
+No 1M, dataset-full, external-server, or GPU tier is required by this track. Public datasets larger than 100K chunks are deterministically sampled. Each tier fixes seed, sampling, chunking, model, dimensions, analyzers, graph construction, temporal distribution, and queries. Initial runs establish numeric wall-time/RSS/disk regression budgets while recording the machine's available resources.
 
 ## Metrics
 
@@ -52,6 +53,6 @@ Each tier fixes seed, sampling, chunking, model, dimensions, analyzers, graph co
 
 ## Open decisions
 
-- Approved public datasets and download policy.
-- Full-tier wall-time, RAM, CPU, and disk budget.
-- Whether ACL filtering is a first-release requirement or a graph-filter benchmark only.
+- Final choice between HotpotQA/KILT and between agent-memory candidates after license/schema investigation; the staged candidate suite and download policy are confirmed.
+- Numeric regression thresholds after the first M2 Pro baselines; machine and maximum 100K-chunk scope are confirmed.
+- Specific public benchmark suite; ACL scope is confirmed as graph/rule filtering only.

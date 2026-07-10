@@ -14,19 +14,22 @@ Create one durable, observable mutation and generation contract shared by BM25, 
 
 ## Requirements
 
-- Define stable `IndexDocumentId(node, field, chunk)` and source version/content fingerprint.
+- Define stable `IndexEntityRef::{Node, Edge}`, `IndexDocumentId(entity, field, chunk)`, and source version/content fingerprint.
+- Accept explicit adapter chunks and raw field text with a versioned `ChunkingProfile`; provide deterministic whole-field, paragraph/heading-aware, and fixed-token-window baseline chunkers while allowing rich-format adapters to own semantic splitting.
+- Define immutable versioned `IndexProfile` artifacts matching node labels or edge types, with explicit per-field BM25/vector/temporal options; support Prolog directive and equivalent JSON/Rust entry points through one store/lowering path.
 - Define versioned analyzer, embedding model/dimension, temporal schema, and physical key metadata.
-- Emit idempotent index upsert/delete jobs from every supported storage mutation path, including Prolog writes/retracts and bulk/import workflows.
+- Add explicit node/edge set/remove/atomic-property-patch operations. Preserve compatible generic property dynamic writes, reject ambiguous IDs, keep edge source/type/target/ID immutable, and expose edge identity lookup.
+- Emit idempotent index upsert/delete jobs from every supported storage mutation path, including node/edge property patches, Prolog writes/retracts, and bulk/import workflows.
 - Prevent an old/retried job from overwriting a newer source version.
 - Support pending/claimed/completed/retryable-failed/dead-letter or equivalent durable states, bounded retries, recovery after process failure, and batch processing.
 - Publish per-index generations atomically and expose a consistency watermark.
 - Support online/offline rebuild into a new generation, validation, resume, and final activation.
-- Define read-your-write behavior: default eventual consistency plus an optional wait-for-watermark is the current recommendation, pending confirmation.
+- Use durable eventual consistency by default. Expose per-index generation/watermark and allow callers to wait for selected indexes to reach a minimum source version with a timeout; timeout preserves the committed primary mutation and reports pending indexes.
 - Provide index inventory, lag, failure, generation, and rebuild metrics.
 
 ## Acceptance
 
-- Insert, update, property removal, node deletion/cascade, and replay produce exactly the expected live index documents.
+- Insert, node/edge property update, property removal, node deletion/cascade, edge deletion, and replay produce exactly the expected live index documents.
 - A stale job cannot resurrect old content after a newer update/delete.
 - Killing a worker between write and acknowledgement is idempotently recoverable.
 - Rebuild failure leaves the prior generation readable; completion activates only a validated generation.
@@ -36,11 +39,9 @@ Create one durable, observable mutation and generation contract shared by BM25, 
 ## Non-goals
 
 - Selecting BM25/ANN algorithms.
-- Generating chunks inside the engine before ownership is confirmed.
+- Rich-format parsing beyond the confirmed baseline chunkers.
 - Cross-RocksDB atomic transactions; use durable versioned jobs/generations instead.
 
-## Open questions
+## Design-time decision
 
-- Default synchronous versus eventual indexing contract.
-- Whether source adapters or zlf own chunking.
-- Retention policy for old generations and dead-letter jobs.
+Finalize bounded retention for retired generations and dead-letter jobs without weakening rebuild rollback or operability.

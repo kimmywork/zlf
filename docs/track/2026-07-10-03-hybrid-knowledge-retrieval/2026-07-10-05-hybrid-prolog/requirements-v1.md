@@ -19,6 +19,7 @@ Combine lexical, semantic, temporal, graph, property, and rule constraints in on
 - Support lexical-first, vector-first, and bound-entity access paths; planner output shows selected retrieval/index/filter strategy.
 - Fuse lexical/vector ranks with an explicit method. Reciprocal-rank fusion is the recommended baseline because raw score scales differ.
 - Support graph/label/property/rule filters and temporal validity constraints without fetching an unbounded global candidate relation.
+- Benchmark ACL-style filtering through ordinary graph/rule predicates, including permission mutation and filter/top-k ordering; do not claim mandatory security enforcement or tenant isolation.
 - Return stable entity/document/chunk identity, per-retriever rank/score, fused score/rank, index generation, and optional explanation/provenance.
 - Remote embedding generation occurs before WAM execution; the WAM receives a query vector/handle or uses a previously indexed source.
 - External answer production is cursor/page based or otherwise bounded and preserves backtracking, cut, proof, and deterministic ordering.

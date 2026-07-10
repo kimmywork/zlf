@@ -45,21 +45,24 @@ As an operator, I want index build, queue lag, query latency, recall, storage, a
 
 ## Parent requirements
 
-### R1. Unified indexed-document identity
+### R1. Unified indexed-document identity and profile
 
-Every indexed unit must have stable identity independent of a physical index key. The minimum logical identity is:
+Every indexed unit must have stable identity independent of a physical index key:
 
 ```text
-IndexDocumentId = node_id + field + chunk_id
+IndexEntityRef = node(NodeId) | edge(EdgeId)
+IndexDocumentId = entity + field + chunk_id
 ```
 
-Index records must carry source version/content fingerprint, analyzer or embedding model identity, and index schema version. Multiple fields, chunks, languages, embedding models, and historical validity records must not overwrite one another accidentally.
+A versioned immutable `IndexProfile` explicitly matches node labels or edge types and declares per-field BM25 weight/analyzer, vector model/chunking, and temporal role. Production defaults index only declared fields; an opt-in `auto_text_all_v1` profile supports demos. Profiles can be created through `:- index_profile(Name, Version, Config).` or equivalent JSON/Rust APIs, persist through one artifact/store path, build a new generation, and activate atomically only after validation.
+
+The indexing boundary accepts adapter-supplied explicit chunks and raw field text plus a versioned `ChunkingProfile`. zlf provides deterministic whole-field, paragraph/heading-aware, and fixed-token-window baseline chunkers; rich formats may be split by adapters. Chunks retain source entity/field, ordinal, source range, profile/version, and content fingerprint. Index records must carry source version/content fingerprint, analyzer or embedding model identity, and index schema version. Multiple fields, chunks, languages, embedding models, and historical validity records must not overwrite one another accidentally.
 
 ### R2. Lifecycle correctness
 
-Node/fact API writes, Prolog dynamic writes/retracts, imports, bulk loads, updates, and deletes must produce a durable index mutation stream or an explicit "indexes not updated" outcome. Indexing may be eventually consistent, but jobs must be idempotent, retryable, observable, and version-checked so an old job cannot overwrite a newer document version.
+Node/fact API writes, Prolog dynamic writes/retracts, imports, bulk loads, updates, and deletes must atomically persist the primary mutation, source version, and durable index jobs. Durable eventual consistency is the default: jobs must be idempotent, retryable, observable, and version-checked so an old job cannot overwrite a newer document version. Callers may explicitly wait for selected indexes to reach a minimum source version with a timeout; timeout does not roll back the committed primary mutation and must report pending indexes.
 
-The system must support index rebuild, validation, checkpoint/resume, and generation-based atomic publication. Search must never silently mix incompatible analyzer/model/schema generations.
+Each index exposes its generation and consistency watermark, and search responses identify the generation/watermark used. Prolog dynamic mutation does not wait for remote embedding inside the WAM loop. The system must support index rebuild, validation, checkpoint/resume, and generation-based atomic publication. Search must never silently mix incompatible analyzer/model/schema generations.
 
 ### R3. Real lexical retrieval
 
@@ -67,15 +70,18 @@ BM25 must use document frequency, corpus/document length statistics, configurabl
 
 ### R4. Scalable vector retrieval
 
-Vector indexing must validate dimensions and model identity, support text-query and source-node-query workflows, provide exact search as a correctness oracle, and add a pluggable approximate nearest-neighbor backend selected by benchmark evidence. Search contracts must include top-k, threshold, model/index generation, deterministic tie-breaking, and whether the source item is included.
+Vector indexing must validate dimensions and model identity, support text-query and source-node-query workflows, provide exact search as a correctness oracle, and add a pluggable approximate nearest-neighbor backend selected by benchmark evidence. An embedded Rust ANN crate is allowed; it must not require an external vector service, and exact RocksDB search remains the oracle/fallback. Search contracts must include top-k, threshold, model/index generation, deterministic tie-breaking, and whether the source item is included.
 
-Embedding generation throughput, failure/retry behavior, batching, dedupe, stale-job suppression, and provider/model metadata must be measured separately from vector retrieval latency.
+Embedding models use a pluggable versioned registry. Each profile covers provider, model ID/revision, dimension, metric, normalization, maximum input, query/document prompt or prefix templates, batch limits, and dense/sparse/multi-vector capabilities. Ollama `bge-m3:latest` 1024-dimensional dense embedding is the default and first benchmark baseline, not a hard-coded storage assumption. Embedding generation throughput, failure/retry behavior, batching, dedupe, stale-job suppression, and provider/model metadata must be measured separately from vector retrieval latency.
 
 ### R5. Explicit temporal semantics
 
-Temporal indexing must distinguish the chosen domain semantics—event time, validity interval, transaction time, or bitemporal data—and define interval boundaries precisely. Point, overlap/range, before, and after queries must use ordered index seeks rather than full scans at target scale. Mutation and deletion must remove superseded temporal records.
+The first delivery uses two distinct temporal record kinds:
 
-The exact first-delivery temporal model is an open product decision.
+- event time: a UTC instant at which an event occurred;
+- valid time: a half-open UTC interval `[valid_from, valid_to)`, with an optional open end.
+
+Storage versions remain available as internal transaction history, but full bitemporal query algebra is deferred. Event and validity records must not be conflated in storage or query results. Existing `temporal_on/2` and `temporal_between/3` represent event-time date/range queries. New `valid_at/2` and `valid_overlaps/3` predicates represent valid-time containment and overlap. Date-only event queries use UTC day boundaries, and all ranges use half-open `[start, end)` semantics. Point, overlap/range, before, and after queries must use ordered index seeks rather than full scans at target scale. Mutation and deletion must remove superseded temporal records.
 
 ### R6. Hybrid retrieval and Prolog composition
 
@@ -122,13 +128,19 @@ Report MRR, nDCG@k, Recall@k, ANN Recall@k, and temporal/filter correctness wher
 
 Benchmarks must separate ingestion, embedding generation, index construction, steady-state query, mixed updates, restart/warmup, and hybrid query costs. Required evidence includes p50/p95/p99 latency, throughput, peak RSS, index/database size, write amplification where observable, candidate counts, and quality metrics.
 
-Use deterministic tiers before full scale, for example 10K, 100K, 1M, and dataset-full documents/chunks. All reports record commit, machine, dataset checksums, configuration, model, dimensions, warm/cold state, and random seed.
+Use deterministic local tiers up to 100K chunks: smoke at 1K–10K and full local validation at 100K. This track does not require 1M, dataset-full, external-server, or GPU benchmark tiers. Benchmarks run on the current Apple M2 Pro/10-core/32-GiB machine and must remain within its available memory and disk; first baselines establish numeric regression budgets rather than inventing unsupported thresholds. All reports record commit, machine, dataset checksums, configuration, model, dimensions, warm/cold state, and random seed.
 
 ### R11. General-knowledge validation
 
-Validation must combine graph structure, searchable text, semantic relevance, and time—not merely run three disconnected microbenchmarks. Candidate public corpora include Wikipedia/KILT or Wikidata-derived knowledge, BEIR retrieval tasks, and agent-memory datasets; final selections require license, download, checksum, ground-truth, and resource review. A deterministic enterprise-like synthetic corpus fills coverage gaps such as updates, ACL-like graph filters, and interval edge cases.
+Validation must combine graph structure, searchable text, semantic relevance, and time—not merely run three disconnected microbenchmarks. Public license-compatible datasets may be downloaded on demand into ignored `data/benchmarks/`; source control stores only manifests, source/license attribution, checksums, deterministic conversion/sampling scripts, and compact reports. Datasets that prohibit automated download require manual placement instructions and are never redistributed. Candidate public corpora include Wikipedia/KILT or Wikidata-derived knowledge, BEIR retrieval tasks, and agent-memory datasets; final selections require license, download, checksum, ground-truth, and resource review. The approved candidate suite is introduced in batches, with every corpus/run capped at 100K chunks: (1) deterministic EnterpriseKB plus BEIR SciFact; (2) BEIR FiQA plus a license-compatible MIRACL Chinese/English subset; (3) one investigated HotpotQA/KILT multi-hop subset plus one investigated agent-memory dataset such as LoCoMo or LongMemEval. Dataset-specific use remains contingent on license, schema, checksum, and ground-truth verification. EnterpriseKB fills updates, ACL-like graph filters, intervals, revisions, multilingual fields, and deterministic-oracle gaps. ACL-style filtering is modeled through ordinary graph/Prolog predicates and verified in hybrid queries; it is not presented as mandatory security enforcement, tenant isolation, or protection against direct unfiltered index access.
 
-### R12. Compatibility and safety
+### R12. Node and edge property mutation
+
+Nodes and edges both support mutable property maps. Provide explicit set/remove/atomic-patch APIs and Prolog predicates for each entity kind while preserving compatible `assertz/retract(property/3)` behavior. Set is a one-key upsert preserving other properties; remove is idempotent and `null` is not interpreted as deletion. Generic property mutation resolves an existing node or edge ID and errors on ambiguity instead of creating the wrong entity.
+
+Expose stable edge identity lookup for Prolog joins. Edge source/type/target/ID are immutable; changing relation identity is delete-old plus create-new. Edge property updates receive source versions, table invalidation, storage/index updates, and durable index jobs exactly like node updates.
+
+### R13. Compatibility and safety
 
 - Preserve the active `ZlfDatabase -> WamRuntime -> CompositeFactProvider` architecture.
 - Keep default embedding configuration compatible with Ollama `bge-m3:latest`/1024 dimensions while allowing versioned alternatives.
@@ -166,11 +178,14 @@ See `scope-map.md` and stage requirements for dependencies.
 - A fresh process can reopen indexes and reproduce correctness/quality within documented ANN tolerance.
 - Full workspace quality gates pass.
 
-## Open questions
+## Confirmed product decisions
 
-1. Which temporal model is primary for the first release: valid-time intervals, event timestamps, transaction history, or bitemporal?
-2. May zlf add an embedded ANN library, or must the first scalable vector backend be implemented only with RocksDB/current dependencies?
-3. Should index consistency be synchronous for API writes, or is durable eventual consistency with a visible watermark acceptable by default?
-4. Which public datasets may be downloaded and retained locally, and what machine/runtime/storage budget should define the full tier?
-5. Is document chunking owned by zlf or supplied by ingestion adapters in the first release?
-6. Are ACL/security filters required in the first enterprise benchmark or only modeled as ordinary graph predicates?
+- Event-time plus valid-time temporal records with explicit `temporal_*` and `valid_*` predicates.
+- Embedded ANN crates are allowed; exact RocksDB remains the oracle/fallback.
+- Versioned pluggable embedding registry with `bge-m3` dense as default baseline.
+- Durable eventual index consistency plus explicit per-index/version/timeout waits.
+- Explicit chunks plus versioned built-in baseline chunkers.
+- Versioned immutable `IndexProfile` declarations with explicit production fields and opt-in auto indexing.
+- Mutable node/edge properties; immutable edge relation identity.
+- Current M2 Pro only and at most 100K chunks per run.
+- Staged public benchmark suite and graph/rule ACL-style filtering scope.

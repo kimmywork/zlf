@@ -23,7 +23,7 @@ Reviewer limitation: no separate reviewer subagent was available; this review wa
 - **Description:** First-release temporal semantics are not selected. Event time, valid time, transaction time, and bitemporal models require different identities, keys, predicates, and oracles.
 - **Evidence:** parent R5/open question 1; Stage 04 is marked blocked; current implementation ignores `valid_to`.
 - **Suggested fix:** product owner selects the primary model and boundary semantics before Stage 04 design.
-- **Resolution:** roll-back to user clarification; open.
+- **Resolution:** resolved 2026-07-10 — distinct event instants plus valid-time half-open intervals `[from, to)`; `temporal_on/between` query events and `valid_at/valid_overlaps` query validity; transaction history remains internal and full bitemporal algebra is deferred.
 
 ### F2
 
@@ -33,7 +33,7 @@ Reviewer limitation: no separate reviewer subagent was available; this review wa
 - **Description:** ANN dependency policy is unknown, preventing a credible vector implementation/scale estimate.
 - **Evidence:** parent R4/open question 2 and Stage 03 open question; current exact scan is O(N).
 - **Suggested fix:** confirm whether a maintained embedded ANN crate is acceptable, with exact RocksDB search retained as oracle/fallback.
-- **Resolution:** user clarification; open.
+- **Resolution:** resolved 2026-07-10 — embedded ANN crates are allowed; exact RocksDB remains the correctness oracle/fallback and backend selection remains benchmark-driven.
 
 ### F3
 
@@ -43,17 +43,17 @@ Reviewer limitation: no separate reviewer subagent was available; this review wa
 - **Description:** Search consistency has no approved default. Synchronous multi-index updates and durable eventual consistency have different write latency/failure behavior.
 - **Evidence:** parent R2/open question 3 and Stage 01.
 - **Suggested fix:** approve durable eventual consistency with visible watermark plus optional wait-for-watermark, or require synchronous read-your-write.
-- **Resolution:** user clarification; open.
+- **Resolution:** resolved 2026-07-10 — durable eventual is the default; callers may wait by selected index/minimum source version/timeout, and timeout preserves primary commit while reporting pending indexes.
 
 ### F4
 
 - **Origin phase:** requirement discovery
 - **Severity:** minor
 - **Type:** unclear
-- **Description:** Chunk ownership and initial benchmark resource limits are unresolved.
+- **Description:** Chunk ownership was unresolved, and initial benchmark resource limits remain unresolved.
 - **Evidence:** parent open questions 4–5 and Stage 06.
-- **Suggested fix:** use adapter-owned deterministic chunking initially and discover machine budget before freezing full-tier thresholds, unless product requirements differ.
-- **Resolution:** may use recommended defaults after major decisions; open.
+- **Suggested fix:** support explicit adapter chunks plus versioned built-in baseline chunkers, then discover machine budget before freezing full-tier thresholds.
+- **Resolution:** resolved 2026-07-10 — hybrid chunk ownership; current M2 Pro/32-GiB machine only; smoke 1K–10K and full local validation capped at 100K chunks. Numeric regression thresholds follow first baselines.
 
 ### F5
 
@@ -81,4 +81,4 @@ Reviewer limitation: no separate reviewer subagent was available; this review wa
 
 ## Decision
 
-**Requirements are well-shaped but not yet approved for solution design.** Resolve F1–F3 with the product owner. F4 can use the documented recommended defaults unless overridden. Do not begin implementation.
+**Pass.** All major product decisions are resolved: temporal model/predicates, ANN policy, model registry, consistency, chunk ownership, immutable index profiles and explicit field policy, node/edge property mutation, local scale, dataset policy/suite, and ACL-style filtering. Remaining backend selection, retention thresholds, fusion parameters, and numeric regression budgets are design/evidence decisions rather than unresolved product scope. Requirements may proceed to solution design; implementation still requires design review.

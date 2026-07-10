@@ -22,7 +22,7 @@ Stage 06 owns benchmark orchestration, but every implementation stage must deliv
 | 01 | `2026-07-10-01-index-lifecycle/` | discovery | indexed-document identity, mutations, generations, rebuild, observability |
 | 02 | `2026-07-10-02-bm25/` | discovery | corpus-normalized lexical ranking and multilingual analysis |
 | 03 | `2026-07-10-03-vector-embedding/` | discovery | model-safe vectors, exact oracle, ANN, embedding jobs |
-| 04 | `2026-07-10-04-temporal/` | blocked on temporal-model decision | ordered temporal indexes and boundary semantics |
+| 04 | `2026-07-10-04-temporal/` | discovery | event-time `temporal_*` and valid-time `valid_*` indexes |
 | 05 | `2026-07-10-05-hybrid-prolog/` | discovery | fusion, graph/rule/time joins, bounded provider contracts |
 | 06 | `2026-07-10-06-kb-benchmark/` | discovery | public/synthetic datasets, tiered stress, machine-readable reports |
 
@@ -43,12 +43,15 @@ All stages inherit:
 
 | Decision | Blocks | Recommended default |
 |---|---|---|
-| temporal domain model | 04, part of 05/06 | valid-time half-open intervals plus separate event timestamp; confirm with user |
-| ANN dependency policy | 03/06 | pluggable backend: exact RocksDB oracle plus measured embedded HNSW candidate |
-| consistency model | 01–04 | durable eventual consistency with per-generation watermark; optional synchronous wait |
-| chunk ownership | 01–03/06 | ingestion adapter supplies chunks initially; zlf stores stable chunk identity |
-| full-tier resources | 06 | discover local limits, then define 10K/100K/1M/full tiers |
-| ACL benchmark | 05/06 | model ACL as graph predicates first, no dedicated security subsystem |
+| temporal predicate split | 04, part of 05/06 | decided: `temporal_on/between` for events; `valid_at/valid_overlaps` for validity |
+| ANN dependency policy | 03/06 | decided: embedded ANN crates allowed; exact RocksDB oracle/fallback retained |
+| embedding model strategy | 03/05/06 | decided: pluggable versioned registry; `bge-m3` dense is the default baseline |
+| consistency model | 01–04 | decided: durable eventual default; per-index/version/timeout wait and watermarks |
+| chunk ownership | 01–03/06 | decided: explicit adapter chunks plus versioned built-in baseline chunkers |
+| indexed fields/profile | 01–05 | decided: immutable versioned `IndexProfile`; explicit production fields; opt-in auto profile |
+| property mutation | 01/05 | decided: mutable node/edge property patches; immutable edge relation identity |
+| benchmark resources | 06 | decided: current M2 Pro/32 GiB only; smoke 1K–10K and maximum 100K chunks |
+| ACL benchmark | 05/06 | decided: graph/Prolog ACL-style filtering, not a complete security subsystem |
 
 ## Scope boundary with pending roadmap track
 

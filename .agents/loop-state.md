@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-Requirement discovery and current-state investigation.
+Hybrid retrieval requirements and parent solution design complete; P0/P1 implementation has not started.
 
 ## Active Track
 
@@ -22,13 +22,17 @@ Deferred by product decision on 2026-07-10. Do not begin stratified negation, CL
 - Canonical storage mutation, graph providers/algorithms, ISO core builtins, proof terms, deterministic positive tabling, persistent selective invalidation, bound storage pushdown, and query planning are available.
 - NCBI Taxonomy bulk/scale track is complete.
 
-## Immediate Discovery Decisions
+## Confirmed Hybrid Retrieval Decisions
 
-1. First-release temporal model.
-2. Embedded ANN dependency policy.
-3. Synchronous versus durable eventual index consistency.
-4. Chunk ownership boundary.
-5. Public benchmark datasets and full-tier resource budget.
+1. Event time plus valid-time half-open intervals; `temporal_*` and `valid_*` remain distinct.
+2. Embedded ANN crates allowed; exact RocksDB oracle/fallback retained.
+3. Pluggable model registry with `bge-m3` dense baseline.
+4. Durable eventual consistency with per-index/version/timeout wait.
+5. Explicit chunks plus versioned built-in chunkers.
+6. Immutable versioned IndexProfiles through Prolog directive and JSON/Rust APIs.
+7. Mutable node/edge properties; immutable edge relation identity.
+8. Current M2 Pro only, at most 100K chunks per run.
+9. Staged EnterpriseKB/BEIR/multilingual/multi-hop/agent-memory benchmark suite.
 
 ## Local Exclusions
 
