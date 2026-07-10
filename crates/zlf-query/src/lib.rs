@@ -7,11 +7,12 @@ use zlf_index::{BM25Index, TemporalEntry, TemporalIndex, VectorEntry, VectorInde
 use zlf_prolog::wam::{
     CompiledRuleArtifact, CompositeFactProvider, GraphAlgorithmProvider, GraphViewProvider,
     IndexFactProvider, IndexedStorageFactWriter, IntrospectionProvider, PredicateRegistry,
-    StorageFactProvider, StorageRuleStore, WamRuntime,
+    RocksTableBackend, StorageFactProvider, StorageRuleStore, TableManager, WamRuntime,
 };
 mod helpers;
 mod proof;
 mod registry;
+mod table;
 
 use zlf_prolog::{PrologParser, PrologRule, Query, Term};
 use zlf_storage::Storage;
@@ -24,6 +25,7 @@ pub struct ZlfDatabase {
     rules: RwLock<Vec<CompiledRuleArtifact>>,
     registry: RwLock<PredicateRegistry>,
     tabled: RwLock<HashSet<zlf_prolog::wam::PredicateKey>>,
+    table_manager: Arc<TableManager>,
 }
 
 impl ZlfDatabase {
@@ -60,6 +62,10 @@ impl ZlfDatabase {
             .map_err(|e| ZlfError::Internal(e.to_string()))?;
         let mut pred_registry = PredicateRegistry::new();
         registry::populate_registry(&storage, &rules, &mut pred_registry)?;
+        let table_manager = Arc::new(TableManager::with_backend(Arc::new(
+            RocksTableBackend::new(Arc::clone(&storage)),
+        )));
+        let tabled = table::load_declarations(&storage)?;
         Ok(Self {
             storage,
             temporal: Arc::new(temporal),
@@ -67,7 +73,8 @@ impl ZlfDatabase {
             vector: Arc::new(vector),
             rules: RwLock::new(rules),
             registry: RwLock::new(pred_registry),
-            tabled: RwLock::new(HashSet::new()),
+            tabled: RwLock::new(tabled),
+            table_manager,
         })
     }
 
@@ -91,6 +98,7 @@ impl ZlfDatabase {
             .with_bm25(self.bm25.as_ref())
             .apply_fact(fact)
             .map_err(|e| ZlfError::Internal(e.to_string()))?;
+        self.clear_tables()?;
         self.refresh_registry()
     }
 
@@ -104,7 +112,12 @@ impl ZlfDatabase {
             .write()
             .map_err(|e| ZlfError::Internal(e.to_string()))?
             .push(artifact);
+        self.clear_tables()?;
         self.refresh_registry()
+    }
+
+    pub fn table_metrics(&self) -> zlf_prolog::wam::TableMetricsSnapshot {
+        self.table_manager.metrics()
     }
 
     pub fn get_rules(&self) -> Result<Vec<PrologRule>> {
@@ -125,6 +138,7 @@ impl ZlfDatabase {
             valid_to: None,
         })?;
         self.index_node_text(&created)?;
+        self.clear_tables()?;
         Ok(created)
     }
 
@@ -133,7 +147,9 @@ impl ZlfDatabase {
     }
 
     pub fn add_edge(&self, edge: Edge) -> Result<Edge> {
-        self.storage.create_edge(edge)
+        let edge = self.storage.create_edge(edge)?;
+        self.clear_tables()?;
+        Ok(edge)
     }
 
     pub fn get_edge(&self, id: &str) -> Result<Option<Edge>> {
@@ -207,6 +223,7 @@ impl ZlfDatabase {
             .with(&graph_view)
             .with(&graph_algo);
         let mut runtime = WamRuntime::new(64);
+        runtime.set_table_manager(Arc::clone(&self.table_manager));
         for key in self.tabled.read().map_err(lock_error)?.iter().cloned() {
             runtime.declare_tabled(key);
         }
@@ -220,8 +237,11 @@ impl ZlfDatabase {
         let rows = runtime
             .query_all_with_provider_and_storage(&query, &provider, self.storage.as_ref())
             .map_err(|e| ZlfError::Internal(e.to_string()))?;
-        self.reload_rules()?;
-        self.refresh_registry()?;
+        if terms.iter().any(table::contains_mutation) {
+            self.reload_rules()?;
+            self.refresh_registry()?;
+            self.clear_tables()?;
+        }
         Ok(self.dedupe_results(rows.into_iter().map(helpers::solution_to_json).collect()))
     }
 
@@ -235,22 +255,6 @@ impl ZlfDatabase {
             }
         }
         deduped
-    }
-
-    fn apply_directive(&self, directive: &Term) -> Result<()> {
-        let Term::Compound { name, args } = directive else {
-            return Ok(());
-        };
-        if name != "table" || args.len() != 1 {
-            return Ok(());
-        }
-        let Some(key) = predicate_indicator(&args[0]) else {
-            return Err(ZlfError::Internal(
-                "invalid table predicate indicator".to_string(),
-            ));
-        };
-        self.tabled.write().map_err(lock_error)?.insert(key);
-        Ok(())
     }
 
     fn reload_rules(&self) -> Result<()> {
@@ -277,22 +281,6 @@ impl ZlfDatabase {
         }
         self.bm25.index_text(&node.id, &parts.join(" "))
     }
-}
-
-fn predicate_indicator(term: &Term) -> Option<zlf_prolog::wam::PredicateKey> {
-    let Term::Compound { name, args } = term else {
-        return None;
-    };
-    if name != "/" || args.len() != 2 {
-        return None;
-    }
-    let (Term::Atom(name), Term::Integer(arity)) = (&args[0], &args[1]) else {
-        return None;
-    };
-    Some(zlf_prolog::wam::PredicateKey {
-        name: name.clone(),
-        arity: *arity as usize,
-    })
 }
 
 fn lock_error(error: impl std::fmt::Display) -> ZlfError {

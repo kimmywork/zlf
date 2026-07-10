@@ -9,6 +9,31 @@ pub(crate) fn atom_text(text: &str) -> String {
         .map_or_else(|| text.to_string(), |text| text.replace("\\'", "'"))
 }
 
+pub(crate) fn string_text(text: &str) -> String {
+    let content = &text[1..text.len() - 1];
+    let mut value = String::new();
+    let mut chars = content.chars();
+    while let Some(character) = chars.next() {
+        if character != '\\' {
+            value.push(character);
+            continue;
+        }
+        match chars.next() {
+            Some('n') => value.push('\n'),
+            Some('r') => value.push('\r'),
+            Some('t') => value.push('\t'),
+            Some('"') => value.push('"'),
+            Some('\\') => value.push('\\'),
+            Some(other) => {
+                value.push('\\');
+                value.push(other);
+            }
+            None => value.push('\\'),
+        }
+    }
+    value
+}
+
 pub(crate) fn parse_directive(body: &str) -> Result<Term> {
     for name in ["dynamic", "table"] {
         if let Some(argument) = body.strip_prefix(name) {

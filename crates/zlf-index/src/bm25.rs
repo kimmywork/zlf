@@ -3,7 +3,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use jieba_rs::Jieba;
-use rocksdb::{Options, DB};
+use rocksdb::{Direction, IteratorMode, Options, WriteBatch, DB};
 use serde::{Deserialize, Serialize};
 
 use zlf_core::{Result, ZlfError};
@@ -60,23 +60,27 @@ impl BM25Index {
     }
 
     pub fn index_text(&self, node_id: &str, text: &str) -> Result<()> {
-        let tokens = self.tokenize(text);
-        let mut token_counts: HashMap<String, f32> = HashMap::new();
+        self.index_texts_batch(&[(node_id, text)])
+    }
 
-        for token in &tokens {
-            *token_counts.entry(token.clone()).or_insert(0.0) += 1.0;
+    pub fn index_texts_batch(&self, documents: &[(&str, &str)]) -> Result<()> {
+        let mut batch = WriteBatch::default();
+        for (node_id, text) in documents {
+            for (token, score) in token_counts(self.tokenize(text)) {
+                let entry = BM25Entry {
+                    node_id: (*node_id).to_string(),
+                    token,
+                    score,
+                };
+                let key = format!("bm25:{}:{}", entry.token, entry.node_id);
+                let data = bincode::serialize(&entry)
+                    .map_err(|error| ZlfError::Serialization(error.to_string()))?;
+                batch.put(key.as_bytes(), data);
+            }
         }
-
-        // Calculate TF-IDF (simplified: just TF for now)
-        for (token, count) in &token_counts {
-            self.add_entry(BM25Entry {
-                node_id: node_id.to_string(),
-                token: token.clone(),
-                score: *count,
-            })?;
-        }
-
-        Ok(())
+        self.db
+            .write(batch)
+            .map_err(|error| ZlfError::Internal(error.to_string()))
     }
 
     pub fn search(&self, query: &str) -> Result<Vec<(String, f32)>> {
@@ -85,18 +89,17 @@ impl BM25Index {
 
         for token in &tokens {
             let prefix = format!("bm25:{}:", token);
-            let iter = self.db.iterator(rocksdb::IteratorMode::Start);
-
+            let iter = self
+                .db
+                .iterator(IteratorMode::From(prefix.as_bytes(), Direction::Forward));
             for item in iter {
                 let (key, value) = item.map_err(|e| ZlfError::Internal(e.to_string()))?;
-                let key_str = String::from_utf8_lossy(&key);
-
-                if key_str.starts_with(&prefix) {
-                    let entry: BM25Entry = bincode::deserialize(&value)
-                        .map_err(|e| ZlfError::Serialization(e.to_string()))?;
-
-                    *scores.entry(entry.node_id).or_insert(0.0) += entry.score;
+                if !key.starts_with(prefix.as_bytes()) {
+                    break;
                 }
+                let entry: BM25Entry = bincode::deserialize(&value)
+                    .map_err(|e| ZlfError::Serialization(e.to_string()))?;
+                *scores.entry(entry.node_id).or_insert(0.0) += entry.score;
             }
         }
 
@@ -132,6 +135,14 @@ impl BM25Index {
 
         Ok(())
     }
+}
+
+fn token_counts(tokens: Vec<String>) -> HashMap<String, f32> {
+    let mut counts = HashMap::new();
+    for token in tokens {
+        *counts.entry(token).or_insert(0.0) += 1.0;
+    }
+    counts
 }
 
 #[cfg(test)]

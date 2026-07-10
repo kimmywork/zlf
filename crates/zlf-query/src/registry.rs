@@ -33,7 +33,20 @@ pub fn populate_registry(
     for artifact in rules {
         registry.register(artifact.key.clone(), PredicateKind::UserRule);
     }
-    // Discover shortcuts from storage
+    // Discover shortcuts from compact metadata when available.
+    let labels = metadata_values(storage, "label")?;
+    let properties = metadata_values(storage, "property")?;
+    let edge_types = metadata_values(storage, "edge_type")?;
+    if !labels.is_empty() || !properties.is_empty() || !edge_types.is_empty() {
+        registry.sync_label_shortcuts(&labels);
+        registry.sync_edge_shortcuts(&edge_types);
+        registry.sync_property_shortcuts(&properties);
+        return Ok(());
+    }
+    populate_registry_legacy(storage, registry)
+}
+
+fn populate_registry_legacy(storage: &Storage, registry: &mut PredicateRegistry) -> Result<()> {
     let nodes = storage
         .get_all_nodes()
         .map_err(|e| ZlfError::Internal(e.to_string()))?;
@@ -64,4 +77,14 @@ pub fn populate_registry(
     registry.sync_edge_shortcuts(&all_edge_types);
     registry.sync_property_shortcuts(&all_prop_keys);
     Ok(())
+}
+
+fn metadata_values(storage: &Storage, kind: &str) -> Result<Vec<String>> {
+    storage
+        .scan_prefix(&format!("meta:predicate:{kind}:"))?
+        .into_iter()
+        .map(|(_, value)| {
+            String::from_utf8(value).map_err(|error| ZlfError::Serialization(error.to_string()))
+        })
+        .collect()
 }

@@ -1,7 +1,9 @@
+use std::sync::Arc;
+
 use zlf_core::{Result, ZlfError};
 use zlf_prolog::wam::{
-    CompositeFactProvider, GraphAlgorithmProvider, GraphViewProvider, IndexFactProvider,
-    IntrospectionProvider, ProofAnswer, StorageFactProvider, WamRuntime,
+    CompiledRuleArtifact, CompositeFactProvider, GraphAlgorithmProvider, GraphViewProvider,
+    IndexFactProvider, IntrospectionProvider, ProofAnswer, StorageFactProvider, WamRuntime,
 };
 use zlf_prolog::{PrologParser, Query, Term};
 
@@ -40,7 +42,23 @@ impl ZlfDatabase {
             .with(&introspection)
             .with(&graph_view)
             .with(&graph_algo);
+        let (runtime, query) = self.proof_runtime(terms, rules)?;
+        runtime
+            .query_all_with_provider_and_storage_with_proof(
+                &query,
+                &provider,
+                self.storage.as_ref(),
+            )
+            .map_err(|error| ZlfError::Internal(error.to_string()))
+    }
+
+    fn proof_runtime(
+        &self,
+        terms: &[Term],
+        rules: Vec<CompiledRuleArtifact>,
+    ) -> Result<(WamRuntime, Term)> {
         let mut runtime = WamRuntime::new(64);
+        runtime.set_table_manager(Arc::clone(&self.table_manager));
         for key in self.tabled.read().map_err(lock_error)?.iter().cloned() {
             runtime.declare_tabled(key);
         }
@@ -51,12 +69,6 @@ impl ZlfDatabase {
         if let Some(rule) = wrapper {
             runtime.add_rule(rule);
         }
-        runtime
-            .query_all_with_provider_and_storage_with_proof(
-                &query,
-                &provider,
-                self.storage.as_ref(),
-            )
-            .map_err(|error| ZlfError::Internal(error.to_string()))
+        Ok((runtime, query))
     }
 }

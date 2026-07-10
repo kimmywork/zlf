@@ -30,7 +30,7 @@ variable = @{ ("_" | 'A'..'Z') ~ (ASCII_ALPHANUMERIC | "_")* }
 atom = @{ 'a'..'z' ~ (ASCII_ALPHANUMERIC | "_")* }
 quoted_atom = @{ "'" ~ ("\\'" | !"'" ~ ANY)* ~ "'" }
 number = @{ (ASCII_DIGIT+ ~ ("." ~ ASCII_DIGIT+)?) | ("-" ~ ASCII_DIGIT+ ~ ("." ~ ASCII_DIGIT+)?) }
-string = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
+string = @{ "\"" ~ ("\\\"" | "\\\\" | "\\n" | "\\r" | "\\t" | !"\"" ~ ANY)* ~ "\"" }
 
 // Built-in operators
 cut = { "!" }

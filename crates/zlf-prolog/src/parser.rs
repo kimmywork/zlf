@@ -199,9 +199,9 @@ impl PrologParser {
                     return Ok(Term::Integer(value));
                 }
                 Rule::string => {
-                    let content = pair.as_str();
-                    let content = &content[1..content.len() - 1]; // Remove quotes
-                    return Ok(Term::String(content.to_string()));
+                    return Ok(Term::String(crate::parser_helpers::string_text(
+                        pair.as_str(),
+                    )));
                 }
                 Rule::inequality => {
                     let mut inner = pair.into_inner();

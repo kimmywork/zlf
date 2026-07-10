@@ -4,6 +4,8 @@ use std::sync::Arc;
 use rocksdb::{Options, DB};
 use zlf_core::{Edge, Node, Result, Value, ZlfError};
 
+mod bulk;
+mod canonical;
 mod delete;
 mod graph_query;
 mod indexes;
@@ -12,6 +14,8 @@ mod query;
 mod raw;
 mod version;
 
+pub use bulk::{StorageRecord, StorageRecordPlan, STORAGE_KEY_VERSION};
+pub use raw::RawMutation;
 pub use version::NodeVersion;
 
 pub struct Storage {
@@ -67,19 +71,8 @@ impl Storage {
             return Err(ZlfError::NodeAlreadyExists(node.id));
         }
 
-        // Serialize and store
-        let data = bincode::serialize(&node).map_err(|e| ZlfError::Serialization(e.to_string()))?;
-
-        self.db
-            .put(&key, data)
-            .map_err(|e| ZlfError::Internal(e.to_string()))?;
-
-        // Store version
-        self.create_version(&node)?;
-
-        // Update indexes
-        self.update_node_indexes(&node)?;
-
+        let plan = Self::compile_node_records(&node)?;
+        self.write_record_plans([&plan])?;
         Ok(node)
     }
 
@@ -204,16 +197,8 @@ impl Storage {
             return Err(ZlfError::EdgeAlreadyExists(edge.id));
         }
 
-        // Serialize and store
-        let data = bincode::serialize(&edge).map_err(|e| ZlfError::Serialization(e.to_string()))?;
-
-        self.db
-            .put(&key, data)
-            .map_err(|e| ZlfError::Internal(e.to_string()))?;
-
-        // Update indexes
-        self.update_edge_indexes(&edge)?;
-
+        let plan = Self::compile_edge_records(&edge)?;
+        self.write_record_plans([&plan])?;
         Ok(edge)
     }
 

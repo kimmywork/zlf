@@ -1,0 +1,221 @@
+{
+  "format": "zlf-ncbi-taxonomy-direct-query-v1",
+  "first_process": {
+    "measurements": [
+      {
+        "name": "name",
+        "query": "? prop_scientific_name(tax_9606, Name).",
+        "rows": 1,
+        "cold_ms": 0.208125,
+        "warm_ms": [
+          0.103792,
+          0.090417
+        ],
+        "checksum": 1219931404633707230
+      },
+      {
+        "name": "name_reverse_homo_sapiens",
+        "query": "? prop_scientific_name(Taxon, \"Homo sapiens\").",
+        "rows": 1,
+        "cold_ms": 0.9469580000000001,
+        "warm_ms": [
+          0.09658399999999999,
+          0.092541
+        ],
+        "checksum": 12506586437641094306
+      },
+      {
+        "name": "lineage",
+        "query": "? taxonomy_ancestor(tax_9606, Ancestor).",
+        "rows": 31,
+        "cold_ms": 7.425458,
+        "warm_ms": [
+          0.063041,
+          0.054083
+        ],
+        "checksum": 7929118071011158987
+      },
+      {
+        "name": "descendants",
+        "query": "? taxonomy_descendant(tax_9604, Descendant).",
+        "rows": 43,
+        "cold_ms": 4.658333,
+        "warm_ms": [
+          0.06887499999999999,
+          0.05875
+        ],
+        "checksum": 6018493668304107145
+      },
+      {
+        "name": "distance_up_left",
+        "query": "? taxonomy_distance_up(tax_9606, Taxon, Distance).",
+        "rows": 32,
+        "cold_ms": 3.004792,
+        "warm_ms": [
+          0.076125,
+          0.06375
+        ],
+        "checksum": 14755275467763208471
+      },
+      {
+        "name": "distance_up_right",
+        "query": "? taxonomy_distance_up(tax_9604, Taxon, Distance).",
+        "rows": 29,
+        "cold_ms": 2.677791,
+        "warm_ms": [
+          0.07058299999999999,
+          0.062208
+        ],
+        "checksum": 4278252256886155992
+      },
+      {
+        "name": "lca",
+        "query": "? taxonomy_lca(tax_9606, tax_9604, Lca).",
+        "rows": 1,
+        "cold_ms": 0.360834,
+        "warm_ms": [
+          0.045833,
+          0.041041999999999995
+        ],
+        "checksum": 12595264985863381528
+      },
+      {
+        "name": "taxonomic_distance",
+        "query": "? taxonomic_distance(tax_9606, tax_9604, Distance).",
+        "rows": 1,
+        "cold_ms": 0.355667,
+        "warm_ms": [
+          0.047125,
+          0.044583000000000005
+        ],
+        "checksum": 47877453912181363
+      }
+    ],
+    "taxonomy_distance": {
+      "left": "tax_9606",
+      "right": "tax_9604",
+      "lca": "tax_9604",
+      "distance": 3
+    },
+    "table_metrics": {
+      "hot_hits": 18,
+      "persistent_hits": 0,
+      "misses": 6,
+      "tables_completed": 6,
+      "stale_invalidations": 2,
+      "iterations": 98,
+      "inserted_answers": 137,
+      "duplicate_answers": 0,
+      "evictions": 0
+    }
+  },
+  "restart_process": {
+    "measurements": [
+      {
+        "name": "name",
+        "query": "? prop_scientific_name(tax_9606, Name).",
+        "rows": 1,
+        "cold_ms": 0.216833,
+        "warm_ms": [
+          0.10579100000000001,
+          0.09241700000000001
+        ],
+        "checksum": 1219931404633707230
+      },
+      {
+        "name": "name_reverse_homo_sapiens",
+        "query": "? prop_scientific_name(Taxon, \"Homo sapiens\").",
+        "rows": 1,
+        "cold_ms": 0.967958,
+        "warm_ms": [
+          0.17075,
+          0.118459
+        ],
+        "checksum": 12506586437641094306
+      },
+      {
+        "name": "lineage",
+        "query": "? taxonomy_ancestor(tax_9606, Ancestor).",
+        "rows": 31,
+        "cold_ms": 0.11820900000000001,
+        "warm_ms": [
+          0.065375,
+          0.05375
+        ],
+        "checksum": 7929118071011158987
+      },
+      {
+        "name": "descendants",
+        "query": "? taxonomy_descendant(tax_9604, Descendant).",
+        "rows": 43,
+        "cold_ms": 0.101,
+        "warm_ms": [
+          0.058084000000000004,
+          0.055958
+        ],
+        "checksum": 6018493668304107145
+      },
+      {
+        "name": "distance_up_left",
+        "query": "? taxonomy_distance_up(tax_9606, Taxon, Distance).",
+        "rows": 32,
+        "cold_ms": 0.08825000000000001,
+        "warm_ms": [
+          0.059375,
+          0.056833
+        ],
+        "checksum": 14755275467763208471
+      },
+      {
+        "name": "distance_up_right",
+        "query": "? taxonomy_distance_up(tax_9604, Taxon, Distance).",
+        "rows": 29,
+        "cold_ms": 0.085,
+        "warm_ms": [
+          0.056375,
+          0.055624999999999994
+        ],
+        "checksum": 4278252256886155992
+      },
+      {
+        "name": "lca",
+        "query": "? taxonomy_lca(tax_9606, tax_9604, Lca).",
+        "rows": 1,
+        "cold_ms": 0.047833,
+        "warm_ms": [
+          0.041291999999999995,
+          0.036417
+        ],
+        "checksum": 12595264985863381528
+      },
+      {
+        "name": "taxonomic_distance",
+        "query": "? taxonomic_distance(tax_9606, tax_9604, Distance).",
+        "rows": 1,
+        "cold_ms": 0.048625,
+        "warm_ms": [
+          0.039958,
+          0.039042
+        ],
+        "checksum": 47877453912181363
+      }
+    ],
+    "taxonomy_distance": {
+      "left": "tax_9606",
+      "right": "tax_9604",
+      "lca": "tax_9604",
+      "distance": 3
+    },
+    "table_metrics": {
+      "hot_hits": 14,
+      "persistent_hits": 6,
+      "misses": 0,
+      "tables_completed": 0,
+      "stale_invalidations": 0,
+      "iterations": 0,
+      "inserted_answers": 0,
+      "duplicate_answers": 0,
+      "evictions": 0
+    }
+  }
+}

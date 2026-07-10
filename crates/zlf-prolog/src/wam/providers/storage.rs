@@ -7,7 +7,7 @@ use zlf_core::{Edge, Node, Value};
 use zlf_storage::Storage;
 
 pub struct StorageFactProvider<'a> {
-    storage: &'a Storage,
+    pub(crate) storage: &'a Storage,
 }
 
 impl<'a> StorageFactProvider<'a> {
@@ -28,6 +28,16 @@ impl FactProvider for StorageFactProvider<'_> {
             (edge_type, 2) => self.edge_type_facts(edge_type),
             _ => Ok(Vec::new()),
         }
+    }
+
+    fn facts_for_goal(&self, goal: &Term) -> WamResult<Vec<Term>> {
+        self.facts_for_bound_goal(goal)?.map_or_else(
+            || {
+                super::predicate::predicate_key(goal)
+                    .map_or_else(|| Ok(Vec::new()), |key| self.facts_for(&key))
+            },
+            Ok,
+        )
     }
 }
 
@@ -163,7 +173,7 @@ fn edge_property_shortcut_term(key: &str, edge: Edge) -> Option<Term> {
     })
 }
 
-fn value_term(value: Value) -> Term {
+pub(crate) fn value_term(value: Value) -> Term {
     match value {
         Value::String(value) => Term::String(value),
         Value::Number(value) => number_term(value),

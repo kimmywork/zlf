@@ -294,6 +294,47 @@ fn test_get_node_at_time() {
 }
 
 #[test]
+fn compiled_record_plans_match_normal_node_and_edge_queries() {
+    let (storage, _temp) = create_test_storage();
+    let plans = compiled_taxonomy_plans();
+    assert!(storage.write_record_plans(&plans).unwrap() >= 10);
+
+    assert_eq!(
+        storage
+            .get_nodes_by_property("rank", &Value::String("genus".to_string()))
+            .unwrap()[0]
+            .id,
+        "parent"
+    );
+    assert_eq!(
+        storage
+            .get_outgoing_edges("child", Some("taxonomy_parent"))
+            .unwrap()[0]
+            .target,
+        "parent"
+    );
+}
+
+fn compiled_taxonomy_plans() -> [StorageRecordPlan; 3] {
+    let mut parent = create_test_node("parent");
+    parent
+        .properties
+        .insert("rank".to_string(), Value::String("genus".to_string()));
+    let edge = Edge::with_id(
+        "child:taxonomy_parent:parent".to_string(),
+        "taxonomy_parent".to_string(),
+        "child".to_string(),
+        "parent".to_string(),
+        HashMap::new(),
+    );
+    [
+        Storage::compile_node_records(&parent).unwrap(),
+        Storage::compile_node_records(&create_test_node("child")).unwrap(),
+        Storage::compile_edge_records(&edge).unwrap(),
+    ]
+}
+
+#[test]
 fn test_create_and_get_memory() {
     let (storage, _temp) = create_test_storage();
 

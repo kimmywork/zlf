@@ -41,6 +41,8 @@ mod executor_index;
 pub mod executor_solve;
 #[path = "engine/executor_terms.rs"]
 mod executor_terms;
+#[path = "engine/external_provider.rs"]
+mod external_provider;
 #[path = "engine/heap.rs"]
 pub mod heap;
 #[path = "engine/instruction.rs"]
@@ -93,6 +95,8 @@ pub mod graph_view_provider;
 pub mod index_provider;
 #[path = "providers/introspection.rs"]
 pub mod introspection_provider;
+#[path = "providers/storage_goal.rs"]
+mod storage_goal;
 #[path = "providers/storage.rs"]
 pub mod storage_provider;
 #[path = "providers/view_helpers.rs"]
@@ -106,6 +110,8 @@ pub mod embedding_queue;
 pub mod embedding_worker;
 #[path = "storage/fact_key.rs"]
 pub mod fact_key;
+#[path = "storage/fact_lowering.rs"]
+pub mod fact_lowering;
 #[path = "storage/persistent_embedding_queue.rs"]
 pub mod persistent_embedding_queue;
 #[path = "storage/rule_store.rs"]
@@ -171,7 +177,8 @@ pub use storage_index_writer::{Embedder, IndexedStorageFactWriter};
 pub use storage_provider::StorageFactProvider;
 pub use storage_writer::StorageFactWriter;
 pub use tabling::{
-    NormalizedTerm, TableAnswer, TableEntry, TableKey, TableLimits, TableState, TableStore,
+    NormalizedTerm, PersistedTable, RocksTableBackend, TableAnswer, TableBackend, TableEntry,
+    TableKey, TableLimits, TableManager, TableMetricsSnapshot, TableState, TableStore,
 };
 pub use trail::Trail;
 pub use unification::Unifier;

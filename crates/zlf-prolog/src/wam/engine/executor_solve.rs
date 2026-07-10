@@ -2,6 +2,7 @@ use crate::parser::Term;
 
 use super::error::WamResult;
 use super::execution_result::StepOutcome;
+use super::fact_provider::FactProvider;
 use super::instruction::Instruction;
 use super::program::WamProgram;
 use super::proof::{ProofState, ProofTree};
@@ -14,21 +15,18 @@ impl WamExecutor {
         program: &WamProgram,
         registers: &[usize],
     ) -> WamResult<Vec<Vec<Term>>> {
-        Ok(self
-            .execute_register_rows(program, registers, None)?
-            .into_iter()
-            .map(|(row, _)| row)
-            .collect())
+        self.execute_all_registers_with_context(program, registers, None, None)
     }
 
-    pub(crate) fn execute_all_registers_with_storage(
+    pub(crate) fn execute_all_registers_with_context(
         &mut self,
         program: &WamProgram,
         registers: &[usize],
+        provider: Option<&dyn FactProvider>,
         storage: Option<&Storage>,
     ) -> WamResult<Vec<Vec<Term>>> {
         Ok(self
-            .execute_register_rows(program, registers, storage)?
+            .execute_register_rows(program, registers, provider, storage)?
             .into_iter()
             .map(|(row, _)| row)
             .collect())
@@ -38,16 +36,18 @@ impl WamExecutor {
         &mut self,
         program: &WamProgram,
         registers: &[usize],
+        provider: Option<&dyn FactProvider>,
         storage: Option<&Storage>,
     ) -> WamResult<Vec<(Vec<Term>, ProofTree)>> {
         self.proof = ProofState::enabled();
-        self.execute_register_rows(program, registers, storage)
+        self.execute_register_rows(program, registers, provider, storage)
     }
 
     fn execute_register_rows(
         &mut self,
         program: &WamProgram,
         registers: &[usize],
+        provider: Option<&dyn FactProvider>,
         storage: Option<&Storage>,
     ) -> WamResult<Vec<(Vec<Term>, ProofTree)>> {
         self.reset_run_state();
@@ -61,16 +61,16 @@ impl WamExecutor {
                     continue;
                 }
                 solutions.push((self.collect_registers(registers)?, self.proof.snapshot()));
-                if let Some(target) = self.backtrack_target() {
+                if let Some(target) = self.backtrack_target()? {
                     pc = target;
                     continue;
                 }
                 break;
             }
-            match self.step_or_jump_with_storage(instruction, program, pc + 1, storage)? {
+            match self.step_or_jump_with_context(instruction, program, pc + 1, provider, storage)? {
                 StepOutcome::Continue => pc += 1,
                 StepOutcome::Jump(target) => pc = target,
-                StepOutcome::Failed => match self.backtrack_target() {
+                StepOutcome::Failed => match self.backtrack_target()? {
                     Some(target) => pc = target,
                     None => break,
                 },

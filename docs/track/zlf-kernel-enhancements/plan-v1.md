@@ -210,7 +210,7 @@ Useful tabled recursive programs and standard graph/rule utilities need ordinary
 
 ## Stage 6: Deterministic tabling MVP
 
-**Status:** todo
+**Status:** complete
 **Risk:** high
 
 ### Tasks
@@ -230,6 +230,7 @@ Useful tabled recursive programs and standard graph/rule utilities need ordinary
 - Add table-aware call path for tabled predicates.
 - Start with positive recursion only.
 - Add answer dedupe.
+- Delivered beyond the initial MVP: recursive SCC grouping, semi-naive delta variants, direct nested tabled subgoals, call-time providers, bounded hot tables, RocksDB complete-table persistence, declaration persistence, restart reload, metrics, and full NCBI taxonomy scale validation.
 
 ### Acceptance
 

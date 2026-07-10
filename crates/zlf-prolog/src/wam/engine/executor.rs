@@ -5,6 +5,7 @@ use super::choice_point::ChoicePointFrame;
 use super::environment_stack::EnvironmentStack;
 use super::error::WamResult;
 use super::execution_result::{ExecutionResult, StepOutcome};
+use super::fact_provider::FactProvider;
 use super::instruction::Instruction;
 use super::machine::M0Machine;
 use super::predicate::PredicateKey;
@@ -58,7 +59,7 @@ impl WamExecutor {
             match self.step_or_jump(instruction, program, pc + 1)? {
                 StepOutcome::Continue => pc += 1,
                 StepOutcome::Jump(target) => pc = target,
-                StepOutcome::Failed => match self.backtrack_target() {
+                StepOutcome::Failed => match self.backtrack_target()? {
                     Some(target) => pc = target,
                     None => return Ok(self.result(false)),
                 },
@@ -83,14 +84,15 @@ impl WamExecutor {
         program: &WamProgram,
         return_pc: usize,
     ) -> WamResult<StepOutcome> {
-        self.step_or_jump_with_storage(instruction, program, return_pc, None)
+        self.step_or_jump_with_context(instruction, program, return_pc, None, None)
     }
 
-    pub(crate) fn step_or_jump_with_storage(
+    pub(crate) fn step_or_jump_with_context(
         &mut self,
         instruction: &Instruction,
         program: &WamProgram,
         return_pc: usize,
+        provider: Option<&dyn FactProvider>,
         storage: Option<&Storage>,
     ) -> WamResult<StepOutcome> {
         if let Some(outcome) = self.switch_step(instruction)? {
@@ -98,9 +100,11 @@ impl WamExecutor {
         }
         match instruction {
             Instruction::Call(key) => {
-                return self.call_outcome(key, program, Some(return_pc), storage)
+                return self.call_outcome(key, program, Some(return_pc), provider, storage)
             }
-            Instruction::Execute(key) => return self.call_outcome(key, program, None, storage),
+            Instruction::Execute(key) => {
+                return self.call_outcome(key, program, None, provider, storage)
+            }
             _ => {}
         }
         if self.step(instruction)? {
@@ -115,13 +119,14 @@ impl WamExecutor {
         key: &PredicateKey,
         program: &WamProgram,
         return_pc: Option<usize>,
+        provider: Option<&dyn FactProvider>,
         storage: Option<&Storage>,
     ) -> WamResult<StepOutcome> {
         self.call(key)?;
         if key.name == "call" && key.arity > 0 {
-            return self.meta_call_outcome(key.arity, program, return_pc, storage);
+            return self.meta_call_outcome(key.arity, program, return_pc, provider, storage);
         }
-        self.dispatch_call(key, program, return_pc, storage)
+        self.dispatch_call(key, program, return_pc, provider, storage)
     }
 
     pub fn register_term(&self, register: usize) -> WamResult<Term> {
@@ -195,12 +200,6 @@ impl WamExecutor {
             success,
             last_call: self.last_call.clone(),
         }
-    }
-
-    pub(crate) fn backtrack_target(&self) -> Option<usize> {
-        self.choice_points
-            .last()
-            .map(ChoicePointFrame::next_alternative)
     }
 
     pub(crate) fn return_from_call(&mut self) -> Option<usize> {

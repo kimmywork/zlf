@@ -1,7 +1,12 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use crate::parser::{PrologRule, Term};
 
+use super::fixpoint::run_fixpoint;
+use super::scc::component;
+use super::terms::{
+    is_ground, normalize_linear_recursion, query_variables, rule_variables, seed_rule, substitute,
+};
 use super::{TableKey, TableState};
 use crate::wam::error::{WamError, WamResult};
 use crate::wam::fact_provider::FactProvider;
@@ -21,7 +26,7 @@ pub(crate) fn evaluate_tabled(
         return Ok(rows);
     }
     begin_table(runtime, key.clone())?;
-    let facts = compute_fixpoint(runtime, provider, storage)?;
+    let facts = compute_fixpoint(runtime, query, provider, storage)?;
     let answer_runtime = answer_runtime(runtime, facts);
     let rows = answer_runtime.query_all(query)?;
     store_answers(runtime, &key, &variables, &rows)?;
@@ -30,35 +35,28 @@ pub(crate) fn evaluate_tabled(
 
 fn compute_fixpoint(
     runtime: &WamRuntime,
+    query: &Term,
     provider: &dyn FactProvider,
     storage: Option<&Storage>,
 ) -> WamResult<Vec<Term>> {
-    let rules = tabled_rules(runtime)?;
+    let rules = tabled_rules(runtime, query)?;
     validate_rules(&rules)?;
-    let limits = runtime.tables.read().map_err(lock_error)?.limits;
-    let mut facts = initial_tabled_facts(runtime, provider)?;
-    let mut fingerprints = facts.iter().map(fingerprint).collect::<HashSet<_>>();
-    for _ in 0..limits.max_iterations {
-        let mut changed = false;
-        for rule in &rules {
-            for answer in evaluate_rule(runtime, rule, &facts, provider, storage)? {
-                if fingerprints.insert(fingerprint(&answer)) {
-                    if facts.len() >= limits.max_answers_per_table {
-                        return Err(table_error("maximum table answers exceeded"));
-                    }
-                    facts.push(answer);
-                    changed = true;
-                }
-            }
-        }
-        if !changed {
-            return Ok(facts);
-        }
-    }
-    Err(table_error("maximum table iterations exceeded"))
+    let limits = runtime.table_manager.limits()?;
+    let target = predicate_key(query).ok_or(WamError::ExpectedFunctor(0))?;
+    let recursive_component = component(runtime, &target);
+    let facts = initial_tabled_facts(runtime, provider)?;
+    run_fixpoint(
+        runtime,
+        &rules,
+        &recursive_component,
+        facts,
+        provider,
+        storage,
+        limits,
+    )
 }
 
-fn evaluate_rule(
+pub(crate) fn evaluate_rule(
     runtime: &WamRuntime,
     rule: &PrologRule,
     table_facts: &[Term],
@@ -71,6 +69,9 @@ fn evaluate_rule(
         args: variables.iter().cloned().map(Term::Variable).collect(),
     };
     let mut evaluator = answer_runtime(runtime, table_facts.to_vec());
+    for fact in nested_table_facts(runtime, rule, provider, storage)? {
+        evaluator.add_fact(fact);
+    }
     evaluator.add_rule(PrologRule {
         head: query.clone(),
         body: rule.body.clone(),
@@ -81,6 +82,33 @@ fn evaluate_rule(
         .map(|bindings| substitute(&rule.head, &bindings))
         .filter(is_ground)
         .collect())
+}
+
+fn nested_table_facts(
+    runtime: &WamRuntime,
+    rule: &PrologRule,
+    provider: &dyn FactProvider,
+    storage: Option<&Storage>,
+) -> WamResult<Vec<Term>> {
+    let target = predicate_key(&rule.head);
+    let recursive_component = target
+        .as_ref()
+        .map(|key| component(runtime, key))
+        .unwrap_or_default();
+    let mut facts = Vec::new();
+    for goal in &rule.body {
+        let Some(key) = predicate_key(goal) else {
+            continue;
+        };
+        if !runtime.tabled.contains(&key) || recursive_component.contains(&key) {
+            continue;
+        }
+        let rows = evaluate_tabled(runtime, goal, provider, storage)?;
+        for row in rows {
+            facts.push(substitute(goal, &row));
+        }
+    }
+    Ok(facts)
 }
 
 fn answer_runtime(runtime: &WamRuntime, table_facts: Vec<Term>) -> WamRuntime {
@@ -101,19 +129,30 @@ fn answer_runtime(runtime: &WamRuntime, table_facts: Vec<Term>) -> WamRuntime {
     evaluator
 }
 
-fn tabled_rules(runtime: &WamRuntime) -> WamResult<Vec<PrologRule>> {
+fn tabled_rules(runtime: &WamRuntime, query: &Term) -> WamResult<Vec<PrologRule>> {
+    let target = predicate_key(query).ok_or(WamError::ExpectedFunctor(0))?;
+    let recursive_component = component(runtime, &target);
+    let select_rule = |rule: &PrologRule| {
+        let key = predicate_key(&rule.head)?;
+        if !recursive_component.contains(&key) {
+            return None;
+        }
+        if key == target {
+            seed_rule(&normalize_linear_recursion(rule, &target), query)
+        } else {
+            Some(rule.clone())
+        }
+    };
     let mut rules = runtime
         .rules
         .iter()
-        .filter(|rule| predicate_key(&rule.head).is_some_and(|key| runtime.tabled.contains(&key)))
-        .cloned()
+        .filter_map(select_rule)
         .collect::<Vec<_>>();
     rules.extend(
         runtime
             .compiled_rules
             .iter()
-            .filter(|artifact| runtime.tabled.contains(&artifact.key))
-            .map(|artifact| artifact.source.clone()),
+            .filter_map(|artifact| select_rule(&artifact.source)),
     );
     if rules.is_empty() {
         Err(table_error("tabled predicate has no rules"))
@@ -123,7 +162,7 @@ fn tabled_rules(runtime: &WamRuntime) -> WamResult<Vec<PrologRule>> {
 }
 
 fn validate_rules(rules: &[PrologRule]) -> WamResult<()> {
-    const UNSUPPORTED: &[&str] = &["\\+", "!", "asserta", "assertz", "retract", "retractall"];
+    const UNSUPPORTED: &[&str] = &["\\+", "asserta", "assertz", "retract", "retractall"];
     if rules
         .iter()
         .flat_map(|rule| &rule.body)
@@ -151,12 +190,7 @@ fn initial_tabled_facts(runtime: &WamRuntime, provider: &dyn FactProvider) -> Wa
 }
 
 fn begin_table(runtime: &WamRuntime, key: TableKey) -> WamResult<()> {
-    let mut tables = runtime.tables.write().map_err(lock_error)?;
-    if tables.get(&key).is_none() && tables.len() >= tables.limits.max_tables {
-        return Err(table_error("maximum tables exceeded"));
-    }
-    tables.begin(key);
-    Ok(())
+    runtime.table_manager.begin(key)
 }
 
 fn store_answers(
@@ -165,18 +199,17 @@ fn store_answers(
     variables: &[String],
     rows: &[HashMap<String, Term>],
 ) -> WamResult<()> {
-    let mut tables = runtime.tables.write().map_err(lock_error)?;
-    let entry = tables.begin(key.clone());
-    for row in rows {
-        entry.insert(
-            variables
-                .iter()
-                .filter_map(|name| row.get(name).cloned())
-                .collect(),
-        );
-    }
-    tables.complete(key);
-    Ok(())
+    runtime.table_manager.complete(
+        key,
+        rows.iter()
+            .map(|row| {
+                variables
+                    .iter()
+                    .filter_map(|name| row.get(name).cloned())
+                    .collect()
+            })
+            .collect(),
+    )
 }
 
 fn cached_rows(
@@ -184,8 +217,7 @@ fn cached_rows(
     key: &TableKey,
     variables: &[String],
 ) -> WamResult<Option<Vec<HashMap<String, Term>>>> {
-    let tables = runtime.tables.read().map_err(lock_error)?;
-    let Some(entry) = tables.get(key) else {
+    let Some(entry) = runtime.table_manager.lookup(key)? else {
         return Ok(None);
     };
     if entry.state != TableState::Complete {
@@ -204,84 +236,6 @@ fn cached_rows(
             })
             .collect(),
     ))
-}
-
-fn query_variables(term: &Term) -> Vec<String> {
-    let mut variables = Vec::new();
-    collect_variables(term, &mut variables);
-    variables
-}
-
-fn rule_variables(rule: &PrologRule) -> Vec<String> {
-    let mut variables = Vec::new();
-    collect_variables(&rule.head, &mut variables);
-    for goal in &rule.body {
-        collect_variables(goal, &mut variables);
-    }
-    variables
-}
-
-fn collect_variables(term: &Term, variables: &mut Vec<String>) {
-    match term {
-        Term::Variable(name) if name != "_" && !variables.contains(name) => {
-            variables.push(name.clone());
-        }
-        Term::Compound { args, .. } | Term::List(args) => {
-            args.iter()
-                .for_each(|arg| collect_variables(arg, variables));
-        }
-        Term::Object(entries) => {
-            entries
-                .iter()
-                .for_each(|(_, value)| collect_variables(value, variables));
-        }
-        _ => {}
-    }
-}
-
-fn substitute(term: &Term, bindings: &HashMap<String, Term>) -> Term {
-    match term {
-        Term::Variable(name) => bindings.get(name).cloned().unwrap_or_else(|| term.clone()),
-        Term::Compound { name, args } => Term::Compound {
-            name: name.clone(),
-            args: args.iter().map(|arg| substitute(arg, bindings)).collect(),
-        },
-        Term::List(items) => Term::List(
-            items
-                .iter()
-                .map(|item| substitute(item, bindings))
-                .collect(),
-        ),
-        Term::Object(entries) => Term::Object(
-            entries
-                .iter()
-                .map(|(key, value)| (key.clone(), substitute(value, bindings)))
-                .collect(),
-        ),
-        _ => term.clone(),
-    }
-}
-
-fn is_ground(term: &Term) -> bool {
-    match term {
-        Term::Variable(_) => false,
-        Term::Compound { args, .. } | Term::List(args) => args.iter().all(is_ground),
-        Term::Object(entries) => entries.iter().all(|(_, value)| is_ground(value)),
-        _ => true,
-    }
-}
-
-fn fingerprint(term: &Term) -> u64 {
-    bincode::serialize(term)
-        .unwrap_or_default()
-        .into_iter()
-        .fold(0xcbf2_9ce4_8422_2325_u64, |hash, byte| {
-            (hash ^ u64::from(byte)).wrapping_mul(0x0000_0100_0000_01b3)
-        })
-}
-
-fn lock_error(error: impl std::fmt::Display) -> WamError {
-    table_error(&error.to_string())
 }
 
 fn table_error(message: &str) -> WamError {

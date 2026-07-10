@@ -1,10 +1,12 @@
 use std::collections::{HashMap, HashSet};
 
+use serde::{Deserialize, Serialize};
+
 use crate::parser::Term;
 
 use super::TableKey;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TableState {
     Evaluating,
     Complete,
@@ -12,7 +14,7 @@ pub enum TableState {
     Failed,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TableAnswer {
     pub values: Vec<Term>,
     pub fingerprint: u64,
@@ -76,6 +78,14 @@ pub struct TableStore {
 }
 
 impl TableStore {
+    pub fn with_limits(limits: TableLimits) -> Self {
+        Self {
+            entries: HashMap::new(),
+            generation: 0,
+            limits,
+        }
+    }
+
     pub fn len(&self) -> usize {
         self.entries.len()
     }
@@ -86,6 +96,29 @@ impl TableStore {
 
     pub fn get(&self, key: &TableKey) -> Option<&TableEntry> {
         self.entries.get(key)
+    }
+
+    pub fn get_touch(&mut self, key: &TableKey) -> Option<TableEntry> {
+        self.generation = self.generation.wrapping_add(1);
+        let entry = self.entries.get_mut(key)?;
+        entry.generation = self.generation;
+        Some(entry.clone())
+    }
+
+    pub fn evict_oldest_complete(&mut self) -> bool {
+        let key = self
+            .entries
+            .values()
+            .filter(|entry| entry.state == TableState::Complete)
+            .min_by_key(|entry| entry.generation)
+            .map(|entry| entry.key.clone());
+        key.is_some_and(|key| self.entries.remove(&key).is_some())
+    }
+
+    pub fn insert_entry(&mut self, mut entry: TableEntry) {
+        self.generation = self.generation.wrapping_add(1);
+        entry.generation = self.generation;
+        self.entries.insert(entry.key.clone(), entry);
     }
 
     pub fn begin(&mut self, key: TableKey) -> &mut TableEntry {

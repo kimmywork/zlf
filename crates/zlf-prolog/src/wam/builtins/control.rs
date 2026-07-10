@@ -3,6 +3,7 @@ use super::cell::Cell;
 use super::error::WamResult;
 use super::execution_result::StepOutcome;
 use super::executor::WamExecutor;
+use super::fact_provider::FactProvider;
 use super::predicate::PredicateKey;
 use super::program::WamProgram;
 use zlf_storage::Storage;
@@ -13,6 +14,7 @@ impl WamExecutor {
         call_arity: usize,
         program: &WamProgram,
         return_pc: Option<usize>,
+        provider: Option<&dyn FactProvider>,
         storage: Option<&Storage>,
     ) -> WamResult<StepOutcome> {
         let closure = self.callable_from_register(0)?;
@@ -31,7 +33,7 @@ impl WamExecutor {
             name,
             arity: args.len(),
         };
-        self.dispatch_call(&key, program, return_pc, storage)
+        self.dispatch_call(&key, program, return_pc, provider, storage)
     }
 
     pub(crate) fn dispatch_call(
@@ -39,6 +41,7 @@ impl WamExecutor {
         key: &PredicateKey,
         program: &WamProgram,
         return_pc: Option<usize>,
+        provider: Option<&dyn FactProvider>,
         storage: Option<&Storage>,
     ) -> WamResult<StepOutcome> {
         if let Some(target) = program.entry(key) {
@@ -48,12 +51,21 @@ impl WamExecutor {
             }
             return Ok(StepOutcome::Jump(target));
         }
-        Ok(match BuiltinExecutor::execute(self, key, storage)? {
-            Some(true) => self.builtin_success_outcome(return_pc),
-            Some(false) => StepOutcome::Failed,
-            None if program.has_entries() => StepOutcome::Failed,
-            None => StepOutcome::Continue,
-        })
+        match BuiltinExecutor::execute(self, key, storage)? {
+            Some(true) => Ok(self.builtin_success_outcome(return_pc)),
+            Some(false) => Ok(StepOutcome::Failed),
+            None => self
+                .try_provider_call(key, return_pc, provider, storage)
+                .map(|outcome| {
+                    outcome.unwrap_or_else(|| {
+                        if program.has_entries() {
+                            StepOutcome::Failed
+                        } else {
+                            StepOutcome::Continue
+                        }
+                    })
+                }),
+        }
     }
 
     fn callable_from_register(&self, register: usize) -> WamResult<Option<(String, Vec<usize>)>> {

@@ -46,7 +46,12 @@ fn directives_and_current_predicate_enumeration_are_available() {
 fn query_facade_exposes_opt_in_proof_answers() {
     let dir = tempfile::tempdir().unwrap();
     let db = ZlfDatabase::open(dir.path()).unwrap();
-    db.query_prolog("parent(alice, bob).").unwrap();
+    db.apply_fact(
+        &zlf_prolog::PrologParser::parse_fact("parent(alice, bob).")
+            .unwrap()
+            .head,
+    )
+    .unwrap();
     db.query_prolog("ancestor(X,Y) :- parent(X,Y).").unwrap();
 
     let answers = db.query_prolog_with_proof("? ancestor(alice, X).").unwrap();
@@ -57,4 +62,9 @@ fn query_facade_exposes_opt_in_proof_answers() {
     assert!(answers[0].proof.nodes.iter().any(|node| {
         node.clause.predicate.name == "ancestor" && !node.substitutions.is_empty()
     }));
+    assert!(answers[0]
+        .proof
+        .nodes
+        .iter()
+        .any(|node| node.clause.kind == zlf_prolog::wam::ProofKind::Fact));
 }

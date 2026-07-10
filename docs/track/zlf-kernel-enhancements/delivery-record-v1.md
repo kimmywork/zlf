@@ -1,8 +1,8 @@
-# Delivery Record v1: Kernel Enhancements Stages 0–5
+# Delivery Record v1: Kernel Enhancements Stages 0–6
 
 ## Summary
 
-Stages 0–5 are implemented on the active WAM runtime path. Stage 4 now uses canonical cons lists and call-time WAM builtin execution rather than builtin fact providers. Stage 5 adds opt-in proof capture with stable clause IDs, parent-linked proof nodes, and choice-point rollback.
+Stages 0–6 are implemented on the active WAM runtime path. Stage 4 uses canonical cons lists and call-time WAM builtin execution. Stage 5 provides opt-in proof capture with stable clause IDs and rollback. Stage 6 provides deterministic explicit positive tabling with SCC/delta evaluation, call-time providers, bounded hot tables, RocksDB complete-table persistence, restart loading, and metrics.
 
 ## Source Artifacts
 
@@ -19,6 +19,7 @@ Stages 0–5 are implemented on the active WAM runtime path. Stage 4 now uses ca
 - Storage-backed fact/rule assertion, retraction, clause inspection, and predicate enumeration.
 - Optional proof state, stable clause identities, proof markers, choice-point proof checkpoints, and `WamRuntime::query_all_with_proof`.
 - Category-level ISO tests in `crates/zlf-prolog/tests/` and facade integration tests in `crates/zlf-query/tests/`.
+- Variant table keys, SCC grouping, semi-naive delta variants, direct nested tabled subgoals, memory/RocksDB table manager, declaration persistence, stale recomputation, and NCBI taxonomy stress tools.
 
 ## Acceptance Results
 
@@ -34,6 +35,10 @@ Stages 0–5 are implemented on the active WAM runtime path. Stage 4 now uses ca
 | Stage 5 opt-in proof output | pass | `proof_terms::proof_capture_is_opt_in_and_records_fact_and_rule_nodes` |
 | Stage 5 stable clause IDs | pass | `proof_terms::clause_ids_are_stable_for_identical_sources` |
 | Stage 5 proof rollback | pass | `proof_terms::backtracking_rolls_proof_nodes_back_to_the_choice_point` |
+| Stage 6 cyclic positive recursion | pass | `tabling::positive_recursive_tabling_terminates_on_cycles` |
+| Stage 6 nested tables and SCC | pass | `nested_tabled_subgoals_join_complete_variant_answers`, `mutually_recursive_tabled_predicates_complete_as_one_component` |
+| Stage 6 memory/RocksDB two-level store | pass | `table_persistence` and `tabling_integration` |
+| Stage 6 full-data scale | pass | `../2026-07-10-01-ncbi-taxonomy-scale/research/full-stress-findings-v1.md` |
 
 ## Verification Evidence
 
@@ -46,7 +51,7 @@ Stages 0–5 are implemented on the active WAM runtime path. Stage 4 now uses ca
 
 ### Spec Fit
 
-pass for Stages 0–5. Stage 6 and later remain open parent-track work.
+pass for Stages 0–6. Stage 7 and later remain open parent-track work.
 
 ### Format Fit (software)
 
@@ -56,15 +61,15 @@ Independent reviewer/subagent was unavailable; verification used a fresh self-re
 
 ## Known Risks
 
-- Dynamic mutations become visible to subsequent queries; the current provider materialization architecture does not make an asserted provider fact visible later in the same already-compiled multi-goal query.
 - Proof output records stable clause IDs, predicate/kind, parent links, per-node argument substitutions, and final answer bindings; large proofs therefore remain an opt-in memory cost.
-- Stage 6 deterministic tabling and Stage 7 invalidation are not implemented yet.
+- Stage 6 supports deterministic explicit positive tabling, not negation/WFS, aggregation, answer subsumption, or persisted live continuations.
+- Mutation invalidation is currently correct but coarse-grained; Stage 7 must persist dependencies and preserve unrelated complete tables.
 
 ## Follow-ups
 
-- [ ] Stage 6: deterministic positive tabling MVP.
-- [ ] Stage 7: mutation-driven table invalidation and lazy recomputation.
+- [x] Stage 6: deterministic positive tabling MVP with two-level storage.
+- [ ] Stage 7: dependency-driven selective invalidation and lazy recomputation.
 
 ## Final Status
 
-partial — Stages 0–5 delivered; parent track remains in progress.
+partial — Stages 0–6 delivered; parent track remains in progress.

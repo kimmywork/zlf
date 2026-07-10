@@ -1,3 +1,4 @@
+pub mod bulk_pack;
 pub mod parser;
 pub mod parser_ast;
 pub(crate) mod parser_expr;

@@ -1,0 +1,292 @@
+{
+  "format": "zlf-ncbi-taxonomy-stress-v1",
+  "environment": {
+    "platform": "macOS-15.5-arm64-arm-64bit-Mach-O",
+    "machine": "arm64",
+    "python": "3.13.0",
+    "profile": "release",
+    "build_seconds": 4.64652595899679
+  },
+  "tiers": [
+    {
+      "tier": "full",
+      "timings": {
+        "dmp_to_pl_seconds": 25.836975792000885,
+        "pl_to_pack_seconds": 828.820489208003,
+        "pack_load_seconds": 81.43872720899526,
+        "query_suite_seconds": 19.2230679159984,
+        "restart_query_suite_seconds": 17.399426792006125
+      },
+      "facts_bytes": 1254347352,
+      "pack_bytes": 8399722222,
+      "database_bytes": 1370765041,
+      "query": {
+        "measurements": [
+          {
+            "name": "name",
+            "query": "? prop_scientific_name(tax_9606, Name).",
+            "rows": 1,
+            "cold_ms": 0.19875,
+            "warm_ms": [
+              0.09754199999999999,
+              0.08545799999999999,
+              0.080667,
+              0.078875,
+              0.077
+            ],
+            "checksum": 1219931404633707230
+          },
+          {
+            "name": "lineage",
+            "query": "? taxonomy_ancestor(tax_9606, Ancestor).",
+            "rows": 31,
+            "cold_ms": 7.591834,
+            "warm_ms": [
+              0.08224999999999999,
+              0.051791,
+              0.048583,
+              0.047583999999999994,
+              0.046917
+            ],
+            "checksum": 7929118071011158987
+          },
+          {
+            "name": "descendants",
+            "query": "? taxonomy_descendant(tax_9604, Descendant).",
+            "rows": 43,
+            "cold_ms": 2.005208,
+            "warm_ms": [
+              0.065042,
+              0.056666999999999995,
+              0.055208,
+              0.057834,
+              0.052958
+            ],
+            "checksum": 6018493668304107145
+          },
+          {
+            "name": "distance_up_left",
+            "query": "? taxonomy_distance_up(tax_9606, Taxon, Distance).",
+            "rows": 32,
+            "cold_ms": 3.043,
+            "warm_ms": [
+              0.062333,
+              0.056708,
+              0.055459,
+              0.053833,
+              0.05375
+            ],
+            "checksum": 14755275467763208471
+          },
+          {
+            "name": "distance_up_right",
+            "query": "? taxonomy_distance_up(tax_9604, Taxon, Distance).",
+            "rows": 29,
+            "cold_ms": 2.690083,
+            "warm_ms": [
+              0.059083000000000004,
+              0.055833,
+              0.054125,
+              0.053042,
+              0.052916
+            ],
+            "checksum": 4278252256886155992
+          }
+        ],
+        "taxonomy_distance": {
+          "left": "tax_9606",
+          "right": "tax_9604",
+          "lca": "tax_9604",
+          "distance": 3
+        },
+        "table_metrics": {
+          "hot_hits": 22,
+          "persistent_hits": 0,
+          "misses": 4,
+          "tables_completed": 4,
+          "stale_invalidations": 6,
+          "iterations": 96,
+          "inserted_answers": 135,
+          "duplicate_answers": 0,
+          "evictions": 0
+        }
+      },
+      "restart_query": {
+        "measurements": [
+          {
+            "name": "name",
+            "query": "? prop_scientific_name(tax_9606, Name).",
+            "rows": 1,
+            "cold_ms": 0.25179100000000004,
+            "warm_ms": [
+              0.104958,
+              0.08841700000000001,
+              0.083583,
+              0.076333,
+              0.07470900000000001
+            ],
+            "checksum": 1219931404633707230
+          },
+          {
+            "name": "lineage",
+            "query": "? taxonomy_ancestor(tax_9606, Ancestor).",
+            "rows": 31,
+            "cold_ms": 0.112084,
+            "warm_ms": [
+              0.05075,
+              0.04625,
+              0.044625,
+              0.043459,
+              0.043125
+            ],
+            "checksum": 14599413960133412261
+          },
+          {
+            "name": "descendants",
+            "query": "? taxonomy_descendant(tax_9604, Descendant).",
+            "rows": 43,
+            "cold_ms": 0.077667,
+            "warm_ms": [
+              0.05275,
+              0.049583,
+              0.049082999999999995,
+              0.04875,
+              0.048374999999999994
+            ],
+            "checksum": 3282485647599347211
+          },
+          {
+            "name": "distance_up_left",
+            "query": "? taxonomy_distance_up(tax_9606, Taxon, Distance).",
+            "rows": 32,
+            "cold_ms": 0.069292,
+            "warm_ms": [
+              0.052833,
+              0.051791,
+              0.051209,
+              0.053542000000000006,
+              0.050542
+            ],
+            "checksum": 10393057180940711575
+          },
+          {
+            "name": "distance_up_right",
+            "query": "? taxonomy_distance_up(tax_9604, Taxon, Distance).",
+            "rows": 29,
+            "cold_ms": 0.0675,
+            "warm_ms": [
+              0.056,
+              0.050624999999999996,
+              0.052542,
+              0.049459,
+              0.05125
+            ],
+            "checksum": 12995773196284849712
+          }
+        ],
+        "taxonomy_distance": {
+          "left": "tax_9606",
+          "right": "tax_9604",
+          "lca": "tax_9604",
+          "distance": 3
+        },
+        "table_metrics": {
+          "hot_hits": 22,
+          "persistent_hits": 4,
+          "misses": 0,
+          "tables_completed": 0,
+          "stale_invalidations": 0,
+          "iterations": 0,
+          "inserted_answers": 0,
+          "duplicate_answers": 0,
+          "evictions": 0
+        }
+      },
+      "oracle": {
+        "left": "tax_9606",
+        "right": "tax_9604",
+        "left_ancestors": [
+          "tax_9605",
+          "tax_207598",
+          "tax_9604",
+          "tax_314295",
+          "tax_9526",
+          "tax_314293",
+          "tax_376913",
+          "tax_9443",
+          "tax_314146",
+          "tax_1437010",
+          "tax_9347",
+          "tax_32525",
+          "tax_40674",
+          "tax_32524",
+          "tax_32523",
+          "tax_1338369",
+          "tax_8287",
+          "tax_117571",
+          "tax_117570",
+          "tax_7776",
+          "tax_7742",
+          "tax_89593",
+          "tax_7711",
+          "tax_33511",
+          "tax_33213",
+          "tax_6072",
+          "tax_33208",
+          "tax_33154",
+          "tax_2759",
+          "tax_131567",
+          "tax_1"
+        ],
+        "descendants_of_right": [
+          "tax_1159185",
+          "tax_1294088",
+          "tax_1425170",
+          "tax_183511",
+          "tax_2051901",
+          "tax_207598",
+          "tax_2624844",
+          "tax_2665952",
+          "tax_2665953",
+          "tax_2753605",
+          "tax_2753606",
+          "tax_2813598",
+          "tax_2813599",
+          "tax_2883640",
+          "tax_2883641",
+          "tax_2922387",
+          "tax_2922388",
+          "tax_3612877",
+          "tax_3612878",
+          "tax_37010",
+          "tax_37011",
+          "tax_37012",
+          "tax_406788",
+          "tax_46359",
+          "tax_499232",
+          "tax_502961",
+          "tax_607660",
+          "tax_63221",
+          "tax_741158",
+          "tax_756884",
+          "tax_9592",
+          "tax_9593",
+          "tax_9595",
+          "tax_9596",
+          "tax_9597",
+          "tax_9598",
+          "tax_9599",
+          "tax_9600",
+          "tax_9601",
+          "tax_9602",
+          "tax_9603",
+          "tax_9605",
+          "tax_9606"
+        ],
+        "lca": "tax_9604",
+        "distance": 3
+      },
+      "correct": true
+    }
+  ]
+}
