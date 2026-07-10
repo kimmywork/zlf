@@ -111,6 +111,34 @@ fn test_create_edge() {
 }
 
 #[test]
+fn test_uuid_edge_id_adjacency_indexes_round_trip() {
+    let (storage, _temp) = create_test_storage();
+    storage.create_node(create_test_node("alice")).unwrap();
+    storage.create_node(create_test_node("bob")).unwrap();
+
+    let created = storage
+        .create_edge(Edge::new(
+            "knows".to_string(),
+            "alice".to_string(),
+            "bob".to_string(),
+            HashMap::new(),
+        ))
+        .unwrap();
+
+    let outgoing = storage.get_outgoing_edges("alice", Some("knows")).unwrap();
+    assert_eq!(outgoing.len(), 1);
+    assert_eq!(outgoing[0].id, created.id);
+
+    assert!(storage
+        .delete_edge_by_triple("alice", "knows", "bob")
+        .unwrap());
+    assert!(storage
+        .get_outgoing_edges("alice", Some("knows"))
+        .unwrap()
+        .is_empty());
+}
+
+#[test]
 fn test_empty_edge_type() {
     let (storage, _temp) = create_test_storage();
 

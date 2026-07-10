@@ -13,19 +13,10 @@ impl Storage {
         };
         let keys = self.scan_prefix(&prefix)?;
         let mut edges = Vec::new();
-        for (key, _) in &keys {
-            // key format: idx:edge_out:{source}:{type}:{target}
-            let suffix = key
-                .strip_prefix(&format!("idx:edge_out:{source}:"))
-                .unwrap_or("");
-            let mut parts = suffix.splitn(2, ':');
-            let edge_type = parts.next().unwrap_or("");
-            let target = parts.next().unwrap_or("");
-            if !edge_type.is_empty() && !target.is_empty() {
-                let edge_id = format!("{source}:{edge_type}:{target}");
-                if let Some(edge) = self.get_edge(&edge_id)? {
-                    edges.push(edge);
-                }
+        for (_, value) in &keys {
+            let edge_id = String::from_utf8_lossy(value);
+            if let Some(edge) = self.get_edge(&edge_id)? {
+                edges.push(edge);
             }
         }
         Ok(edges)
@@ -40,18 +31,10 @@ impl Storage {
         };
         let keys = self.scan_prefix(&prefix)?;
         let mut edges = Vec::new();
-        for (key, _) in &keys {
-            let suffix = key
-                .strip_prefix(&format!("idx:edge_in:{target}:"))
-                .unwrap_or("");
-            let mut parts = suffix.splitn(2, ':');
-            let edge_type = parts.next().unwrap_or("");
-            let source = parts.next().unwrap_or("");
-            if !edge_type.is_empty() && !source.is_empty() {
-                let edge_id = format!("{source}:{edge_type}:{target}");
-                if let Some(edge) = self.get_edge(&edge_id)? {
-                    edges.push(edge);
-                }
+        for (_, value) in &keys {
+            let edge_id = String::from_utf8_lossy(value);
+            if let Some(edge) = self.get_edge(&edge_id)? {
+                edges.push(edge);
             }
         }
         Ok(edges)

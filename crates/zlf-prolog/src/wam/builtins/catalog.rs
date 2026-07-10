@@ -1,0 +1,93 @@
+use super::predicate::PredicateKey;
+
+/// Predicates implemented by the WAM kernel or shipped as kernel library rules.
+pub fn builtin_predicates() -> Vec<(PredicateKey, &'static str)> {
+    BUILTINS
+        .iter()
+        .map(|(name, arity, description)| (key(name, *arity), *description))
+        .collect()
+}
+
+fn key(name: &str, arity: usize) -> PredicateKey {
+    PredicateKey {
+        name: name.to_string(),
+        arity,
+    }
+}
+
+const BUILTINS: &[(&str, usize, &str)] = &[
+    ("true", 0, "always succeeds"),
+    ("fail", 0, "always fails"),
+    ("false", 0, "always fails"),
+    ("!", 0, "cut"),
+    ("=", 2, "unification"),
+    ("\\=", 2, "not unifiable"),
+    ("==", 2, "term identity"),
+    ("\\==", 2, "term non-identity"),
+    ("@<", 2, "standard term order less than"),
+    ("@=<", 2, "standard term order less or equal"),
+    ("@>", 2, "standard term order greater than"),
+    ("@>=", 2, "standard term order greater or equal"),
+    ("is", 2, "arithmetic evaluation"),
+    ("=:=", 2, "arithmetic equality"),
+    ("=\\=", 2, "arithmetic inequality"),
+    ("<", 2, "arithmetic less than"),
+    ("=<", 2, "arithmetic less or equal"),
+    (">", 2, "arithmetic greater than"),
+    (">=", 2, "arithmetic greater or equal"),
+    ("var", 1, "variable test"),
+    ("nonvar", 1, "non-variable test"),
+    ("atom", 1, "atom test"),
+    ("integer", 1, "integer test"),
+    ("float", 1, "float test"),
+    ("number", 1, "number test"),
+    ("atomic", 1, "atomic test"),
+    ("compound", 1, "compound test"),
+    ("ground", 1, "ground test"),
+    ("functor", 3, "term functor"),
+    ("arg", 3, "term argument"),
+    ("=..", 2, "univ"),
+    ("call", 1, "meta-call"),
+    ("call", 2, "closure meta-call"),
+    ("call", 3, "closure meta-call"),
+    ("call", 4, "closure meta-call"),
+    ("call", 5, "closure meta-call"),
+    ("call", 6, "closure meta-call"),
+    ("call", 7, "closure meta-call"),
+    ("call", 8, "closure meta-call"),
+    ("once", 1, "first solution only"),
+    ("\\+", 1, "negation as failure"),
+    (";", 2, "disjunction"),
+    ("->", 2, "if-then"),
+    ("member", 2, "list membership"),
+    ("append", 3, "list concatenation"),
+    ("length", 2, "list length"),
+    ("reverse", 2, "list reversal"),
+    ("select", 3, "list selection"),
+    ("nth0", 3, "zero-based list indexing"),
+    ("nth1", 3, "one-based list indexing"),
+    ("atom_string", 2, "atom/string conversion"),
+    ("atom_chars", 2, "atom/chars conversion"),
+    ("string_chars", 2, "string/chars conversion"),
+    ("atom_codes", 2, "atom/codes conversion"),
+    ("string_codes", 2, "string/codes conversion"),
+    ("number_string", 2, "number/string conversion"),
+    ("asserta", 1, "assert fact or rule"),
+    ("assertz", 1, "assert fact or rule"),
+    ("retract", 1, "retract one matching fact or rule"),
+    ("retractall", 1, "retract matching facts or rules"),
+    ("clause", 2, "clause inspection"),
+    ("current_predicate", 1, "predicate enumeration"),
+    ("node", 1, "storage node existence"),
+    ("label", 2, "storage label enumeration"),
+    ("property", 3, "storage property enumeration"),
+    ("edge", 3, "storage edge enumeration"),
+    ("bm25", 3, "BM25 full-text search"),
+    ("vector_similar", 3, "vector similarity search"),
+    ("temporal_on", 2, "temporal exact-date query"),
+    ("temporal_between", 3, "temporal date-range query"),
+    ("predicate", 3, "list known predicates"),
+    ("builtin_predicate", 3, "list builtin predicates"),
+    ("rule", 3, "list user-defined rules"),
+    ("rule_depends_on", 2, "query rule dependencies"),
+];

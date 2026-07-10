@@ -17,6 +17,10 @@ pub use crate::parser_ast::{Fact, PrologRule, Query, Term};
 
 impl PrologParser {
     pub fn parse_term(input: &str) -> Result<Term> {
+        crate::parser_expr::parse_term_expr(input)
+    }
+
+    pub(crate) fn parse_term_pest(input: &str) -> Result<Term> {
         let pairs = PrologParser::parse(Rule::term, input)
             .map_err(|e| ZlfError::SyntaxError(0, e.to_string()))?;
 
@@ -103,32 +107,21 @@ impl PrologParser {
 
         // Try to parse as query first (with ? prefix)
         if input.starts_with('?') {
-            let pairs = PrologParser::parse(Rule::query, input)
-                .map_err(|e| ZlfError::SyntaxError(0, e.to_string()))?;
-
-            let mut terms = Vec::new();
-            for pair in pairs {
-                match pair.as_rule() {
-                    Rule::query => {
-                        for inner in pair.into_inner() {
-                            if inner.as_rule() == Rule::body {
-                                for body_inner in inner.into_inner() {
-                                    if body_inner.as_rule() == Rule::term {
-                                        terms.push(Self::build_term(vec![body_inner])?);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    _ => {}
+            if let Some(mut terms) = crate::parser_expr::parse_query_terms(input)? {
+                if terms.len() == 1 {
+                    return Ok(Query::Goal(terms.remove(0)));
+                }
+                if !terms.is_empty() {
+                    return Ok(Query::Goals(terms));
                 }
             }
+        }
 
-            if terms.len() == 1 {
-                return Ok(Query::Goal(terms.remove(0)));
-            } else if !terms.is_empty() {
-                return Ok(Query::Goals(terms));
-            }
+        if input.starts_with(":-") && input.ends_with('.') {
+            let body = input[2..input.len() - 1].trim();
+            return Ok(Query::Directive(crate::parser_helpers::parse_directive(
+                body,
+            )?));
         }
 
         // Try to parse as rule (with :- separator)
@@ -184,15 +177,26 @@ impl PrologParser {
                     let name = pair.as_str().to_string();
                     return Ok(Term::Atom(name));
                 }
+                Rule::quoted_atom => {
+                    let text = pair.as_str();
+                    let value = text[1..text.len() - 1].replace("\\'", "'");
+                    return Ok(Term::Atom(value));
+                }
                 Rule::cut => {
                     return Ok(Term::Atom("!".to_string()));
                 }
                 Rule::number => {
-                    let value: f64 = pair
-                        .as_str()
+                    let text = pair.as_str();
+                    if text.contains('.') {
+                        let value: f64 = text.parse().map_err(|e| {
+                            ZlfError::SyntaxError(0, format!("Invalid float: {}", e))
+                        })?;
+                        return Ok(Term::Float(value));
+                    }
+                    let value: i64 = text
                         .parse()
-                        .map_err(|e| ZlfError::SyntaxError(0, format!("Invalid number: {}", e)))?;
-                    return Ok(Term::Number(value));
+                        .map_err(|e| ZlfError::SyntaxError(0, format!("Invalid integer: {}", e)))?;
+                    return Ok(Term::Integer(value));
                 }
                 Rule::string => {
                     let content = pair.as_str();
@@ -222,7 +226,7 @@ impl PrologParser {
                 }
                 Rule::compound => {
                     let mut inner = pair.into_inner();
-                    let name = inner.next().unwrap().as_str().to_string();
+                    let name = crate::parser_helpers::atom_text(inner.next().unwrap().as_str());
                     let mut args = Vec::new();
 
                     while let Some(arg) = inner.next() {
@@ -237,21 +241,11 @@ impl PrologParser {
                     return Ok(Term::Compound { name, args });
                 }
                 Rule::list => {
-                    let mut items = Vec::new();
-                    for inner in pair.into_inner() {
-                        match inner.as_rule() {
-                            Rule::term => items.push(Self::build_term(vec![inner])?),
-                            Rule::list_items => {
-                                for item in inner.into_inner() {
-                                    if matches!(item.as_rule(), Rule::term) {
-                                        items.push(Self::build_term(vec![item])?);
-                                    }
-                                }
-                            }
-                            _ => {}
-                        }
-                    }
-                    return Ok(Term::List(items));
+                    let inner = pair
+                        .into_inner()
+                        .next()
+                        .ok_or_else(|| ZlfError::SyntaxError(0, "invalid list".to_string()))?;
+                    return Self::build_list(inner);
                 }
                 Rule::object => {
                     let mut entries = Vec::new();
@@ -268,5 +262,33 @@ impl PrologParser {
         }
 
         Err(ZlfError::SyntaxError(0, "Failed to build term".to_string()))
+    }
+
+    fn build_list(pair: Pair<Rule>) -> Result<Term> {
+        let improper = matches!(pair.as_rule(), Rule::improper_list);
+        let mut items = pair.into_inner();
+        let prefix = items.next();
+        let mut list_items = Vec::new();
+        if let Some(prefix) = prefix {
+            if matches!(prefix.as_rule(), Rule::list_prefix) {
+                for item in prefix.into_inner() {
+                    if matches!(item.as_rule(), Rule::term) {
+                        list_items.push(Self::build_term(vec![item])?);
+                    }
+                }
+            } else if improper {
+                return Err(ZlfError::SyntaxError(0, "invalid list prefix".to_string()));
+            }
+        }
+        if !improper {
+            return Ok(Term::List(list_items));
+        }
+        let tail = items
+            .next()
+            .ok_or_else(|| ZlfError::SyntaxError(0, "missing list tail".to_string()))?;
+        Ok(crate::parser_helpers::canonical_list(
+            list_items,
+            Self::build_term(vec![tail])?,
+        ))
     }
 }

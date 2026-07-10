@@ -84,7 +84,7 @@ fn composite_provider_combines_storage_and_index_queries() {
         .query_all_with_provider(&term("search_doc(doc1, Title, Score)"), &provider)
         .unwrap();
 
-    assert_eq!(solutions[0].get("Title"), Some(&atom("软件工程师")));
+    assert_eq!(solutions[0].get("Title"), Some(&string("软件工程师")));
     assert!(solutions[0].contains_key("Score"));
 }
 
@@ -211,7 +211,7 @@ fn storage_writer_persists_prolog_facts_to_database() {
         .unwrap();
 
     assert_eq!(edges[0].get("Target"), Some(&atom("bob")));
-    assert_eq!(names[0].get("Name"), Some(&atom("Alice")));
+    assert_eq!(names[0].get("Name"), Some(&string("Alice")));
 }
 
 #[test]
@@ -281,7 +281,7 @@ fn storage_provider_reads_properties_edges_and_edge_type_shortcuts() {
         .query_all_with_provider(&term("knows(alice, Target)"), &provider)
         .unwrap();
 
-    assert_eq!(names[0].get("Name"), Some(&atom("Alice")));
+    assert_eq!(names[0].get("Name"), Some(&string("Alice")));
     assert_eq!(edges[0].get("Target"), Some(&atom("bob")));
     assert_eq!(shortcuts[0].get("Target"), Some(&atom("bob")));
 }
@@ -300,7 +300,7 @@ fn storage_provider_supports_label_and_property_shortcuts() {
         .unwrap();
 
     assert_eq!(labels.len(), 1);
-    assert_eq!(names[0].get("Name"), Some(&atom("Alice")));
+    assert_eq!(names[0].get("Name"), Some(&string("Alice")));
 }
 
 #[test]
@@ -317,7 +317,7 @@ fn storage_provider_shortcuts_work_inside_rule_body() {
         .unwrap();
 
     assert_eq!(solutions.len(), 1);
-    assert_eq!(solutions[0].get("Name"), Some(&atom("Alice")));
+    assert_eq!(solutions[0].get("Name"), Some(&string("Alice")));
 }
 
 #[test]
@@ -359,6 +359,10 @@ fn edge(edge_type: &str, source: &str, target: &str) -> Edge {
         target.to_string(),
         HashMap::new(),
     )
+}
+
+fn string(value: &str) -> Term {
+    Term::String(value.to_string())
 }
 
 fn atom(value: &str) -> Term {

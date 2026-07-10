@@ -7,7 +7,6 @@ use crate::embed_commands::{
 };
 use crate::io_data::{export_json, import_json};
 use crate::protocol::{Request, Response};
-use crate::retract_handler;
 use crate::state::{ensure_db, AppState};
 use crate::values::json_to_properties;
 
@@ -290,9 +289,6 @@ pub(crate) async fn handle_request(request: Request, state: &AppState) -> Respon
                 state,
             )
             .await
-        }
-        Request::Retract { path, fact } => {
-            retract_handler::handle_retract(path, fact, &config, state).await
         }
         Request::Config { set, get } => handle_config(set, get, &config),
     }

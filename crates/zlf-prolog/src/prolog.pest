@@ -7,16 +7,18 @@ rule = { term ~ ":-" ~ body ~ "." }
 body = { term ~ ("," ~ term)* }
 
 // Terms
-term = { cut | inequality | object | compound | list | atom | number | string | variable }
-simple_term = { object | compound | list | atom | number | string | variable }
+term = { cut | inequality | object | compound | list | quoted_atom | atom | number | string | variable }
+simple_term = { object | compound | list | quoted_atom | atom | number | string | variable }
 inequality = { simple_term ~ "\\=" ~ simple_term }
 
 // Compound term: functor(args)
-compound = { atom ~ "(" ~ term ~ ("," ~ term)* ~ ")" }
+compound = { (atom | quoted_atom) ~ "(" ~ term ~ ("," ~ term)* ~ ")" }
 
 // List: [head | tail] or [a, b, c]
-list = { "[" ~ list_items? ~ "]" }
-list_items = { term ~ ("," ~ term)* ~ ("|" ~ term)? }
+list = { improper_list | proper_list }
+proper_list = { "[" ~ list_prefix? ~ "]" }
+improper_list = { "[" ~ list_prefix ~ "|" ~ term ~ "]" }
+list_prefix = { term ~ ("," ~ term)* }
 
 // Object: { key: value, age: 17 }
 object = { "{" ~ object_pairs? ~ "}" }
@@ -26,6 +28,7 @@ object_pair = { atom ~ ":" ~ term }
 // Basic types
 variable = @{ ("_" | 'A'..'Z') ~ (ASCII_ALPHANUMERIC | "_")* }
 atom = @{ 'a'..'z' ~ (ASCII_ALPHANUMERIC | "_")* }
+quoted_atom = @{ "'" ~ ("\\'" | !"'" ~ ANY)* ~ "'" }
 number = @{ (ASCII_DIGIT+ ~ ("." ~ ASCII_DIGIT+)?) | ("-" ~ ASCII_DIGIT+ ~ ("." ~ ASCII_DIGIT+)?) }
 string = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
 

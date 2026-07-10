@@ -68,7 +68,8 @@ fn term_to_json(term: &Term) -> serde_json::Value {
     match term {
         Term::Variable(name) => serde_json::json!({ "variable": name }),
         Term::Atom(name) | Term::String(name) => serde_json::json!(name),
-        Term::Number(number) => serde_json::json!(number),
+        Term::Integer(number) => serde_json::json!(number),
+        Term::Float(number) => serde_json::json!(number),
         Term::Compound { name, args } => serde_json::json!({
             "name": name,
             "args": args.iter().map(term_to_json).collect::<Vec<_>>()

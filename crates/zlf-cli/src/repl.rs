@@ -60,9 +60,9 @@ fn print_help() {
     println!("  node(alice, [person], {{ name: \"Alice\" }}).");
     println!("  knows(alice, bob).");
     println!("  friend(X, Y) :- knows(X, Y).");
-    println!("  retract(person(alice)).");
-    println!("  retract(edge(alice, knows, bob)).");
-    println!("  retract(prop_name(alice, _)).");
+    println!("  ? retract(person(alice)).");
+    println!("  ? retract(edge(alice, knows, bob)).");
+    println!("  ? retract(prop_name(alice, _)).");
 }
 
 fn eval_repl_source(db: &ZlfDatabase, source: &str) -> Result<serde_json::Value> {
@@ -70,15 +70,66 @@ fn eval_repl_source(db: &ZlfDatabase, source: &str) -> Result<serde_json::Value>
         return Ok(serde_json::json!(db.query_prolog(source)?));
     }
 
-    if source.starts_with("retract(") {
-        let retracted = db.retract_fact(source)?;
-        return Ok(serde_json::json!({
-            "retracted": retracted.is_some(),
-            "key": retracted.map(|k| format!("{:?}", k))
-        }));
+    let facts = split_fact_sources(source);
+    let count = facts.len();
+    for fact_source in facts {
+        let fact = PrologParser::parse_fact(&fact_source)?;
+        db.apply_fact(&fact.head)?;
+    }
+    if count == 1 {
+        Ok(serde_json::json!({ "applied": true }))
+    } else {
+        Ok(serde_json::json!({ "applied": count }))
+    }
+}
+
+fn split_fact_sources(source: &str) -> Vec<String> {
+    let mut facts = Vec::new();
+    let mut start = 0usize;
+    let mut in_string = false;
+    for (idx, ch) in source.char_indices() {
+        if ch == '"' {
+            in_string = !in_string;
+        }
+        if ch == '.' && !in_string {
+            let fact = source[start..=idx].trim();
+            if !fact.is_empty() {
+                facts.push(fact.to_string());
+            }
+            start = idx + 1;
+        }
+    }
+    if facts.is_empty() && !source.trim().is_empty() {
+        facts.push(source.trim().to_string());
+    }
+    facts
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn repl_accepts_multiple_facts_on_one_line() {
+        let path = tempfile::tempdir().unwrap().keep();
+        let db = ZlfDatabase::open(&path).unwrap();
+
+        let output = eval_repl_source(&db, "node(a). node(b). follows(b, a).").unwrap();
+        assert_eq!(output["applied"], 3);
+
+        let rows = db.query_prolog("? follows(b, X).").unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0]["X"], "a");
     }
 
-    let fact = PrologParser::parse_fact(source)?;
-    db.apply_fact(&fact.head)?;
-    Ok(serde_json::json!({ "applied": true }))
+    #[test]
+    fn repl_fact_splitter_ignores_dots_inside_strings() {
+        assert_eq!(
+            split_fact_sources("node(a, [doc], { text: \"a.b\" }). node(b)."),
+            vec![
+                "node(a, [doc], { text: \"a.b\" }).".to_string(),
+                "node(b).".to_string()
+            ]
+        );
+    }
 }

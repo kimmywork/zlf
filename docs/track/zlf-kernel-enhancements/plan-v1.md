@@ -43,8 +43,8 @@ Stage 9: Optional advanced logic modules
 
 ## Stage 0: Fact identity, idempotent writes, and deletion
 
-**Status:** todo  
-**Risk:** medium  
+**Status:** complete
+**Risk:** medium
 **Why first:** Incremental tabling cannot be correct without stable fact identities and mutation events.
 
 ### Tasks
@@ -82,7 +82,7 @@ cargo clippy --workspace --all-targets -- -D warnings -W clippy::too_many_lines
 
 ## Stage 1: Predicate registry and introspection
 
-**Status:** todo  
+**Status:** complete
 **Risk:** medium
 
 ### Tasks
@@ -109,7 +109,7 @@ cargo clippy --workspace --all-targets -- -D warnings -W clippy::too_many_lines
 
 ## Stage 2: Node view and graph convenience predicates
 
-**Status:** todo  
+**Status:** complete
 **Risk:** low-medium
 
 ### Tasks
@@ -139,7 +139,7 @@ friend(X, Y) :- friend_edge(Y, X).
 
 ## Stage 3: Graph algorithm builtins
 
-**Status:** todo  
+**Status:** complete
 **Risk:** medium
 
 ### Tasks
@@ -162,7 +162,7 @@ friend(X, Y) :- friend_edge(Y, X).
 
 ## Stage 4: ISO/general Prolog core programming capabilities
 
-**Status:** todo  
+**Status:** complete
 **Risk:** high
 
 ### Why before full tabling
@@ -191,7 +191,7 @@ Useful tabled recursive programs and standard graph/rule utilities need ordinary
 
 ## Stage 5: Proof terms and traceability
 
-**Status:** todo  
+**Status:** complete
 **Risk:** medium-high
 
 ### Tasks
@@ -210,7 +210,7 @@ Useful tabled recursive programs and standard graph/rule utilities need ordinary
 
 ## Stage 6: Deterministic tabling MVP
 
-**Status:** todo  
+**Status:** todo
 **Risk:** high
 
 ### Tasks
@@ -239,7 +239,7 @@ Useful tabled recursive programs and standard graph/rule utilities need ordinary
 
 ## Stage 7: Incremental tabling invalidation
 
-**Status:** todo  
+**Status:** todo
 **Risk:** high
 
 ### Why after Stage 5
@@ -265,7 +265,7 @@ Incremental tabling requires base table correctness plus dependencies from facts
 
 ## Stage 8: Storage and performance foundations
 
-**Status:** todo  
+**Status:** todo
 **Risk:** high
 
 ### Tasks

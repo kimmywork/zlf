@@ -1,16 +1,17 @@
+use std::collections::HashSet;
 use std::path::Path;
 use std::sync::{Arc, RwLock};
 
 use zlf_core::{Edge, Node, Result, ZlfError};
 use zlf_index::{BM25Index, TemporalEntry, TemporalIndex, VectorEntry, VectorIndex};
 use zlf_prolog::wam::{
-    BuiltinProvider, CompiledRuleArtifact, CompositeFactProvider, GraphAlgorithmProvider,
-    GraphViewProvider, IndexFactProvider, IndexedStorageFactWriter, IntrospectionProvider,
-    PredicateRegistry, RuleDependencyGraph, StorageFactProvider, StorageRuleStore, WamRuntime,
+    CompiledRuleArtifact, CompositeFactProvider, GraphAlgorithmProvider, GraphViewProvider,
+    IndexFactProvider, IndexedStorageFactWriter, IntrospectionProvider, PredicateRegistry,
+    StorageFactProvider, StorageRuleStore, WamRuntime,
 };
 mod helpers;
+mod proof;
 mod registry;
-mod retract;
 
 use zlf_prolog::{PrologParser, PrologRule, Query, Term};
 use zlf_storage::Storage;
@@ -22,6 +23,7 @@ pub struct ZlfDatabase {
     vector: Arc<VectorIndex>,
     rules: RwLock<Vec<CompiledRuleArtifact>>,
     registry: RwLock<PredicateRegistry>,
+    tabled: RwLock<HashSet<zlf_prolog::wam::PredicateKey>>,
 }
 
 impl ZlfDatabase {
@@ -65,6 +67,7 @@ impl ZlfDatabase {
             vector: Arc::new(vector),
             rules: RwLock::new(rules),
             registry: RwLock::new(pred_registry),
+            tabled: RwLock::new(HashSet::new()),
         })
     }
 
@@ -76,6 +79,10 @@ impl ZlfDatabase {
                 self.store_rule(rule)?;
                 Ok(Vec::new())
             }
+            Query::Directive(directive) => {
+                self.apply_directive(&directive)?;
+                Ok(Vec::new())
+            }
         }
     }
 
@@ -83,7 +90,8 @@ impl ZlfDatabase {
         IndexedStorageFactWriter::new(self.storage.as_ref())
             .with_bm25(self.bm25.as_ref())
             .apply_fact(fact)
-            .map_err(|e| ZlfError::Internal(e.to_string()))
+            .map_err(|e| ZlfError::Internal(e.to_string()))?;
+        self.refresh_registry()
     }
 
     pub fn store_rule(&self, rule: PrologRule) -> Result<()> {
@@ -96,7 +104,7 @@ impl ZlfDatabase {
             .write()
             .map_err(|e| ZlfError::Internal(e.to_string()))?
             .push(artifact);
-        Ok(())
+        self.refresh_registry()
     }
 
     pub fn get_rules(&self) -> Result<Vec<PrologRule>> {
@@ -180,27 +188,29 @@ impl ZlfDatabase {
         }
     }
 
+    #[allow(clippy::too_many_lines)]
     fn execute_terms(&self, terms: &[Term]) -> Result<Vec<serde_json::Value>> {
         let storage_provider = StorageFactProvider::new(self.storage.as_ref());
         let index_provider = IndexFactProvider::new()
             .with_bm25(self.bm25.as_ref())
             .with_vector(self.vector.as_ref())
             .with_temporal(self.temporal.as_ref());
-        let reg = self.registry.read().map_err(lock_error)?;
-        let dep_graph = RuleDependencyGraph::from_rules(&self.rules.read().map_err(lock_error)?);
-        let introspection = IntrospectionProvider::new(reg.clone(), dep_graph);
+        let reg = self.registry.read().map_err(lock_error)?.clone();
+        let rules = self.rules.read().map_err(lock_error)?.clone();
+        let introspection = IntrospectionProvider::new(reg, &rules);
         let graph_view = GraphViewProvider::new(self.storage.as_ref());
         let graph_algo = GraphAlgorithmProvider::new(self.storage.as_ref());
-        let builtin_provider = BuiltinProvider;
         let provider = CompositeFactProvider::new()
             .with(&storage_provider)
             .with(&index_provider)
             .with(&introspection)
             .with(&graph_view)
-            .with(&graph_algo)
-            .with(&builtin_provider);
+            .with(&graph_algo);
         let mut runtime = WamRuntime::new(64);
-        for artifact in self.rules.read().map_err(lock_error)?.iter().cloned() {
+        for key in self.tabled.read().map_err(lock_error)?.iter().cloned() {
+            runtime.declare_tabled(key);
+        }
+        for artifact in rules.iter().cloned() {
             runtime.add_compiled_rule(artifact);
         }
         let (query, wrapper) = helpers::query_plan(terms);
@@ -208,9 +218,55 @@ impl ZlfDatabase {
             runtime.add_rule(rule);
         }
         let rows = runtime
-            .query_all_with_provider(&query, &provider)
+            .query_all_with_provider_and_storage(&query, &provider, self.storage.as_ref())
             .map_err(|e| ZlfError::Internal(e.to_string()))?;
+        self.reload_rules()?;
+        self.refresh_registry()?;
         Ok(self.dedupe_results(rows.into_iter().map(helpers::solution_to_json).collect()))
+    }
+
+    pub fn dedupe_results(&self, results: Vec<serde_json::Value>) -> Vec<serde_json::Value> {
+        let mut seen = std::collections::HashSet::new();
+        let mut deduped = Vec::new();
+        for row in results {
+            let canonical = serde_json::to_string(&row).unwrap_or_default();
+            if seen.insert(canonical) {
+                deduped.push(row);
+            }
+        }
+        deduped
+    }
+
+    fn apply_directive(&self, directive: &Term) -> Result<()> {
+        let Term::Compound { name, args } = directive else {
+            return Ok(());
+        };
+        if name != "table" || args.len() != 1 {
+            return Ok(());
+        }
+        let Some(key) = predicate_indicator(&args[0]) else {
+            return Err(ZlfError::Internal(
+                "invalid table predicate indicator".to_string(),
+            ));
+        };
+        self.tabled.write().map_err(lock_error)?.insert(key);
+        Ok(())
+    }
+
+    fn reload_rules(&self) -> Result<()> {
+        let rules = StorageRuleStore::new(self.storage.as_ref())
+            .all_rules()
+            .map_err(|error| ZlfError::Internal(error.to_string()))?;
+        *self.rules.write().map_err(lock_error)? = rules;
+        Ok(())
+    }
+
+    fn refresh_registry(&self) -> Result<()> {
+        let rules = self.rules.read().map_err(lock_error)?;
+        let mut registry = PredicateRegistry::new();
+        registry::populate_registry(&self.storage, &rules, &mut registry)?;
+        *self.registry.write().map_err(lock_error)? = registry;
+        Ok(())
     }
 
     fn index_node_text(&self, node: &Node) -> Result<()> {
@@ -221,6 +277,22 @@ impl ZlfDatabase {
         }
         self.bm25.index_text(&node.id, &parts.join(" "))
     }
+}
+
+fn predicate_indicator(term: &Term) -> Option<zlf_prolog::wam::PredicateKey> {
+    let Term::Compound { name, args } = term else {
+        return None;
+    };
+    if name != "/" || args.len() != 2 {
+        return None;
+    }
+    let (Term::Atom(name), Term::Integer(arity)) = (&args[0], &args[1]) else {
+        return None;
+    };
+    Some(zlf_prolog::wam::PredicateKey {
+        name: name.clone(),
+        arity: *arity as usize,
+    })
 }
 
 fn lock_error(error: impl std::fmt::Display) -> ZlfError {

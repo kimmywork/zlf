@@ -12,7 +12,11 @@ fn parse_basic_terms() {
     ));
     assert!(matches!(
         PrologParser::parse_term("42").unwrap(),
-        Term::Number(_)
+        Term::Integer(_)
+    ));
+    assert!(matches!(
+        PrologParser::parse_term("42.5").unwrap(),
+        Term::Float(_)
     ));
     assert!(matches!(
         PrologParser::parse_term("\"hello\"").unwrap(),

@@ -34,7 +34,7 @@ impl Storage {
             edge.source, edge.edge_type, edge.target
         );
         self.db
-            .put(&out_key, [])
+            .put(&out_key, edge.id.as_bytes())
             .map_err(|e| ZlfError::Internal(e.to_string()))?;
         // Incoming edge index: target -> (type, source)
         let in_key = format!(
@@ -42,7 +42,7 @@ impl Storage {
             edge.target, edge.edge_type, edge.source
         );
         self.db
-            .put(&in_key, [])
+            .put(&in_key, edge.id.as_bytes())
             .map_err(|e| ZlfError::Internal(e.to_string()))?;
         Ok(())
     }

@@ -4,7 +4,8 @@ use serde::{Deserialize, Serialize};
 pub enum Term {
     Variable(String),
     Atom(String),
-    Number(f64),
+    Integer(i64),
+    Float(f64),
     String(String),
     Compound { name: String, args: Vec<Term> },
     List(Vec<Term>),
@@ -44,7 +45,8 @@ impl Term {
 
     pub fn as_number(&self) -> Option<f64> {
         match self {
-            Term::Number(value) => Some(*value),
+            Term::Integer(value) => Some(*value as f64),
+            Term::Float(value) => Some(*value),
             _ => None,
         }
     }
@@ -80,4 +82,5 @@ pub enum Query {
     Goal(Term),
     Goals(Vec<Term>),
     RuleDef(PrologRule),
+    Directive(Term),
 }

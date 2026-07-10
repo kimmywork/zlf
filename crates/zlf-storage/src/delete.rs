@@ -14,8 +14,18 @@ impl Storage {
         edge_type: &str,
         target: &str,
     ) -> Result<bool> {
-        let edge_id = format!("{source}:{edge_type}:{target}");
-        self.delete_edge(&edge_id)
+        let edges = self.get_outgoing_edges(source, Some(edge_type))?;
+        let mut deleted = false;
+        for edge in edges.into_iter().filter(|edge| edge.target == target) {
+            self.delete_edge(&edge.id)?;
+            deleted = true;
+        }
+        if deleted {
+            Ok(true)
+        } else {
+            let edge_id = format!("{source}:{edge_type}:{target}");
+            self.delete_edge(&edge_id).or(Ok(false))
+        }
     }
 
     /// Delete a node and all incident edges (cascade).

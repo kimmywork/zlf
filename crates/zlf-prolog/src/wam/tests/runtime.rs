@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::PrologParser;
+use crate::{PrologParser, Term};
 use zlf_core::{Edge, Node, Value};
 use zlf_storage::Storage;
 
@@ -96,7 +96,10 @@ fn runtime_queries_storage_provider_properties_and_edges() {
         .query_all_with_provider(&term("edge(alice, knows, Target)"), &provider)
         .unwrap();
 
-    assert_eq!(names[0].get("Name"), Some(&atom("Alice")));
+    assert_eq!(
+        names[0].get("Name"),
+        Some(&Term::String("Alice".to_string()))
+    );
     assert_eq!(edges[0].get("Target"), Some(&atom("bob")));
 }
 
@@ -158,7 +161,10 @@ fn runtime_preserves_bindings_after_nested_rule_call_in_rule_body() {
 
     assert_eq!(solutions.len(), 1);
     assert_eq!(solutions[0].get("X"), Some(&atom("tongtong")));
-    assert_eq!(solutions[0].get("Z"), Some(&atom("散仙彤彤子")));
+    assert_eq!(
+        solutions[0].get("Z"),
+        Some(&Term::String("散仙彤彤子".to_string()))
+    );
 }
 
 fn storage_fixture() -> Storage {
