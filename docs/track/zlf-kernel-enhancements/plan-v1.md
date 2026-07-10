@@ -287,7 +287,7 @@ Incremental tabling requires base table correctness plus dependencies from facts
 
 ## Stage 9: Optional advanced logic modules
 
-**Status:** deferred
+**Status:** moved to `../2026-07-10-02-roadmap-stage9/`
 
 Candidate modules:
 
@@ -297,7 +297,7 @@ Candidate modules:
 - MIL/rule learning
 - WFS
 
-These should not start until Stages 0-6 are stable.
+These now belong to the dedicated roadmap Stage 9 parent track and require independently approved child slices.
 
 ## Track completion and next recommendation
 
