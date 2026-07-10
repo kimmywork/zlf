@@ -9,10 +9,13 @@ use zlf_prolog::wam::{
     IndexFactProvider, IndexedStorageFactWriter, IntrospectionProvider, PredicateRegistry,
     RocksTableBackend, StorageFactProvider, StorageRuleStore, TableManager, WamRuntime,
 };
+mod explain;
 mod helpers;
 mod proof;
 mod registry;
 mod table;
+
+pub use explain::{AccessPath, ArgumentMode, PlannedGoal, QueryPlan};
 
 use zlf_prolog::{PrologParser, PrologRule, Query, Term};
 use zlf_storage::Storage;
@@ -98,7 +101,7 @@ impl ZlfDatabase {
             .with_bm25(self.bm25.as_ref())
             .apply_fact(fact)
             .map_err(|e| ZlfError::Internal(e.to_string()))?;
-        self.clear_tables()?;
+        self.invalidate_fact(fact)?;
         self.refresh_registry()
     }
 
@@ -108,11 +111,12 @@ impl ZlfDatabase {
         StorageRuleStore::new(self.storage.as_ref())
             .add_compiled_rule(&artifact)
             .map_err(|e| ZlfError::Internal(e.to_string()))?;
+        let predicate = artifact.key.clone();
         self.rules
             .write()
             .map_err(|e| ZlfError::Internal(e.to_string()))?
             .push(artifact);
-        self.clear_tables()?;
+        self.invalidate_predicates(&[predicate])?;
         self.refresh_registry()
     }
 
@@ -138,7 +142,7 @@ impl ZlfDatabase {
             valid_to: None,
         })?;
         self.index_node_text(&created)?;
-        self.clear_tables()?;
+        self.invalidate_node(&created)?;
         Ok(created)
     }
 
@@ -148,7 +152,7 @@ impl ZlfDatabase {
 
     pub fn add_edge(&self, edge: Edge) -> Result<Edge> {
         let edge = self.storage.create_edge(edge)?;
-        self.clear_tables()?;
+        self.invalidate_edge(&edge.edge_type)?;
         Ok(edge)
     }
 
@@ -238,9 +242,7 @@ impl ZlfDatabase {
             .query_all_with_provider_and_storage(&query, &provider, self.storage.as_ref())
             .map_err(|e| ZlfError::Internal(e.to_string()))?;
         if terms.iter().any(table::contains_mutation) {
-            self.reload_rules()?;
-            self.refresh_registry()?;
-            self.clear_tables()?;
+            self.refresh_after_mutation(terms)?;
         }
         Ok(self.dedupe_results(rows.into_iter().map(helpers::solution_to_json).collect()))
     }

@@ -1,7 +1,7 @@
 ---
-status: in_progress
+status: done
 owner: kimmy
-updated: 2026-07-08
+updated: 2026-07-10
 scope_type: parent
 source_requirements:
   - docs/track/zlf-kernel-enhancements/requirements-v1.md
@@ -240,7 +240,7 @@ Useful tabled recursive programs and standard graph/rule utilities need ordinary
 
 ## Stage 7: Incremental tabling invalidation
 
-**Status:** todo
+**Status:** complete
 **Risk:** high
 
 ### Why after Stage 5
@@ -257,6 +257,7 @@ Incremental tabling requires base table correctness plus dependencies from facts
 - On mutation event, mark affected tables stale.
 - On next query, lazily recompute stale tables.
 - Later optimize stale recomputation to delta maintenance.
+- Delivered persisted exact fact, predicate, rule, and table dependencies with reverse indexes; selective insert/retract invalidation; dependent-table propagation; restart-stable stale state; and lazy recomputation. Insert/delete delta maintenance remains a later optimization, as planned.
 
 ### Acceptance
 
@@ -266,7 +267,7 @@ Incremental tabling requires base table correctness plus dependencies from facts
 
 ## Stage 8: Storage and performance foundations
 
-**Status:** todo
+**Status:** complete
 **Risk:** high
 
 ### Tasks
@@ -276,6 +277,7 @@ Incremental tabling requires base table correctness plus dependencies from facts
 - Persistent predicate key layouts for bound argument seeks.
 - Virtual address/lazy loading design spike.
 - GC roots inventory for heap/environment/choice/trail/table/proof data.
+- Delivered call-time composite-provider pushdown, exact/prefix RocksDB layouts, cross-goal argument mode inference, `ZlfDatabase::explain_prolog`, bounded/evicting hot tables, persistent cold tables, and the virtual-address/GC-root design note in `research/wam-memory-and-lazy-loading.md`.
 
 ### Acceptance
 
@@ -297,17 +299,9 @@ Candidate modules:
 
 These should not start until Stages 0-6 are stable.
 
-## Immediate next implementation recommendation
+## Track completion and next recommendation
 
-Start Stage 0 and Stage 1 together only where they share metadata:
-
-1. Implement canonical fact keys and idempotent writes.
-2. Add deletion/retract support.
-3. Add query result dedupe.
-4. Add predicate/rule introspection registry.
-5. Add tests for repeated facts and retraction in REPL/StorageFactWriter.
-
-This solves the most visible product issues and creates the identity/dependency substrate needed by incremental tabling.
+Stages 0–8 are delivered. Stage 9 remains explicitly deferred because its advanced logic modules are optional and outside the production-foundation acceptance scope. Future work should begin as a new track and use the completed dependency metadata, call-time providers, query plans, and two-level table manager rather than extending this parent indefinitely.
 
 ## Quality gates
 

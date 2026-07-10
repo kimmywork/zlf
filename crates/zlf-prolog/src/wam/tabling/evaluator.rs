@@ -7,7 +7,8 @@ use super::scc::component;
 use super::terms::{
     is_ground, normalize_linear_recursion, query_variables, rule_variables, seed_rule, substitute,
 };
-use super::{TableKey, TableState};
+use super::tracing_provider::DependencyProvider;
+use super::{TableDependencies, TableKey, TableState};
 use crate::wam::error::{WamError, WamResult};
 use crate::wam::fact_provider::FactProvider;
 use crate::wam::predicate::predicate_key;
@@ -26,11 +27,40 @@ pub(crate) fn evaluate_tabled(
         return Ok(rows);
     }
     begin_table(runtime, key.clone())?;
-    let facts = compute_fixpoint(runtime, query, provider, storage)?;
+    let mut dependencies = table_dependencies(runtime, query)?;
+    let tracing_provider = DependencyProvider::new(provider);
+    let facts = compute_fixpoint(runtime, query, &tracing_provider, storage)?;
+    dependencies.facts = tracing_provider.facts()?;
     let answer_runtime = answer_runtime(runtime, facts);
     let rows = answer_runtime.query_all(query)?;
-    store_answers(runtime, &key, &variables, &rows)?;
+    store_answers(runtime, &key, &variables, &rows, dependencies)?;
     Ok(rows)
+}
+
+fn table_dependencies(runtime: &WamRuntime, query: &Term) -> WamResult<TableDependencies> {
+    let target = predicate_key(query).ok_or(WamError::ExpectedFunctor(0))?;
+    let recursive_component = component(runtime, &target);
+    let mut dependencies = TableDependencies::default();
+    dependencies.predicates.insert(target);
+    for rule in tabled_rules(runtime, query)? {
+        dependencies
+            .rules
+            .insert(super::super::proof::stable_rule_id(&rule));
+        for goal in &rule.body {
+            let Some(key) = predicate_key(goal) else {
+                continue;
+            };
+            if !recursive_component.contains(&key) {
+                dependencies.predicates.insert(key.clone());
+            }
+            if runtime.tabled.contains(&key) && !recursive_component.contains(&key) {
+                if let Some(table) = TableKey::from_call(goal) {
+                    dependencies.tables.insert(table);
+                }
+            }
+        }
+    }
+    Ok(dependencies)
 }
 
 fn compute_fixpoint(
@@ -198,6 +228,7 @@ fn store_answers(
     key: &TableKey,
     variables: &[String],
     rows: &[HashMap<String, Term>],
+    dependencies: TableDependencies,
 ) -> WamResult<()> {
     runtime.table_manager.complete(
         key,
@@ -209,6 +240,7 @@ fn store_answers(
                     .collect()
             })
             .collect(),
+        dependencies,
     )
 }
 

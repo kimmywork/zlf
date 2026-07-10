@@ -1,8 +1,8 @@
-# Delivery Record v1: Kernel Enhancements Stages 0–6
+# Delivery Record v1: Kernel Enhancements Stages 0–8
 
 ## Summary
 
-Stages 0–6 are implemented on the active WAM runtime path. Stage 4 uses canonical cons lists and call-time WAM builtin execution. Stage 5 provides opt-in proof capture with stable clause IDs and rollback. Stage 6 provides deterministic explicit positive tabling with SCC/delta evaluation, call-time providers, bounded hot tables, RocksDB complete-table persistence, restart loading, and metrics.
+Stages 0–8 are implemented on the active WAM runtime path. Stage 4 uses canonical cons lists and call-time WAM builtin execution. Stage 5 provides opt-in proof capture. Stage 6 provides deterministic positive two-level tabling. Stage 7 persists exact fact/predicate/rule/table dependencies and selectively invalidates/recomputes affected tables. Stage 8 adds call-time provider pushdown, mode-aware query plans, persistent key layouts, bounded memory controls, and the WAM memory-root/lazy-loading design inventory.
 
 ## Source Artifacts
 
@@ -39,6 +39,9 @@ Stages 0–6 are implemented on the active WAM runtime path. Stage 4 uses canoni
 | Stage 6 nested tables and SCC | pass | `nested_tabled_subgoals_join_complete_variant_answers`, `mutually_recursive_tabled_predicates_complete_as_one_component` |
 | Stage 6 memory/RocksDB two-level store | pass | `table_persistence` and `tabling_integration` |
 | Stage 6 full-data scale | pass | `../2026-07-10-01-ncbi-taxonomy-scale/research/full-stress-findings-v1.md` |
+| Stage 7 exact/selective invalidation | pass | `table_persistence`, `tabling_integration` exact retract/restart/dependent-table tests |
+| Stage 8 bound pushdown/query plans | pass | `bound_storage_provider`, `query_plan` |
+| Stage 8 memory/lazy-loading design | pass | `research/wam-memory-and-lazy-loading.md` |
 
 ## Verification Evidence
 
@@ -51,7 +54,7 @@ Stages 0–6 are implemented on the active WAM runtime path. Stage 4 uses canoni
 
 ### Spec Fit
 
-pass for Stages 0–6. Stage 7 and later remain open parent-track work.
+pass for Stages 0–8. Optional Stage 9 modules remain deferred and are not required for this parent track.
 
 ### Format Fit (software)
 
@@ -63,13 +66,15 @@ Independent reviewer/subagent was unavailable; verification used a fresh self-re
 
 - Proof output records stable clause IDs, predicate/kind, parent links, per-node argument substitutions, and final answer bindings; large proofs therefore remain an opt-in memory cost.
 - Stage 6 supports deterministic explicit positive tabling, not negation/WFS, aggregation, answer subsumption, or persisted live continuations.
-- Mutation invalidation is currently correct but coarse-grained; Stage 7 must persist dependencies and preserve unrelated complete tables.
+- Insert/delete delta maintenance remains a future optimization; Stage 7 currently performs selective stale marking followed by lazy full-table recomputation.
 
 ## Follow-ups
 
 - [x] Stage 6: deterministic positive tabling MVP with two-level storage.
-- [ ] Stage 7: dependency-driven selective invalidation and lazy recomputation.
+- [x] Stage 7: persisted dependency-driven selective invalidation and lazy recomputation.
+- [x] Stage 8: storage pushdown, query plans, bounded memory foundations, and memory-root design.
+- [ ] Optional Stage 9 modules should use a separate approved track if pursued.
 
 ## Final Status
 
-partial — Stages 0–6 delivered; parent track remains in progress.
+complete — required Stages 0–8 delivered; optional Stage 9 remains deferred.

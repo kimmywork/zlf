@@ -5,6 +5,16 @@ use serde::{Deserialize, Serialize};
 use crate::parser::Term;
 
 use super::TableKey;
+use crate::wam::fact_key::FactKey;
+use crate::wam::predicate::PredicateKey;
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TableDependencies {
+    pub facts: HashSet<FactKey>,
+    pub predicates: HashSet<PredicateKey>,
+    pub tables: HashSet<TableKey>,
+    pub rules: HashSet<String>,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TableState {
@@ -27,6 +37,7 @@ pub struct TableEntry {
     pub answers: Vec<TableAnswer>,
     pub answer_set: HashSet<u64>,
     pub generation: u64,
+    pub dependencies: TableDependencies,
 }
 
 impl TableEntry {
@@ -37,6 +48,7 @@ impl TableEntry {
             answers: Vec::new(),
             answer_set: HashSet::new(),
             generation,
+            dependencies: TableDependencies::default(),
         }
     }
 
@@ -132,6 +144,60 @@ impl TableStore {
         if let Some(entry) = self.entries.get_mut(key) {
             entry.state = TableState::Complete;
         }
+    }
+
+    pub fn invalidate_predicates(&mut self, predicates: &HashSet<PredicateKey>) -> Vec<TableKey> {
+        let impacted = self
+            .entries
+            .values()
+            .filter(|entry| !entry.dependencies.predicates.is_disjoint(predicates))
+            .map(|entry| entry.key.clone())
+            .collect::<HashSet<_>>();
+        self.invalidate_tables(impacted)
+    }
+
+    pub fn invalidate_facts(&mut self, facts: &HashSet<FactKey>) -> Vec<TableKey> {
+        let impacted = self
+            .entries
+            .values()
+            .filter(|entry| !entry.dependencies.facts.is_disjoint(facts))
+            .map(|entry| entry.key.clone())
+            .collect::<HashSet<_>>();
+        self.invalidate_tables(impacted)
+    }
+
+    pub fn invalidate_rules(&mut self, rules: &HashSet<String>) -> Vec<TableKey> {
+        let impacted = self
+            .entries
+            .values()
+            .filter(|entry| !entry.dependencies.rules.is_disjoint(rules))
+            .map(|entry| entry.key.clone())
+            .collect::<HashSet<_>>();
+        self.invalidate_tables(impacted)
+    }
+
+    fn invalidate_tables(&mut self, mut impacted: HashSet<TableKey>) -> Vec<TableKey> {
+        loop {
+            let before = impacted.len();
+            let dependents = self
+                .entries
+                .values()
+                .filter(|entry| !entry.dependencies.tables.is_disjoint(&impacted))
+                .map(|entry| entry.key.clone())
+                .collect::<Vec<_>>();
+            impacted.extend(dependents);
+            if impacted.len() == before {
+                break;
+            }
+        }
+        for key in &impacted {
+            self.entries.remove(key);
+        }
+        impacted.into_iter().collect()
+    }
+
+    pub fn remove(&mut self, key: &TableKey) {
+        self.entries.remove(key);
     }
 
     pub fn clear(&mut self) {

@@ -5,9 +5,11 @@ use std::sync::{Arc, RwLock};
 use serde::Serialize;
 
 use super::backend::{PersistedTable, TableBackend};
-use super::{TableEntry, TableKey, TableLimits, TableState, TableStore};
+use super::{TableDependencies, TableEntry, TableKey, TableLimits, TableState, TableStore};
 use crate::parser::Term;
 use crate::wam::error::{WamError, WamResult};
+use crate::wam::fact_key::FactKey;
+use crate::wam::predicate::PredicateKey;
 
 #[derive(Debug, Default)]
 struct TableMetrics {
@@ -109,7 +111,12 @@ impl TableManager {
         Ok(())
     }
 
-    pub fn complete(&self, key: &TableKey, answers: Vec<Vec<Term>>) -> WamResult<()> {
+    pub fn complete(
+        &self,
+        key: &TableKey,
+        answers: Vec<Vec<Term>>,
+        dependencies: TableDependencies,
+    ) -> WamResult<()> {
         let persisted = {
             let mut hot = self.hot.write().map_err(lock_error)?;
             let entry = hot.begin(key.clone());
@@ -119,11 +126,13 @@ impl TableManager {
                 entry.insert(answer);
             }
             entry.state = TableState::Complete;
+            entry.dependencies = dependencies.clone();
             PersistedTable {
                 key: key.clone(),
                 state: TableState::Complete,
                 answers: entry.answers.clone(),
                 generation: entry.generation,
+                dependencies,
             }
         };
         if let Some(backend) = &self.backend {
@@ -150,6 +159,62 @@ impl TableManager {
 
     pub fn limits(&self) -> WamResult<TableLimits> {
         Ok(self.hot.read().map_err(lock_error)?.limits)
+    }
+
+    pub fn invalidate_predicates(&self, predicates: &[PredicateKey]) -> WamResult<Vec<TableKey>> {
+        let predicates = predicates.iter().cloned().collect::<HashSet<_>>();
+        let mut impacted = self
+            .hot
+            .write()
+            .map_err(lock_error)?
+            .invalidate_predicates(&predicates)
+            .into_iter()
+            .collect::<HashSet<_>>();
+        if let Some(backend) = &self.backend {
+            impacted.extend(
+                backend.invalidate_predicates(&predicates.into_iter().collect::<Vec<_>>())?,
+            );
+        }
+        self.metrics
+            .stale_invalidations
+            .fetch_add(impacted.len() as u64, Ordering::Relaxed);
+        Ok(impacted.into_iter().collect())
+    }
+
+    pub fn invalidate_facts(&self, facts: &[FactKey]) -> WamResult<Vec<TableKey>> {
+        let facts = facts.iter().cloned().collect::<HashSet<_>>();
+        let mut impacted = self
+            .hot
+            .write()
+            .map_err(lock_error)?
+            .invalidate_facts(&facts)
+            .into_iter()
+            .collect::<HashSet<_>>();
+        if let Some(backend) = &self.backend {
+            impacted.extend(backend.invalidate_facts(&facts.into_iter().collect::<Vec<_>>())?);
+        }
+        self.metrics
+            .stale_invalidations
+            .fetch_add(impacted.len() as u64, Ordering::Relaxed);
+        Ok(impacted.into_iter().collect())
+    }
+
+    pub fn invalidate_rules(&self, rules: &[String]) -> WamResult<Vec<TableKey>> {
+        let rules = rules.iter().cloned().collect::<HashSet<_>>();
+        let mut impacted = self
+            .hot
+            .write()
+            .map_err(lock_error)?
+            .invalidate_rules(&rules)
+            .into_iter()
+            .collect::<HashSet<_>>();
+        if let Some(backend) = &self.backend {
+            impacted.extend(backend.invalidate_rules(&rules.into_iter().collect::<Vec<_>>())?);
+        }
+        self.metrics
+            .stale_invalidations
+            .fetch_add(impacted.len() as u64, Ordering::Relaxed);
+        Ok(impacted.into_iter().collect())
     }
 
     pub fn invalidate_all(&self) -> WamResult<()> {
@@ -202,6 +267,7 @@ fn restored_entry(table: PersistedTable) -> TableEntry {
             .collect::<HashSet<_>>(),
         answers: table.answers,
         generation: table.generation,
+        dependencies: table.dependencies,
     }
 }
 

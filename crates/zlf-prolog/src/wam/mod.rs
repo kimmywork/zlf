@@ -177,8 +177,9 @@ pub use storage_index_writer::{Embedder, IndexedStorageFactWriter};
 pub use storage_provider::StorageFactProvider;
 pub use storage_writer::StorageFactWriter;
 pub use tabling::{
-    NormalizedTerm, PersistedTable, RocksTableBackend, TableAnswer, TableBackend, TableEntry,
-    TableKey, TableLimits, TableManager, TableMetricsSnapshot, TableState, TableStore,
+    NormalizedTerm, PersistedTable, RocksTableBackend, TableAnswer, TableBackend,
+    TableDependencies, TableEntry, TableKey, TableLimits, TableManager, TableMetricsSnapshot,
+    TableState, TableStore,
 };
 pub use trail::Trail;
 pub use unification::Unifier;

@@ -1,7 +1,7 @@
 ---
-status: in_progress
+status: done
 owner: kimmy
-updated: 2026-07-08
+updated: 2026-07-10
 scope_type: parent
 source_requirements:
   - docs/enhancement/roadmap.md
