@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use zlf_core::Value;
 use zlf_prolog::Term;
@@ -92,6 +92,14 @@ pub fn collect_text(value: &Value, parts: &mut Vec<String>) {
         Value::Object(map) => map.values().for_each(|item| collect_text(item, parts)),
         _ => {}
     }
+}
+
+pub fn dedupe_results(results: Vec<serde_json::Value>) -> Vec<serde_json::Value> {
+    let mut seen = HashSet::new();
+    results
+        .into_iter()
+        .filter(|row| seen.insert(serde_json::to_string(row).unwrap_or_default()))
+        .collect()
 }
 
 pub fn lock_error(error: impl std::fmt::Display) -> zlf_core::ZlfError {

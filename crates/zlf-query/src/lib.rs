@@ -9,7 +9,10 @@ use zlf_prolog::wam::{
     IndexFactProvider, IndexedStorageFactWriter, IntrospectionProvider, PredicateRegistry,
     RocksTableBackend, StorageFactProvider, StorageRuleStore, TableManager, WamRuntime,
 };
+mod coordinator;
+mod coordinator_store;
 mod explain;
+mod fake_index_target;
 mod helpers;
 mod manifest_store;
 mod mutation;
@@ -18,7 +21,12 @@ mod proof;
 mod registry;
 mod table;
 
+pub use coordinator::{
+    CoordinatorConfig, DurableIndexJob, IndexCoordinator, IndexJobState, IndexTarget,
+    TargetApplyError, TargetProgress,
+};
 pub use explain::{AccessPath, ArgumentMode, PlannedGoal, QueryPlan};
+pub use fake_index_target::{FakeFailureMode, FakeIndexTarget};
 pub use manifest_store::IndexManifestStore;
 pub use profile_store::IndexProfileStore;
 
@@ -249,19 +257,9 @@ impl ZlfDatabase {
         if terms.iter().any(table::contains_mutation) {
             self.refresh_after_mutation(terms)?;
         }
-        Ok(self.dedupe_results(rows.into_iter().map(helpers::solution_to_json).collect()))
-    }
-
-    pub fn dedupe_results(&self, results: Vec<serde_json::Value>) -> Vec<serde_json::Value> {
-        let mut seen = std::collections::HashSet::new();
-        let mut deduped = Vec::new();
-        for row in results {
-            let canonical = serde_json::to_string(&row).unwrap_or_default();
-            if seen.insert(canonical) {
-                deduped.push(row);
-            }
-        }
-        deduped
+        Ok(helpers::dedupe_results(
+            rows.into_iter().map(helpers::solution_to_json).collect(),
+        ))
     }
 
     fn reload_rules(&self) -> Result<()> {

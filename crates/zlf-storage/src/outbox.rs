@@ -71,6 +71,31 @@ impl Storage {
         }
         Ok(events)
     }
+
+    pub fn compact_outbox_through(&self, sequence: MutationSequence) -> Result<usize> {
+        if sequence == 0 {
+            return Ok(0);
+        }
+        let _guard = self.write_guard()?;
+        let mut batch = WriteBatch::default();
+        let mut count = 0;
+        for item in self.db.iterator(IteratorMode::Start) {
+            let (key, _) = item.map_err(internal)?;
+            if !key.starts_with(OUTBOX_PREFIX) {
+                continue;
+            }
+            let event_sequence = decode_u64(&key[OUTBOX_PREFIX.len()..])?;
+            if event_sequence > sequence {
+                break;
+            }
+            batch.delete(key);
+            count += 1;
+        }
+        if count > 0 {
+            self.db.write(batch).map_err(internal)?;
+        }
+        Ok(count)
+    }
 }
 
 pub(crate) fn outbox_key(sequence: MutationSequence) -> Vec<u8> {
