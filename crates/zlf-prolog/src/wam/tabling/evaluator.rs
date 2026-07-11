@@ -192,7 +192,17 @@ fn tabled_rules(runtime: &WamRuntime, query: &Term) -> WamResult<Vec<PrologRule>
 }
 
 fn validate_rules(rules: &[PrologRule]) -> WamResult<()> {
-    const UNSUPPORTED: &[&str] = &["\\+", "asserta", "assertz", "retract", "retractall"];
+    const UNSUPPORTED: &[&str] = &[
+        "\\+",
+        "asserta",
+        "assertz",
+        "retract",
+        "retractall",
+        "set_node_property",
+        "remove_node_property",
+        "set_edge_property",
+        "remove_edge_property",
+    ];
     if rules
         .iter()
         .flat_map(|rule| &rule.body)

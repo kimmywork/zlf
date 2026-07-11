@@ -4,7 +4,7 @@ use chrono::Utc;
 use rocksdb::WriteBatch;
 use zlf_core::{Edge, EntityRef, Node, Result, ZlfError};
 
-use crate::bulk::{property_index_key, StorageRecordPlan};
+use crate::bulk::{hex, property_index_key, StorageRecordPlan};
 use crate::outbox::{entity_state_key, outbox_key, NEXT_SEQUENCE_KEY};
 use crate::{EntityState, MutationEvent, MutationKind, MutationSequence, Storage};
 
@@ -168,12 +168,13 @@ fn delete_node_indexes(batch: &mut WriteBatch, node: &Node) -> Result<()> {
 fn delete_edge_records(batch: &mut WriteBatch, edge: &Edge) {
     batch.delete(format!("edge:{}", edge.id));
     batch.delete(format!("idx:edge_type:{}:{}", edge.edge_type, edge.id));
+    let encoded_id = hex(edge.id.as_bytes());
     batch.delete(format!(
-        "idx:edge_out:{}:{}:{}",
+        "idx:edge_out:{}:{}:{}:{encoded_id}",
         edge.source, edge.edge_type, edge.target
     ));
     batch.delete(format!(
-        "idx:edge_in:{}:{}:{}",
+        "idx:edge_in:{}:{}:{}:{encoded_id}",
         edge.target, edge.edge_type, edge.source
     ));
 }

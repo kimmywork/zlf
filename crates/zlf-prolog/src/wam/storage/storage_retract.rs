@@ -48,7 +48,8 @@ impl<'a> StorageFactWriter<'a> {
             DeletePattern::Property { entity, key } => {
                 let existed = self
                     .storage
-                    .delete_node_property(entity, key)
+                    .remove_entity_property(entity, key)
+                    .map(|receipt| receipt.sequence.is_some())
                     .map_err(provider_error)?;
                 if existed {
                     Ok(Some(FactKey::Property {

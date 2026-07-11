@@ -115,7 +115,7 @@ fn properties(term: &Term) -> WamResult<HashMap<String, Value>> {
     }
 }
 
-fn value_to_storage(term: &Term) -> WamResult<Value> {
+pub(crate) fn value_to_storage(term: &Term) -> WamResult<Value> {
     match term {
         Term::Atom(value) | Term::String(value) => Ok(Value::String(value.clone())),
         Term::Integer(value) => Ok(Value::Number(*value as f64)),

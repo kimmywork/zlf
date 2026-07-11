@@ -57,25 +57,18 @@ impl Storage {
     }
 
     pub fn compile_edge_records(edge: &Edge) -> Result<StorageRecordPlan> {
-        let records = vec![
+        let mut records = vec![
             encoded_bytes(format!("edge:{}", edge.id), serialize_edge(edge)?),
             index_record(format!("idx:edge_type:{}:{}", edge.edge_type, edge.id), &[]),
             metadata_record("edge_type", &edge.edge_type),
-            index_record(
-                format!(
-                    "idx:edge_out:{}:{}:{}",
-                    edge.source, edge.edge_type, edge.target
-                ),
-                edge.id.as_bytes(),
-            ),
-            index_record(
-                format!(
-                    "idx:edge_in:{}:{}:{}",
-                    edge.target, edge.edge_type, edge.source
-                ),
-                edge.id.as_bytes(),
-            ),
         ];
+        records.extend(edge_adjacency_records(edge));
+        records.extend(
+            edge.properties
+                .keys()
+                .map(|key| metadata_record("property", key)),
+        );
+        records.sort_by(|left, right| left.key.cmp(&right.key));
         Ok(StorageRecordPlan { records })
     }
 
@@ -102,6 +95,26 @@ pub(crate) fn property_index_key(key: &str, value: &Value) -> Result<String> {
         .map(hex)
         .map_err(|error| ZlfError::Serialization(error.to_string()))?;
     Ok(format!("idx:property:{encoded_key}:{encoded_value}:"))
+}
+
+fn edge_adjacency_records(edge: &Edge) -> [StorageRecord; 2] {
+    let id = hex(edge.id.as_bytes());
+    [
+        index_record(
+            format!(
+                "idx:edge_out:{}:{}:{}:{id}",
+                edge.source, edge.edge_type, edge.target
+            ),
+            edge.id.as_bytes(),
+        ),
+        index_record(
+            format!(
+                "idx:edge_in:{}:{}:{}:{id}",
+                edge.target, edge.edge_type, edge.source
+            ),
+            edge.id.as_bytes(),
+        ),
+    ]
 }
 
 fn property_index_records(node: &Node) -> Result<Vec<StorageRecord>> {
@@ -143,7 +156,7 @@ fn index_record(key: String, value: &[u8]) -> StorageRecord {
     }
 }
 
-fn hex(bytes: impl AsRef<[u8]>) -> String {
+pub(crate) fn hex(bytes: impl AsRef<[u8]>) -> String {
     bytes
         .as_ref()
         .iter()

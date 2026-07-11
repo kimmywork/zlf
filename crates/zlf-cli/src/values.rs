@@ -12,7 +12,7 @@ pub(crate) fn json_to_properties(
     props
 }
 
-fn json_to_value(json: &serde_json::Value) -> zlf_core::Value {
+pub(crate) fn json_to_value(json: &serde_json::Value) -> zlf_core::Value {
     match json {
         serde_json::Value::Null => zlf_core::Value::Null,
         serde_json::Value::Bool(b) => zlf_core::Value::Bool(*b),

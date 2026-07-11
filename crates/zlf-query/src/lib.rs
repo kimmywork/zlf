@@ -11,6 +11,7 @@ use zlf_prolog::wam::{
 };
 mod explain;
 mod helpers;
+mod mutation;
 mod proof;
 mod registry;
 mod table;

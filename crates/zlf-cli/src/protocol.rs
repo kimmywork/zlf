@@ -25,6 +25,57 @@ pub(crate) enum Request {
     },
     #[serde(rename = "get_edge")]
     GetEdge { path: Option<String>, id: String },
+    #[serde(rename = "patch_node_properties")]
+    PatchNodeProperties {
+        path: Option<String>,
+        id: String,
+        #[serde(default)]
+        set: serde_json::Map<String, serde_json::Value>,
+        #[serde(default)]
+        remove: Vec<String>,
+    },
+    #[serde(rename = "set_node_property")]
+    SetNodeProperty {
+        path: Option<String>,
+        id: String,
+        key: String,
+        value: serde_json::Value,
+    },
+    #[serde(rename = "remove_node_property")]
+    RemoveNodeProperty {
+        path: Option<String>,
+        id: String,
+        key: String,
+    },
+    #[serde(rename = "patch_edge_properties")]
+    PatchEdgeProperties {
+        path: Option<String>,
+        id: String,
+        #[serde(default)]
+        set: serde_json::Map<String, serde_json::Value>,
+        #[serde(default)]
+        remove: Vec<String>,
+    },
+    #[serde(rename = "set_edge_property")]
+    SetEdgeProperty {
+        path: Option<String>,
+        id: String,
+        key: String,
+        value: serde_json::Value,
+    },
+    #[serde(rename = "remove_edge_property")]
+    RemoveEdgeProperty {
+        path: Option<String>,
+        id: String,
+        key: String,
+    },
+    #[serde(rename = "edge_ids")]
+    EdgeIds {
+        path: Option<String>,
+        source: String,
+        edge_type: String,
+        target: String,
+    },
     #[serde(rename = "query")]
     Query { path: Option<String>, query: String },
     #[serde(rename = "search")]
@@ -72,6 +123,21 @@ pub(crate) enum Request {
         set: Option<ZlfConfig>,
         get: Option<bool>,
     },
+}
+
+impl Request {
+    pub(crate) fn is_mutation(&self) -> bool {
+        matches!(
+            self,
+            Self::PatchNodeProperties { .. }
+                | Self::PatchEdgeProperties { .. }
+                | Self::SetNodeProperty { .. }
+                | Self::SetEdgeProperty { .. }
+                | Self::RemoveNodeProperty { .. }
+                | Self::RemoveEdgeProperty { .. }
+                | Self::EdgeIds { .. }
+        )
+    }
 }
 
 #[derive(Serialize)]

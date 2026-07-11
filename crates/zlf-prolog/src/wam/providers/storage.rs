@@ -23,6 +23,7 @@ impl FactProvider for StorageFactProvider<'_> {
             ("label", 2) => self.label_facts(),
             ("property", 3) => self.property_facts(),
             ("edge", 3) => self.edge_facts(),
+            ("edge_id", 4) => self.edge_id_facts(),
             (name, 1) => self.label_shortcut_facts(name),
             (name, 2) if name.starts_with("prop_") => self.property_shortcut_facts(name),
             (edge_type, 2) => self.edge_type_facts(edge_type),
@@ -66,6 +67,10 @@ impl StorageFactProvider<'_> {
 
     fn edge_facts(&self) -> WamResult<Vec<Term>> {
         Ok(self.edges()?.into_iter().map(edge_term).collect())
+    }
+
+    fn edge_id_facts(&self) -> WamResult<Vec<Term>> {
+        Ok(self.edges()?.into_iter().map(edge_id_term).collect())
     }
 
     fn edge_type_facts(&self, edge_type: &str) -> WamResult<Vec<Term>> {
@@ -138,6 +143,18 @@ fn edge_properties(edge: Edge) -> Vec<Term> {
 
 fn property_term(id: String, key: String, value: Value) -> Term {
     compound("property", vec![atom(id), atom(key), value_term(value)])
+}
+
+fn edge_id_term(edge: Edge) -> Term {
+    compound(
+        "edge_id",
+        vec![
+            atom(edge.source),
+            atom(edge.edge_type),
+            atom(edge.target),
+            atom(edge.id),
+        ],
+    )
 }
 
 fn edge_term(edge: Edge) -> Term {

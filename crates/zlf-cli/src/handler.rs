@@ -6,6 +6,7 @@ use crate::embed_commands::{
     handle_config, handle_embed, handle_index_embedding, IndexEmbeddingRequest,
 };
 use crate::io_data::{export_json, import_json};
+use crate::mutation_commands::handle_mutation;
 use crate::protocol::{Request, Response};
 use crate::state::{ensure_db, AppState};
 use crate::values::json_to_properties;
@@ -15,6 +16,7 @@ pub(crate) async fn handle_request(request: Request, state: &AppState) -> Respon
     let config = ZlfConfig::load();
 
     match request {
+        request if request.is_mutation() => handle_mutation(request, &config.db_path, state).await,
         Request::Init { path } => {
             let path = path.unwrap_or_else(|| config.db_path.clone());
             let db_path = std::path::Path::new(&path);
@@ -291,5 +293,6 @@ pub(crate) async fn handle_request(request: Request, state: &AppState) -> Respon
             .await
         }
         Request::Config { set, get } => handle_config(set, get, &config),
+        _ => unreachable!("mutation requests are handled above"),
     }
 }

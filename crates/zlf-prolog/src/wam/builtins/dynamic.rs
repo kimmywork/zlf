@@ -3,6 +3,7 @@ use crate::parser::{PrologRule, Term};
 use super::builtin_catalog::builtin_predicates;
 use super::error::{WamError, WamResult};
 use super::executor::WamExecutor;
+use super::fact_lowering::value_to_storage;
 use super::predicate::{predicate_key, PredicateKey};
 use super::{CompiledRuleArtifact, StorageFactWriter, StorageRuleStore};
 use zlf_storage::Storage;
@@ -25,6 +26,10 @@ impl WamExecutor {
                 self.current_predicate(storage)?
             }
             ("clause", 2) => self.clause(storage)?,
+            ("set_node_property", 3) => self.set_property(storage, true)?,
+            ("remove_node_property", 2) => self.remove_property(storage, true)?,
+            ("set_edge_property", 3) => self.set_property(storage, false)?,
+            ("remove_edge_property", 2) => self.remove_property(storage, false)?,
             _ => return Ok(None),
         };
         Ok(Some(result))
@@ -63,6 +68,29 @@ impl WamExecutor {
         Ok(StorageFactWriter::new(storage)
             .retract_fact(&term)?
             .is_some())
+    }
+
+    fn set_property(&self, storage: &Storage, node: bool) -> WamResult<bool> {
+        let id = term_text(&self.register_term(0)?)?;
+        let key = term_text(&self.register_term(1)?)?;
+        let value = value_to_storage(&self.register_term(2)?)?;
+        let result = if node {
+            storage.set_node_property(&id, &key, value)
+        } else {
+            storage.set_edge_property(&id, &key, value)
+        };
+        result.map(|_| true).map_err(provider_error)
+    }
+
+    fn remove_property(&self, storage: &Storage, node: bool) -> WamResult<bool> {
+        let id = term_text(&self.register_term(0)?)?;
+        let key = term_text(&self.register_term(1)?)?;
+        let result = if node {
+            storage.remove_node_property(&id, &key)
+        } else {
+            storage.remove_edge_property(&id, &key)
+        };
+        result.map(|_| true).map_err(provider_error)
     }
 
     fn current_predicate(&self, storage: &Storage) -> WamResult<bool> {
@@ -193,6 +221,13 @@ fn body_term(body: &[Term]) -> Term {
             args: vec![left, right],
         })
         .unwrap_or_else(|| Term::Atom("true".to_string()))
+}
+
+fn term_text(term: &Term) -> WamResult<String> {
+    match term {
+        Term::Atom(value) | Term::String(value) => Ok(value.clone()),
+        _ => Err(WamError::Provider("expected atom or string".into())),
+    }
 }
 
 fn provider_error(error: impl std::fmt::Display) -> WamError {

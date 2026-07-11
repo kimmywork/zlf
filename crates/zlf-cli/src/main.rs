@@ -6,6 +6,7 @@ mod cli;
 mod embed_commands;
 mod handler;
 mod io_data;
+mod mutation_commands;
 mod protocol;
 mod repl;
 mod server;

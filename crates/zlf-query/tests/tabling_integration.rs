@@ -231,6 +231,24 @@ fn selective_stale_state_persists_across_restart() {
 }
 
 #[test]
+fn explicit_property_mutation_invalidates_exact_tabled_dependencies() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = ZlfDatabase::open(dir.path()).unwrap();
+    db.apply_fact(
+        &PrologParser::parse_fact("node(alice, [], {name: \"old\"}).")
+            .unwrap()
+            .head,
+    )
+    .unwrap();
+    db.query_prolog("named(X,N) :- prop_name(X,N).").unwrap();
+    db.query_prolog(":- table named/2.").unwrap();
+    assert_eq!(db.query_prolog("? named(alice,N).").unwrap()[0]["N"], "old");
+    db.query_prolog("? set_node_property(alice, name, \"new\").")
+        .unwrap();
+    assert_eq!(db.query_prolog("? named(alice,N).").unwrap()[0]["N"], "new");
+}
+
+#[test]
 fn declarations_and_complete_answers_survive_database_restart() {
     let dir = tempfile::tempdir().unwrap();
     {

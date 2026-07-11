@@ -113,6 +113,16 @@ fn collect_mutation_facts(term: &Term, facts: &mut Vec<zlf_prolog::wam::FactKey>
         if let Some(fact) = args.first().and_then(selective_retract_fact) {
             facts.push(fact);
         }
+    } else if is_property_mutation(name) {
+        if let (Some(entity), Some(key)) = (
+            args.first().and_then(term_text),
+            args.get(1).and_then(term_text),
+        ) {
+            facts.push(zlf_prolog::wam::FactKey::Property {
+                entity: entity.to_string(),
+                key: key.to_string(),
+            });
+        }
     }
     args.iter()
         .for_each(|argument| collect_mutation_facts(argument, facts));
@@ -152,6 +162,12 @@ fn collect_mutation_predicates(term: &Term, predicates: &mut Vec<zlf_prolog::wam
             predicates.extend(fact_predicates(head));
         }
     }
+    if is_property_mutation(name) {
+        predicates.push(key("property", 3));
+        if let Some(property) = args.get(1).and_then(term_text) {
+            predicates.push(key(&format!("prop_{property}"), 2));
+        }
+    }
     args.iter()
         .for_each(|argument| collect_mutation_predicates(argument, predicates));
 }
@@ -162,11 +178,26 @@ pub(super) fn contains_mutation(term: &Term) -> bool {
             matches!(
                 name.as_str(),
                 "asserta" | "assertz" | "retract" | "retractall"
-            ) || args.iter().any(contains_mutation)
+            ) || is_property_mutation(name)
+                || args.iter().any(contains_mutation)
         }
         Term::List(items) => items.iter().any(contains_mutation),
         Term::Object(entries) => entries.iter().any(|(_, value)| contains_mutation(value)),
         _ => false,
+    }
+}
+
+fn is_property_mutation(name: &str) -> bool {
+    matches!(
+        name,
+        "set_node_property" | "remove_node_property" | "set_edge_property" | "remove_edge_property"
+    )
+}
+
+fn term_text(term: &Term) -> Option<&str> {
+    match term {
+        Term::Atom(value) | Term::String(value) => Some(value),
+        _ => None,
     }
 }
 

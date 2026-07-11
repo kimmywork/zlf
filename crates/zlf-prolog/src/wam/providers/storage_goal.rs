@@ -9,7 +9,7 @@ impl StorageFactProvider<'_> {
         let Term::Compound { name, args } = goal else {
             return Ok(None);
         };
-        if let Some(facts) = self.bound_property_goal(name, args)? {
+        if let Some(facts) = self.special_bound_goal(name, args)? {
             return Ok(Some(facts));
         }
         match (name.as_str(), args.as_slice()) {
@@ -36,6 +36,63 @@ impl StorageFactProvider<'_> {
             }
             _ => Ok(None),
         }
+    }
+
+    fn special_bound_goal(&self, name: &str, args: &[Term]) -> WamResult<Option<Vec<Term>>> {
+        match self.bound_property_goal(name, args)? {
+            Some(facts) => Ok(Some(facts)),
+            None => self.bound_edge_id_goal(name, args),
+        }
+    }
+
+    fn bound_edge_id_goal(&self, name: &str, args: &[Term]) -> WamResult<Option<Vec<Term>>> {
+        let [source, edge_type, target, id] = args else {
+            return Ok(None);
+        };
+        if name != "edge_id"
+            || ![source, edge_type, target, id]
+                .iter()
+                .any(|term| atom(term).is_some())
+        {
+            return Ok(None);
+        }
+        self.bound_edge_ids(atom(source), atom(edge_type), atom(target), atom(id))
+            .map(Some)
+    }
+
+    fn bound_edge_ids(
+        &self,
+        source: Option<&str>,
+        edge_type: Option<&str>,
+        target: Option<&str>,
+        id: Option<&str>,
+    ) -> WamResult<Vec<Term>> {
+        let edges = if let Some(id) = id {
+            self.storage
+                .get_edge(id)
+                .map(|edge| edge.into_iter().collect())
+        } else if let (Some(source), Some(edge_type), Some(target)) = (source, edge_type, target) {
+            self.storage
+                .get_edge_ids(source, edge_type, target)
+                .and_then(|ids| {
+                    ids.into_iter()
+                        .map(|id| self.storage.get_edge(&id))
+                        .collect()
+                })
+                .map(|edges: Vec<Option<Edge>>| edges.into_iter().flatten().collect())
+        } else {
+            self.storage.get_all_edges()
+        }
+        .map_err(provider_error)?;
+        Ok(edges
+            .into_iter()
+            .filter(|edge| {
+                source.is_none_or(|value| edge.source == value)
+                    && edge_type.is_none_or(|value| edge.edge_type == value)
+                    && target.is_none_or(|value| edge.target == value)
+            })
+            .map(edge_id_fact)
+            .collect())
     }
 
     fn bound_property_goal(&self, name: &str, args: &[Term]) -> WamResult<Option<Vec<Term>>> {
@@ -119,20 +176,32 @@ impl StorageFactProvider<'_> {
         key: &str,
         value: zlf_core::Value,
     ) -> WamResult<Vec<Term>> {
-        self.storage
+        let mut facts = self
+            .storage
             .get_nodes_by_property(key, &value)
-            .map(|nodes| {
-                nodes
-                    .into_iter()
-                    .map(|node| {
-                        compound(
-                            predicate,
-                            vec![Term::Atom(node.id), value_term(value.clone())],
-                        )
-                    })
-                    .collect()
+            .map_err(provider_error)?
+            .into_iter()
+            .map(|node| {
+                compound(
+                    predicate,
+                    vec![Term::Atom(node.id), value_term(value.clone())],
+                )
             })
-            .map_err(provider_error)
+            .collect::<Vec<_>>();
+        facts.extend(
+            self.storage
+                .get_all_edges()
+                .map_err(provider_error)?
+                .into_iter()
+                .filter(|edge| edge.properties.get(key) == Some(&value))
+                .map(|edge| {
+                    compound(
+                        predicate,
+                        vec![Term::Atom(edge.id), value_term(value.clone())],
+                    )
+                }),
+        );
+        Ok(facts)
     }
 
     fn bound_property(&self, key: &str, id: &str) -> WamResult<Vec<Term>> {
@@ -184,6 +253,18 @@ fn label_facts(node: Node, filter: Option<&str>) -> Vec<Term> {
             )
         })
         .collect()
+}
+
+fn edge_id_fact(edge: Edge) -> Term {
+    compound(
+        "edge_id",
+        vec![
+            Term::Atom(edge.source),
+            Term::Atom(edge.edge_type),
+            Term::Atom(edge.target),
+            Term::Atom(edge.id),
+        ],
+    )
 }
 
 fn edge_fact(edge: Edge, canonical: bool) -> Term {

@@ -13,13 +13,14 @@ mod lifecycle;
 mod memory;
 mod mutation;
 mod outbox;
+mod property;
 mod query;
 mod raw;
 mod version;
 
 pub use bulk::{StorageRecord, StorageRecordPlan, STORAGE_KEY_VERSION};
 pub use lifecycle::{
-    EntityState, MutationEvent, MutationKind, MutationReceipt, MutationSequence,
+    EntityResolution, EntityState, MutationEvent, MutationKind, MutationReceipt, MutationSequence,
     MUTATION_EVENT_SCHEMA_VERSION,
 };
 pub use raw::RawMutation;

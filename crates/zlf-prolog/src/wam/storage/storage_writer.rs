@@ -82,8 +82,10 @@ impl<'a> StorageFactWriter<'a> {
     }
 
     fn set_property(&self, id: &str, key: &str, value: Value) -> WamResult<()> {
-        self.ensure_node_with_map(id, &[], HashMap::new())?;
-        self.merge_properties(id, [(key.to_string(), value)].into())
+        self.storage
+            .set_entity_property(id, key, value)
+            .map(|_| ())
+            .map_err(provider_error)
     }
 
     fn merge_properties(&self, id: &str, props: HashMap<String, Value>) -> WamResult<()> {

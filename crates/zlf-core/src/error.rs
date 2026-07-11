@@ -14,6 +14,12 @@ pub enum ZlfError {
     #[error("Edge with ID '{0}' not found")]
     EdgeNotFound(String),
 
+    #[error("Entity with ID '{0}' not found")]
+    EntityNotFound(String),
+
+    #[error("Entity ID '{0}' is ambiguous between node and edge")]
+    AmbiguousEntity(String),
+
     #[error("Source node '{0}' not found")]
     SourceNodeNotFound(String),
 

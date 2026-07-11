@@ -7,6 +7,14 @@ use zlf_core::EntityRef;
 pub const MUTATION_EVENT_SCHEMA_VERSION: u32 = 1;
 pub type MutationSequence = u64;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EntityResolution {
+    Missing,
+    Node,
+    Edge,
+    Ambiguous,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EntityState {
     pub entity: EntityRef,
