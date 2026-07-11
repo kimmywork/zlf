@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use zlf_core::{Edge, Node, Result, Value, ZlfError};
+use zlf_core::{Node, Result, Value, ZlfError};
 
 use crate::Storage;
 
@@ -32,111 +32,77 @@ impl Storage {
     /// Removes all labels, properties, and index entries.
     /// Returns true if the node existed and was deleted.
     pub fn delete_node_cascade(&self, id: &str) -> Result<bool> {
+        let _guard = self.write_guard()?;
         let node = match self.get_node(id)? {
-            Some(n) => n,
+            Some(node) => node,
             None => return Ok(false),
         };
-
-        // Find and delete all incident edges
-        let edges = self.scan_prefix("edge:")?;
-        for (key, value) in edges {
-            let edge: Edge =
-                bincode::deserialize(&value).map_err(|e| ZlfError::Serialization(e.to_string()))?;
-            if edge.source == id || edge.target == id {
-                self.remove_edge_indexes(&edge)?;
-                self.db
-                    .delete(&key)
-                    .map_err(|e| ZlfError::Internal(e.to_string()))?;
-            }
-        }
-
-        // Remove all label indexes
-        self.remove_node_indexes(&node)?;
-
-        // Delete versions
-        self.delete_versions(id)?;
-
-        // Delete node record
-        let key = format!("node:{id}");
-        self.db
-            .delete(&key)
-            .map_err(|e| ZlfError::Internal(e.to_string()))?;
-
+        let edges = self
+            .get_all_edges()?
+            .into_iter()
+            .filter(|edge| edge.source == id || edge.target == id)
+            .collect::<Vec<_>>();
+        self.commit_node_cascade_delete(&node, &edges)?;
         Ok(true)
     }
 
     /// Remove a label from an existing node.
     /// If the node does not have the label, this is a no-op.
     pub fn remove_node_label(&self, id: &str, label: &str) -> Result<bool> {
-        let mut node = match self.get_node(id)? {
-            Some(n) => n,
-            None => return Err(ZlfError::NodeNotFound(id.to_string())),
+        let _guard = self.write_guard()?;
+        let mut node = self
+            .get_node(id)?
+            .ok_or_else(|| ZlfError::NodeNotFound(id.to_string()))?;
+        let Some(index) = node.labels.iter().position(|current| current == label) else {
+            return Ok(false);
         };
-
-        let pos = node.labels.iter().position(|l| l == label);
-        match pos {
-            Some(idx) => {
-                // Remove label index
-                let idx_key = format!("idx:label:{label}:{id}");
-                self.db
-                    .delete(&idx_key)
-                    .map_err(|e| ZlfError::Internal(e.to_string()))?;
-
-                // Update node
-                node.labels.remove(idx);
-                node.increment_version();
-                let node_key = format!("node:{id}");
-                let data = bincode::serialize(&node)
-                    .map_err(|e| ZlfError::Serialization(e.to_string()))?;
-                self.db
-                    .put(&node_key, data)
-                    .map_err(|e| ZlfError::Internal(e.to_string()))?;
-                self.create_version(&node)?;
-                Ok(true)
-            }
-            None => Ok(false),
-        }
+        let old = node.clone();
+        node.labels.remove(index);
+        node.increment_version();
+        self.commit_node_upsert(
+            Some(&old),
+            &node,
+            std::collections::BTreeSet::from(["labels".into()]),
+        )?;
+        Ok(true)
     }
 
     /// Delete a property key from a node.
     /// Returns true if the property existed and was removed.
     pub fn delete_node_property(&self, id: &str, key: &str) -> Result<bool> {
-        let mut node = match self.get_node(id)? {
-            Some(n) => n,
-            None => return Err(ZlfError::NodeNotFound(id.to_string())),
-        };
-
-        if node.properties.contains_key(key) {
-            node.properties.remove(key);
-            node.increment_version();
-            let node_key = format!("node:{id}");
-            let data =
-                bincode::serialize(&node).map_err(|e| ZlfError::Serialization(e.to_string()))?;
-            self.db
-                .put(&node_key, data)
-                .map_err(|e| ZlfError::Internal(e.to_string()))?;
-            self.create_version(&node)?;
-            Ok(true)
-        } else {
-            Ok(false)
+        let _guard = self.write_guard()?;
+        let mut node = self
+            .get_node(id)?
+            .ok_or_else(|| ZlfError::NodeNotFound(id.to_string()))?;
+        if !node.properties.contains_key(key) {
+            return Ok(false);
         }
+        let old = node.clone();
+        node.properties.remove(key);
+        node.increment_version();
+        self.commit_node_upsert(
+            Some(&old),
+            &node,
+            std::collections::BTreeSet::from([key.to_string()]),
+        )?;
+        Ok(true)
     }
 
     /// Append a single property value to a node without replacing others.
     /// Used by idempotent fact writing.
     pub fn insert_node_property(&self, id: &str, key: &str, value: Value) -> Result<()> {
-        let mut node = match self.get_node(id)? {
-            Some(n) => n,
-            None => Node::with_id(id.to_string(), Vec::new(), HashMap::new()),
-        };
+        let _guard = self.write_guard()?;
+        let existing = self.get_node(id)?;
+        let mut node = existing
+            .clone()
+            .unwrap_or_else(|| Node::with_id(id.to_string(), Vec::new(), HashMap::new()));
         node.properties.insert(key.to_string(), value);
         node.increment_version();
-        let node_key = format!("node:{id}");
-        let data = bincode::serialize(&node).map_err(|e| ZlfError::Serialization(e.to_string()))?;
-        self.db
-            .put(&node_key, data)
-            .map_err(|e| ZlfError::Internal(e.to_string()))?;
-        self.create_version(&node)?;
+        self.commit_node_upsert(
+            existing.as_ref(),
+            &node,
+            std::collections::BTreeSet::from([key.to_string()]),
+        )?;
         Ok(())
     }
 }

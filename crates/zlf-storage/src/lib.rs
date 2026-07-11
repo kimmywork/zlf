@@ -1,5 +1,6 @@
+use std::collections::BTreeSet;
 use std::path::Path;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use rocksdb::{Options, DB};
 use zlf_core::{Edge, Node, Result, Value, ZlfError};
@@ -8,9 +9,10 @@ mod bulk;
 mod canonical;
 mod delete;
 mod graph_query;
-mod indexes;
 mod lifecycle;
 mod memory;
+mod mutation;
+mod outbox;
 mod query;
 mod raw;
 mod version;
@@ -25,6 +27,7 @@ pub use version::NodeVersion;
 
 pub struct Storage {
     pub(crate) db: Arc<DB>,
+    write_lock: Mutex<()>,
 }
 
 impl Storage {
@@ -41,8 +44,12 @@ impl Storage {
 
         let db = DB::open(&opts, path)
             .map_err(|e| ZlfError::Internal(format!("Failed to open database: {}", e)))?;
-
-        Ok(Self { db: Arc::new(db) })
+        let storage = Self {
+            db: Arc::new(db),
+            write_lock: Mutex::new(()),
+        };
+        storage.initialize_lifecycle(false)?;
+        Ok(storage)
     }
 
     pub fn open_existing(path: impl AsRef<Path>) -> Result<Self> {
@@ -55,29 +62,23 @@ impl Storage {
         let opts = Options::default();
         let db = DB::open(&opts, path)
             .map_err(|e| ZlfError::Internal(format!("Failed to open database: {}", e)))?;
-
-        Ok(Self { db: Arc::new(db) })
+        let storage = Self {
+            db: Arc::new(db),
+            write_lock: Mutex::new(()),
+        };
+        storage.initialize_lifecycle(true)?;
+        Ok(storage)
     }
 
     pub fn create_node(&self, node: Node) -> Result<Node> {
-        // Validate node ID length
         if node.id.len() > 255 {
             return Err(ZlfError::NodeIdTooLong);
         }
-
-        // Check if node already exists
-        let key = format!("node:{}", node.id);
-        if self
-            .db
-            .get(&key)
-            .map_err(|e| ZlfError::Internal(e.to_string()))?
-            .is_some()
-        {
+        let _guard = self.write_guard()?;
+        if self.get_node(&node.id)?.is_some() {
             return Err(ZlfError::NodeAlreadyExists(node.id));
         }
-
-        let plan = Self::compile_node_records(&node)?;
-        self.write_record_plans([&plan])?;
+        self.commit_node_upsert(None, &node, all_node_fields(&node))?;
         Ok(node)
     }
 
@@ -99,26 +100,21 @@ impl Storage {
     }
 
     pub fn add_labels(&self, id: &str, labels: &[String]) -> Result<Node> {
+        let _guard = self.write_guard()?;
         let mut node = self
             .get_node(id)?
             .ok_or_else(|| ZlfError::NodeNotFound(id.to_string()))?;
         if labels.iter().all(|label| node.labels.contains(label)) {
             return Ok(node);
         }
-        self.remove_node_indexes(&node)?;
+        let old = node.clone();
         for label in labels {
             if !node.labels.contains(label) {
                 node.labels.push(label.clone());
             }
         }
         node.increment_version();
-        let key = format!("node:{}", node.id);
-        let data = bincode::serialize(&node).map_err(|e| ZlfError::Serialization(e.to_string()))?;
-        self.db
-            .put(&key, data)
-            .map_err(|e| ZlfError::Internal(e.to_string()))?;
-        self.create_version(&node)?;
-        self.update_node_indexes(&node)?;
+        self.commit_node_upsert(Some(&old), &node, BTreeSet::from(["labels".into()]))?;
         Ok(node)
     }
 
@@ -127,61 +123,42 @@ impl Storage {
         id: &str,
         properties: std::collections::HashMap<String, Value>,
     ) -> Result<Node> {
+        let _guard = self.write_guard()?;
         let mut node = self
             .get_node(id)?
             .ok_or_else(|| ZlfError::NodeNotFound(id.to_string()))?;
-
-        // Remove old indexes
-        self.remove_node_indexes(&node)?;
-
-        // Update properties
+        let old = node.clone();
+        let changed_fields = old
+            .properties
+            .keys()
+            .chain(properties.keys())
+            .cloned()
+            .collect();
         node.properties = properties;
         node.increment_version();
-
-        // Serialize and store
-        let key = format!("node:{}", node.id);
-        let data = bincode::serialize(&node).map_err(|e| ZlfError::Serialization(e.to_string()))?;
-
-        self.db
-            .put(&key, data)
-            .map_err(|e| ZlfError::Internal(e.to_string()))?;
-
-        // Store new version
-        self.create_version(&node)?;
-
-        // Update indexes
-        self.update_node_indexes(&node)?;
-
+        self.commit_node_upsert(Some(&old), &node, changed_fields)?;
         Ok(node)
     }
 
     pub fn delete_node(&self, id: &str) -> Result<bool> {
+        let _guard = self.write_guard()?;
         let node = self
             .get_node(id)?
             .ok_or_else(|| ZlfError::NodeNotFound(id.to_string()))?;
-
-        // Remove indexes
-        self.remove_node_indexes(&node)?;
-
-        // Delete node
-        let key = format!("node:{}", id);
-        self.db
-            .delete(&key)
-            .map_err(|e| ZlfError::Internal(e.to_string()))?;
-
-        // Delete versions
-        self.delete_versions(id)?;
-
+        let edges = self
+            .get_all_edges()?
+            .into_iter()
+            .filter(|edge| edge.source == id || edge.target == id)
+            .collect::<Vec<_>>();
+        self.commit_node_cascade_delete(&node, &edges)?;
         Ok(true)
     }
 
     pub fn create_edge(&self, edge: Edge) -> Result<Edge> {
-        // Validate edge type
         if edge.edge_type.is_empty() {
             return Err(ZlfError::EmptyEdgeType);
         }
-
-        // Check if source node exists
+        let _guard = self.write_guard()?;
         if self.get_node(&edge.source)?.is_none() {
             return Err(ZlfError::SourceNodeNotFound(edge.source));
         }
@@ -202,8 +179,7 @@ impl Storage {
             return Err(ZlfError::EdgeAlreadyExists(edge.id));
         }
 
-        let plan = Self::compile_edge_records(&edge)?;
-        self.write_record_plans([&plan])?;
+        self.commit_edge_upsert(None, &edge, all_edge_fields(&edge))?;
         Ok(edge)
     }
 
@@ -225,19 +201,29 @@ impl Storage {
     }
 
     pub fn delete_edge(&self, id: &str) -> Result<bool> {
+        let _guard = self.write_guard()?;
         let edge = self
             .get_edge(id)?
             .ok_or_else(|| ZlfError::EdgeNotFound(id.to_string()))?;
-
-        // Remove indexes
-        self.remove_edge_indexes(&edge)?;
-
-        // Delete edge
-        let key = format!("edge:{}", id);
-        self.db
-            .delete(&key)
-            .map_err(|e| ZlfError::Internal(e.to_string()))?;
-
+        self.commit_edge_delete(&edge)?;
         Ok(true)
     }
+
+    pub(crate) fn write_guard(&self) -> Result<MutexGuard<'_, ()>> {
+        self.write_lock
+            .lock()
+            .map_err(|error| ZlfError::Internal(error.to_string()))
+    }
+}
+
+fn all_node_fields(node: &Node) -> BTreeSet<String> {
+    let mut fields = node.properties.keys().cloned().collect::<BTreeSet<_>>();
+    fields.insert("labels".into());
+    fields
+}
+
+fn all_edge_fields(edge: &Edge) -> BTreeSet<String> {
+    let mut fields = edge.properties.keys().cloned().collect::<BTreeSet<_>>();
+    fields.insert("relation".into());
+    fields
 }
