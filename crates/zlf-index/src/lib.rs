@@ -14,7 +14,10 @@ pub use bm25::BM25Index;
 pub use chunking::{
     accept_explicit_chunks, chunk_text, content_fingerprint, ExplicitChunk, IndexChunk,
 };
-pub use generation::{GenerationId, GenerationMetadata, GenerationState, IndexStatus};
+pub use generation::{
+    GenerationId, GenerationMetadata, GenerationState, IndexStatus, IndexWaitResult,
+    GENERATION_SCHEMA_VERSION,
+};
 pub use identity::{
     ContentFingerprint, IndexDocument, IndexDocumentId, SourceRange, INDEX_DOCUMENT_SCHEMA_VERSION,
 };

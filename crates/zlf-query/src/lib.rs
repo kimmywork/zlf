@@ -13,7 +13,10 @@ mod coordinator;
 mod coordinator_store;
 mod explain;
 mod fake_index_target;
+mod generation_facade;
+mod generation_manager;
 mod helpers;
+mod index_wait;
 mod manifest_store;
 mod mutation;
 mod profile_store;
@@ -27,6 +30,8 @@ pub use coordinator::{
 };
 pub use explain::{AccessPath, ArgumentMode, PlannedGoal, QueryPlan};
 pub use fake_index_target::{FakeFailureMode, FakeIndexTarget};
+pub use generation_manager::GenerationManager;
+pub use index_wait::wait_for_indexes;
 pub use manifest_store::IndexManifestStore;
 pub use profile_store::IndexProfileStore;
 

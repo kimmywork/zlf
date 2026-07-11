@@ -2,6 +2,7 @@ use std::io::Write;
 use std::process::{Command, Stdio};
 
 #[test]
+#[allow(clippy::too_many_lines)]
 fn json_profile_api_puts_activates_and_lists() {
     let temp = tempfile::tempdir().unwrap();
     let path = temp.path().join("db");
@@ -25,10 +26,17 @@ fn json_profile_api_puts_activates_and_lists() {
             "name":"knowledge","version":1
         }),
         serde_json::json!({"command":"list_index_profiles","path":path}),
+        serde_json::json!({"command":"index_status","path":path,"target":"bm25"}),
+        serde_json::json!({
+            "command":"wait_indexes","path":path,"targets":["bm25"],
+            "minimum_sequence":1,"timeout_ms":0
+        }),
     ]);
     assert_eq!(responses[1]["type"], "success");
     assert_eq!(responses[2]["type"], "success");
     assert_eq!(responses[3]["data"]["profiles"][0]["name"], "knowledge");
+    assert_eq!(responses[4]["data"]["target"], "bm25");
+    assert_eq!(responses[5]["data"]["reached"], false);
 }
 
 fn run(requests: &[serde_json::Value]) -> Vec<serde_json::Value> {

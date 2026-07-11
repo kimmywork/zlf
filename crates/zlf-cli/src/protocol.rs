@@ -89,6 +89,18 @@ pub(crate) enum Request {
     },
     #[serde(rename = "list_index_profiles")]
     ListIndexProfiles { path: Option<String> },
+    #[serde(rename = "index_status")]
+    IndexStatus {
+        path: Option<String>,
+        target: String,
+    },
+    #[serde(rename = "wait_indexes")]
+    WaitIndexes {
+        path: Option<String>,
+        targets: Vec<String>,
+        minimum_sequence: u64,
+        timeout_ms: u64,
+    },
     #[serde(rename = "query")]
     Query { path: Option<String>, query: String },
     #[serde(rename = "search")]
@@ -152,6 +164,8 @@ impl Request {
                 | Self::PutIndexProfile { .. }
                 | Self::ActivateIndexProfile { .. }
                 | Self::ListIndexProfiles { .. }
+                | Self::IndexStatus { .. }
+                | Self::WaitIndexes { .. }
         )
     }
 }

@@ -137,6 +137,25 @@ pub(crate) async fn handle_mutation(
                 Err(message) => db_error(message),
             }
         }
+        Request::IndexStatus { path, target } => {
+            match ensure_db(state, path.as_deref().unwrap_or(default_path)).await {
+                Ok(db) => json_result(db.index_status(&target)),
+                Err(message) => db_error(message),
+            }
+        }
+        Request::WaitIndexes {
+            path,
+            targets,
+            minimum_sequence,
+            timeout_ms,
+        } => match ensure_db(state, path.as_deref().unwrap_or(default_path)).await {
+            Ok(db) => json_result(db.wait_for_indexes(
+                &targets,
+                minimum_sequence,
+                std::time::Duration::from_millis(timeout_ms),
+            )),
+            Err(message) => db_error(message),
+        },
         _ => Response::Error {
             code: "INVALID_MUTATION_COMMAND".into(),
             message: "not a mutation command".into(),
@@ -244,6 +263,15 @@ fn mutation_response(result: zlf_core::Result<zlf_storage::MutationReceipt>) -> 
             code: "PROPERTY_MUTATION_FAILED".into(),
             message: error.to_string(),
         },
+    }
+}
+
+fn json_result<T: serde::Serialize>(result: zlf_core::Result<T>) -> Response {
+    match result {
+        Ok(value) => Response::Success {
+            data: serde_json::to_value(value).unwrap_or_default(),
+        },
+        Err(error) => profile_error(error),
     }
 }
 

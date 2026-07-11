@@ -27,8 +27,10 @@ pub struct GenerationMetadata {
     pub backend_schema: String,
     pub source_snapshot_sequence: u64,
     pub state: GenerationState,
+    pub build_checkpoint: u64,
     pub document_count: u64,
     pub checksum: Option<String>,
+    pub failure: Option<String>,
     pub created_at: DateTime<Utc>,
     pub validated_at: Option<DateTime<Utc>>,
 }
@@ -41,4 +43,11 @@ pub struct IndexStatus {
     pub published_watermark: u64,
     pub state: Option<GenerationState>,
     pub document_count: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct IndexWaitResult {
+    pub reached: bool,
+    pub minimum_sequence: u64,
+    pub pending_targets: Vec<String>,
 }
