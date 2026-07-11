@@ -18,12 +18,14 @@ impl Storage {
     }
 
     pub fn put_raw(&self, key: &str, value: &[u8]) -> Result<()> {
+        validate_raw_key(key.as_bytes())?;
         self.db
             .put(key, value)
             .map_err(|e| ZlfError::Internal(e.to_string()))
     }
 
     pub fn delete_raw(&self, key: &str) -> Result<()> {
+        validate_raw_key(key.as_bytes())?;
         self.db
             .delete(key)
             .map_err(|e| ZlfError::Internal(e.to_string()))
@@ -32,6 +34,10 @@ impl Storage {
     pub fn write_raw_batch(&self, mutations: &[RawMutation]) -> Result<()> {
         let mut batch = WriteBatch::default();
         for mutation in mutations {
+            let key = match mutation {
+                RawMutation::Put(key, _) | RawMutation::Delete(key) => key,
+            };
+            validate_raw_key(key)?;
             match mutation {
                 RawMutation::Put(key, value) => batch.put(key, value),
                 RawMutation::Delete(key) => batch.delete(key),
@@ -59,5 +65,25 @@ impl Storage {
 
     pub fn close(&self) {
         // DB is closed when dropped
+    }
+}
+
+fn validate_raw_key(key: &[u8]) -> Result<()> {
+    const GRAPH_PREFIXES: &[&[u8]] = &[
+        b"node:",
+        b"edge:",
+        b"ver:",
+        b"idx:",
+        b"meta:predicate:",
+        b"entity-state:",
+        b"outbox:",
+        b"bulk-session:",
+    ];
+    if GRAPH_PREFIXES.iter().any(|prefix| key.starts_with(prefix)) {
+        Err(ZlfError::Internal(
+            "raw writes cannot mutate canonical graph or lifecycle keys".into(),
+        ))
+    } else {
+        Ok(())
     }
 }

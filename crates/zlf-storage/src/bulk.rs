@@ -1,11 +1,10 @@
-use rocksdb::WriteBatch;
 use serde::{Deserialize, Serialize};
 use zlf_core::{Edge, Node, Result, Value, ZlfError};
 
 use crate::canonical::{serialize_edge, serialize_node, serialize_version};
 use crate::{NodeVersion, Storage};
 
-pub const STORAGE_KEY_VERSION: u32 = 1;
+pub const STORAGE_KEY_VERSION: u32 = 2;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StorageRecord {
@@ -70,22 +69,6 @@ impl Storage {
         );
         records.sort_by(|left, right| left.key.cmp(&right.key));
         Ok(StorageRecordPlan { records })
-    }
-
-    pub fn write_record_plans<'a>(
-        &self,
-        plans: impl IntoIterator<Item = &'a StorageRecordPlan>,
-    ) -> Result<usize> {
-        let mut batch = WriteBatch::default();
-        let mut count = 0;
-        for record in plans.into_iter().flat_map(|plan| &plan.records) {
-            batch.put(&record.key, &record.value);
-            count += 1;
-        }
-        self.db
-            .write(batch)
-            .map_err(|error| ZlfError::Internal(error.to_string()))?;
-        Ok(count)
     }
 }
 

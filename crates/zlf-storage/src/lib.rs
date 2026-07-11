@@ -6,6 +6,7 @@ use rocksdb::{Options, DB};
 use zlf_core::{Edge, Node, Result, Value, ZlfError};
 
 mod bulk;
+mod bulk_session;
 mod canonical;
 mod delete;
 mod graph_query;
@@ -19,6 +20,7 @@ mod raw;
 mod version;
 
 pub use bulk::{StorageRecord, StorageRecordPlan, STORAGE_KEY_VERSION};
+pub use bulk_session::{BulkSession, BulkSessionState};
 pub use lifecycle::{
     EntityResolution, EntityState, MutationEvent, MutationKind, MutationReceipt, MutationSequence,
     MUTATION_EVENT_SCHEMA_VERSION,

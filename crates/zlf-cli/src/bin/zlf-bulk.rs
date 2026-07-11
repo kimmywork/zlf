@@ -48,8 +48,11 @@ fn load(database: &str, pack: &str) -> Result<(), String> {
     let report =
         load_fact_pack(&storage, Path::new(pack), 50_000).map_err(|error| error.to_string())?;
     println!(
-        "loaded {} records in {} batches (already_loaded={})",
-        report.records_written, report.batches_written, report.already_loaded
+        "loaded {} records in {} batches (already_loaded={}, rebuild_sequence={})",
+        report.records_written,
+        report.batches_written,
+        report.already_loaded,
+        report.rebuild_sequence
     );
     Ok(())
 }

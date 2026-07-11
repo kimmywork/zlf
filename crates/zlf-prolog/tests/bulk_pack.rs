@@ -2,9 +2,10 @@ use std::fs;
 
 use tempfile::tempdir;
 use zlf_prolog::bulk_pack::{compile_fact_files, load_fact_pack, BulkCompileOptions};
-use zlf_storage::Storage;
+use zlf_storage::{MutationKind, Storage};
 
 #[test]
+#[allow(clippy::too_many_lines)]
 fn ground_facts_compile_and_bulk_load_with_indexes() {
     let temp = tempdir().unwrap();
     let facts = temp.path().join("facts.pl");
@@ -32,7 +33,14 @@ fn ground_facts_compile_and_bulk_load_with_indexes() {
             .id,
         "tax_2"
     );
+    let events = storage.mutation_events_after(0, 10).unwrap();
+    assert_eq!(events.len(), 1);
+    assert!(matches!(
+        events[0].kind,
+        MutationKind::RebuildRequired { .. }
+    ));
     assert!(load_fact_pack(&storage, &pack, 10).unwrap().already_loaded);
+    assert_eq!(storage.mutation_events_after(0, 10).unwrap().len(), 1);
 }
 
 fn write_fixture(path: &std::path::Path) {
@@ -89,32 +97,6 @@ fn compiler_rejects_non_ground_and_incremental_property_facts() {
         &BulkCompileOptions::default(),
     )
     .is_err());
-}
-
-#[test]
-fn loader_resumes_from_a_validated_record_checkpoint() {
-    let temp = tempdir().unwrap();
-    let facts = temp.path().join("facts.pl");
-    write_fixture(&facts);
-    let pack = temp.path().join("pack");
-    let manifest = compile_fact_files(&[facts], &pack, &BulkCompileOptions::default()).unwrap();
-    let storage = Storage::open(temp.path().join("db")).unwrap();
-    load_fact_pack(&storage, &pack, 3).unwrap();
-    storage
-        .delete_raw(&format!(
-            "meta:bulk_pack:{:016x}",
-            manifest.records_checksum
-        ))
-        .unwrap();
-    storage
-        .put_raw(
-            &format!("meta:bulk_progress:{:016x}", manifest.records_checksum),
-            &manifest.record_count.to_le_bytes(),
-        )
-        .unwrap();
-    let resumed = load_fact_pack(&storage, &pack, 3).unwrap();
-    assert_eq!(resumed.records_written, 0);
-    assert!(storage.get_node("tax_2").unwrap().is_some());
 }
 
 #[test]

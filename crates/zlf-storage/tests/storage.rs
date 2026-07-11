@@ -297,7 +297,18 @@ fn test_get_node_at_time() {
 fn compiled_record_plans_match_normal_node_and_edge_queries() {
     let (storage, _temp) = create_test_storage();
     let plans = compiled_taxonomy_plans();
-    assert!(storage.write_record_plans(&plans).unwrap() >= 10);
+    storage.begin_bulk_session("compiled-fixture").unwrap();
+    let written = plans
+        .iter()
+        .enumerate()
+        .map(|(index, plan)| {
+            storage
+                .write_bulk_plan("compiled-fixture", plan, index as u64 + 1)
+                .unwrap()
+        })
+        .sum::<usize>();
+    storage.complete_bulk_session("compiled-fixture").unwrap();
+    assert!(written >= 10);
 
     assert_eq!(
         storage
