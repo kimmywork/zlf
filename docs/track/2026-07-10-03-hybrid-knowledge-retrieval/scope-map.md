@@ -19,7 +19,7 @@ Stage 06 owns benchmark orchestration, but every implementation stage must deliv
 
 | ID | Folder | Status | Primary responsibility |
 |---|---|---|---|
-| 01 | `2026-07-10-01-index-lifecycle/` | I1–I4 complete; I5 next | indexed-document identity, mutations, generations, rebuild, observability |
+| 01 | `2026-07-10-01-index-lifecycle/` | I1–I5 complete; I6 next | indexed-document identity, mutations, generations, rebuild, observability |
 | 02 | `2026-07-10-02-bm25/` | design approved; blocked on Stage 01 | corpus-normalized lexical ranking and multilingual analysis |
 | 03 | `2026-07-10-03-vector-embedding/` | design approved; blocked on Stage 01 | model-safe vectors, exact oracle, ANN, embedding jobs |
 | 04 | `2026-07-10-04-temporal/` | design approved; blocked on Stage 01 | event-time `temporal_*` and valid-time `valid_*` indexes |

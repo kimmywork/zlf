@@ -67,10 +67,25 @@ impl ZlfDatabase {
         let Term::Compound { name, args } = directive else {
             return Ok(());
         };
-        if name != "table" || args.len() != 1 {
-            return Ok(());
+        match (name.as_str(), args.as_slice()) {
+            ("table", [indicator]) => self.apply_table_directive(indicator),
+            ("index_profile", [profile_name, version, config]) => {
+                let profile =
+                    crate::profile_store::lower_profile_directive(profile_name, version, config)?;
+                self.put_index_profile(&profile).map(|_| ())
+            }
+            ("activate_index_profile", [profile_name, Term::Integer(version)]) => {
+                let name = directive_text(profile_name)?;
+                let version = u32::try_from(*version)
+                    .map_err(|_| ZlfError::Internal("invalid profile version".into()))?;
+                self.activate_index_profile(name, version).map(|_| ())
+            }
+            _ => Ok(()),
         }
-        let Some(key) = predicate_indicator(&args[0]) else {
+    }
+
+    fn apply_table_directive(&self, indicator: &Term) -> Result<()> {
+        let Some(key) = predicate_indicator(indicator) else {
             return Err(ZlfError::Internal(
                 "invalid table predicate indicator".to_string(),
             ));
@@ -236,6 +251,13 @@ fn key(name: &str, arity: usize) -> zlf_prolog::wam::PredicateKey {
     zlf_prolog::wam::PredicateKey {
         name: name.to_string(),
         arity,
+    }
+}
+
+fn directive_text(term: &Term) -> Result<&str> {
+    match term {
+        Term::Atom(value) | Term::String(value) => Ok(value),
+        _ => Err(ZlfError::Internal("profile name must be text".into())),
     }
 }
 

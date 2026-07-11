@@ -76,6 +76,19 @@ pub(crate) enum Request {
         edge_type: String,
         target: String,
     },
+    #[serde(rename = "put_index_profile")]
+    PutIndexProfile {
+        path: Option<String>,
+        profile: zlf_index::IndexProfileArtifact,
+    },
+    #[serde(rename = "activate_index_profile")]
+    ActivateIndexProfile {
+        path: Option<String>,
+        name: String,
+        version: u32,
+    },
+    #[serde(rename = "list_index_profiles")]
+    ListIndexProfiles { path: Option<String> },
     #[serde(rename = "query")]
     Query { path: Option<String>, query: String },
     #[serde(rename = "search")]
@@ -126,7 +139,7 @@ pub(crate) enum Request {
 }
 
 impl Request {
-    pub(crate) fn is_mutation(&self) -> bool {
+    pub(crate) fn is_extended(&self) -> bool {
         matches!(
             self,
             Self::PatchNodeProperties { .. }
@@ -136,6 +149,9 @@ impl Request {
                 | Self::RemoveNodeProperty { .. }
                 | Self::RemoveEdgeProperty { .. }
                 | Self::EdgeIds { .. }
+                | Self::PutIndexProfile { .. }
+                | Self::ActivateIndexProfile { .. }
+                | Self::ListIndexProfiles { .. }
         )
     }
 }

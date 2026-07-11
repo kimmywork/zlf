@@ -32,6 +32,34 @@ fn immutable_profiles_activate_atomically_and_reopen() {
 }
 
 #[test]
+fn prolog_directives_lower_through_the_same_profile_store() {
+    let temp = tempfile::tempdir().unwrap();
+    let db = ZlfDatabase::open(temp.path()).unwrap();
+    db.query_prolog(
+        r#":- index_profile(knowledge, 1, {
+            matcher: {node_labels: {labels: [document]}},
+            fields: {body: {bm25: {
+                analyzer_id: "unicode_jieba_v1", analyzer_version: 1,
+                weight: 1.0, k1: 1.2, b: 0.75
+            }}}
+        })."#,
+    )
+    .unwrap();
+    db.query_prolog(":- activate_index_profile(knowledge, 1).")
+        .unwrap();
+    assert_eq!(
+        db.active_index_profile("knowledge")
+            .unwrap()
+            .unwrap()
+            .source_hash,
+        db.active_index_profile("knowledge")
+            .unwrap()
+            .unwrap()
+            .computed_source_hash()
+    );
+}
+
+#[test]
 fn profile_name_and_version_are_immutable() {
     let temp = tempfile::tempdir().unwrap();
     let db = ZlfDatabase::open(temp.path()).unwrap();
@@ -41,11 +69,11 @@ fn profile_name_and_version_are_immutable() {
 }
 
 fn profile(name: &str, version: u32, weight: f32) -> IndexProfileArtifact {
-    IndexProfileArtifact {
+    let mut profile = IndexProfileArtifact {
         schema_version: INDEX_PROFILE_SCHEMA_VERSION,
         name: name.into(),
         version,
-        source_hash: format!("hash-{weight}"),
+        source_hash: String::new(),
         matcher: EntityMatcher::NodeLabels {
             labels: vec!["document".into()],
         },
@@ -64,5 +92,7 @@ fn profile(name: &str, version: u32, weight: f32) -> IndexProfileArtifact {
             },
         )]),
         created_at: Utc::now(),
-    }
+    };
+    profile.refresh_source_hash();
+    profile
 }

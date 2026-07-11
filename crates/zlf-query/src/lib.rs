@@ -11,6 +11,7 @@ use zlf_prolog::wam::{
 };
 mod explain;
 mod helpers;
+mod manifest_store;
 mod mutation;
 mod profile_store;
 mod proof;
@@ -18,6 +19,7 @@ mod registry;
 mod table;
 
 pub use explain::{AccessPath, ArgumentMode, PlannedGoal, QueryPlan};
+pub use manifest_store::IndexManifestStore;
 pub use profile_store::IndexProfileStore;
 
 use zlf_prolog::{PrologParser, PrologRule, Query, Term};

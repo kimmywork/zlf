@@ -1,5 +1,6 @@
 use zlf_core::{Result, ZlfError};
-use zlf_index::IndexProfileArtifact;
+use zlf_index::{IndexProfileArtifact, INDEX_PROFILE_SCHEMA_VERSION};
+use zlf_prolog::Term;
 use zlf_storage::{MutationSequence, Storage};
 
 use crate::ZlfDatabase;
@@ -16,9 +17,13 @@ impl<'a> IndexProfileStore<'a> {
     }
 
     pub fn put(&self, profile: &IndexProfileArtifact) -> Result<MutationSequence> {
+        let mut profile = profile.clone();
+        if profile.source_hash.is_empty() {
+            profile.refresh_source_hash();
+        }
         profile.validate().map_err(ZlfError::Internal)?;
         let key = artifact_key(&profile.name, profile.version);
-        let value = bincode::serialize(profile).map_err(serialization)?;
+        let value = bincode::serialize(&profile).map_err(serialization)?;
         if let Some(existing) = self.storage.get_raw(&key)? {
             if existing == value {
                 return self.sequence_for_existing(&profile.name, profile.version);
@@ -113,6 +118,70 @@ impl ZlfDatabase {
 
     pub fn index_profiles(&self) -> Result<Vec<IndexProfileArtifact>> {
         IndexProfileStore::new(&self.storage).list()
+    }
+}
+
+pub(crate) fn lower_profile_directive(
+    name: &Term,
+    version: &Term,
+    config: &Term,
+) -> Result<IndexProfileArtifact> {
+    let name = term_text(name)?;
+    let version = match version {
+        Term::Integer(value) => u32::try_from(*value)
+            .map_err(|_| ZlfError::Internal("profile version must be a positive u32".into()))?,
+        _ => {
+            return Err(ZlfError::Internal(
+                "profile version must be an integer".into(),
+            ))
+        }
+    };
+    let mut value = term_json(config)?;
+    let object = value
+        .as_object_mut()
+        .ok_or_else(|| ZlfError::Internal("profile config must be an object".into()))?;
+    object.insert("schema_version".into(), INDEX_PROFILE_SCHEMA_VERSION.into());
+    object.insert("name".into(), name.into());
+    object.insert("version".into(), version.into());
+    object.insert("created_at".into(), chrono::Utc::now().to_rfc3339().into());
+    object
+        .entry("source_hash")
+        .or_insert_with(|| serde_json::Value::String(String::new()));
+    let mut profile: IndexProfileArtifact =
+        serde_json::from_value(value).map_err(|error| ZlfError::InvalidJson(error.to_string()))?;
+    if profile.source_hash.is_empty() {
+        profile.refresh_source_hash();
+    }
+    Ok(profile)
+}
+
+fn term_json(term: &Term) -> Result<serde_json::Value> {
+    match term {
+        Term::Atom(value) | Term::String(value) => Ok(value.clone().into()),
+        Term::Integer(value) => Ok((*value).into()),
+        Term::Float(value) => serde_json::Number::from_f64(*value)
+            .map(serde_json::Value::Number)
+            .ok_or_else(|| ZlfError::InvalidJson("non-finite profile number".into())),
+        Term::List(values) => values
+            .iter()
+            .map(term_json)
+            .collect::<Result<Vec<_>>>()
+            .map(serde_json::Value::Array),
+        Term::Object(values) => values
+            .iter()
+            .map(|(key, value)| Ok((key.clone(), term_json(value)?)))
+            .collect::<Result<serde_json::Map<_, _>>>()
+            .map(serde_json::Value::Object),
+        _ => Err(ZlfError::InvalidJson(
+            "unsupported term in profile config".into(),
+        )),
+    }
+}
+
+fn term_text(term: &Term) -> Result<String> {
+    match term {
+        Term::Atom(value) | Term::String(value) => Ok(value.clone()),
+        _ => Err(ZlfError::Internal("profile name must be text".into())),
     }
 }
 

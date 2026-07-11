@@ -112,6 +112,31 @@ pub(crate) async fn handle_mutation(
             )
             .await
         }
+        Request::PutIndexProfile { path, profile } => {
+            match ensure_db(state, path.as_deref().unwrap_or(default_path)).await {
+                Ok(db) => profile_response(db.put_index_profile(&profile)),
+                Err(message) => db_error(message),
+            }
+        }
+        Request::ActivateIndexProfile {
+            path,
+            name,
+            version,
+        } => match ensure_db(state, path.as_deref().unwrap_or(default_path)).await {
+            Ok(db) => profile_response(db.activate_index_profile(&name, version)),
+            Err(message) => db_error(message),
+        },
+        Request::ListIndexProfiles { path } => {
+            match ensure_db(state, path.as_deref().unwrap_or(default_path)).await {
+                Ok(db) => match db.index_profiles() {
+                    Ok(profiles) => Response::Success {
+                        data: serde_json::json!({ "profiles": profiles }),
+                    },
+                    Err(error) => profile_error(error),
+                },
+                Err(message) => db_error(message),
+            }
+        }
         _ => Response::Error {
             code: "INVALID_MUTATION_COMMAND".into(),
             message: "not a mutation command".into(),
@@ -219,6 +244,22 @@ fn mutation_response(result: zlf_core::Result<zlf_storage::MutationReceipt>) -> 
             code: "PROPERTY_MUTATION_FAILED".into(),
             message: error.to_string(),
         },
+    }
+}
+
+fn profile_response(result: zlf_core::Result<u64>) -> Response {
+    match result {
+        Ok(sequence) => Response::Success {
+            data: serde_json::json!({ "sequence": sequence }),
+        },
+        Err(error) => profile_error(error),
+    }
+}
+
+fn profile_error(error: zlf_core::ZlfError) -> Response {
+    Response::Error {
+        code: "INDEX_PROFILE_FAILED".into(),
+        message: error.to_string(),
     }
 }
 

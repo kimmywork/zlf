@@ -2,16 +2,19 @@ use std::collections::BTreeMap;
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 pub const INDEX_PROFILE_SCHEMA_VERSION: u32 = 1;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum EntityMatcher {
     NodeLabels { labels: Vec<String> },
     EdgeTypes { edge_types: Vec<String> },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum ChunkingProfile {
     Explicit {
         version: u32,
@@ -78,6 +81,9 @@ impl IndexProfileArtifact {
         if self.name.is_empty() || self.source_hash.is_empty() || self.fields.is_empty() {
             return Err("profile name, source hash, and fields are required".into());
         }
+        if self.source_hash != self.computed_source_hash() {
+            return Err("profile source hash does not match canonical content".into());
+        }
         match &self.matcher {
             EntityMatcher::NodeLabels { labels } if labels.is_empty() => {
                 return Err("node matcher requires labels".into());
@@ -91,6 +97,25 @@ impl IndexProfileArtifact {
             validate_field(field, options)?;
         }
         Ok(())
+    }
+
+    pub fn computed_source_hash(&self) -> String {
+        let canonical = (
+            self.schema_version,
+            &self.name,
+            self.version,
+            &self.matcher,
+            &self.fields,
+        );
+        let bytes = bincode::serialize(&canonical).expect("profile contract is serializable");
+        Sha256::digest(bytes)
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect()
+    }
+
+    pub fn refresh_source_hash(&mut self) {
+        self.source_hash = self.computed_source_hash();
     }
 }
 

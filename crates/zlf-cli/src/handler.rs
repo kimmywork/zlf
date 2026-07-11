@@ -16,7 +16,7 @@ pub(crate) async fn handle_request(request: Request, state: &AppState) -> Respon
     let config = ZlfConfig::load();
 
     match request {
-        request if request.is_mutation() => handle_mutation(request, &config.db_path, state).await,
+        request if request.is_extended() => handle_mutation(request, &config.db_path, state).await,
         Request::Init { path } => {
             let path = path.unwrap_or_else(|| config.db_path.clone());
             let db_path = std::path::Path::new(&path);
