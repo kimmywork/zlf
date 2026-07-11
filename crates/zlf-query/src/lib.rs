@@ -12,6 +12,7 @@ use zlf_prolog::wam::{
 mod coordinator;
 mod coordinator_store;
 mod explain;
+mod fake_documents;
 mod fake_index_target;
 mod generation_facade;
 mod generation_manager;

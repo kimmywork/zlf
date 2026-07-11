@@ -43,6 +43,15 @@ impl<'a> IndexManifestStore<'a> {
         Ok(changes)
     }
 
+    pub fn list_for_entity(&self, entity: &EntityRef) -> Result<Vec<DocumentManifest>> {
+        let prefix = entity_manifest_prefix(entity);
+        self.storage
+            .scan_prefix(&prefix)?
+            .into_iter()
+            .map(|(_, bytes)| bincode::deserialize(&bytes).map_err(serialization))
+            .collect()
+    }
+
     pub fn delete(
         &self,
         entity: &EntityRef,
@@ -55,15 +64,19 @@ impl<'a> IndexManifestStore<'a> {
 }
 
 fn manifest_key(entity: &EntityRef, profile_name: &str, profile_version: u32) -> String {
+    format!(
+        "{}{}:{profile_version:010}",
+        entity_manifest_prefix(entity),
+        hex(profile_name.as_bytes())
+    )
+}
+
+fn entity_manifest_prefix(entity: &EntityRef) -> String {
     let (kind, id) = match entity {
         EntityRef::Node(id) => ("node", id),
         EntityRef::Edge(id) => ("edge", id),
     };
-    format!(
-        "projection:index-manifest:{kind}:{}:{}:{profile_version:010}",
-        hex(id.as_bytes()),
-        hex(profile_name.as_bytes())
-    )
+    format!("projection:index-manifest:{kind}:{}:", hex(id.as_bytes()))
 }
 
 fn hex(bytes: &[u8]) -> String {

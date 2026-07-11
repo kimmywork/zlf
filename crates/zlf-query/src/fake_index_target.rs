@@ -4,6 +4,8 @@ use std::sync::Mutex;
 use zlf_storage::{MutationEvent, Storage};
 
 use crate::coordinator::{IndexTarget, TargetApplyError};
+use crate::fake_documents::{apply_fake_documents, fake_documents};
+use zlf_index::IndexDocument;
 
 #[derive(Debug, Clone, Copy)]
 pub enum FakeFailureMode {
@@ -30,6 +32,10 @@ impl FakeIndexTarget {
             .lock()
             .expect("fake target failure lock")
             .insert(sequence, (mode, times));
+    }
+
+    pub fn documents(&self, storage: &Storage) -> zlf_core::Result<Vec<IndexDocument>> {
+        fake_documents(storage, &self.name)
     }
 
     pub fn applied_sequences(&self, storage: &Storage) -> zlf_core::Result<Vec<u64>> {
@@ -85,6 +91,7 @@ impl IndexTarget for FakeIndexTarget {
                 retryable: false,
             });
         }
+        apply_fake_documents(storage, &self.name, event).map_err(storage_error)?;
         storage
             .put_raw(
                 &key,

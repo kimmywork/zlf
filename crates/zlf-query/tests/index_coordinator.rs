@@ -1,11 +1,57 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use chrono::Duration;
-use zlf_core::{Node, Value};
+use zlf_core::{Edge, Node, Value};
+use zlf_index::{
+    Bm25FieldOptions, EntityMatcher, FieldIndexOptions, IndexProfileArtifact,
+    INDEX_PROFILE_SCHEMA_VERSION,
+};
 use zlf_query::{
     CoordinatorConfig, FakeFailureMode, FakeIndexTarget, IndexCoordinator, IndexJobState,
+    IndexProfileStore,
 };
 use zlf_storage::Storage;
+
+fn profile() -> IndexProfileArtifact {
+    let mut profile = IndexProfileArtifact {
+        schema_version: INDEX_PROFILE_SCHEMA_VERSION,
+        name: "knowledge".into(),
+        version: 1,
+        source_hash: String::new(),
+        matcher: EntityMatcher::NodeLabels {
+            labels: vec!["document".into()],
+        },
+        fields: BTreeMap::from([(
+            "body".into(),
+            FieldIndexOptions {
+                bm25: Some(Bm25FieldOptions {
+                    analyzer_id: "unicode_jieba_v1".into(),
+                    analyzer_version: 1,
+                    weight: 1.0,
+                    k1: 1.2,
+                    b: 0.75,
+                }),
+                vector: None,
+                temporal: None,
+            },
+        )]),
+        created_at: chrono::Utc::now(),
+    };
+    profile.refresh_source_hash();
+    profile
+}
+
+fn edge_profile() -> IndexProfileArtifact {
+    let mut profile = profile();
+    profile.name = "edges".into();
+    profile.matcher = EntityMatcher::EdgeTypes {
+        edge_types: vec!["knows".into()],
+    };
+    let options = profile.fields.remove("body").unwrap();
+    profile.fields.insert("note".into(), options);
+    profile.refresh_source_hash();
+    profile
+}
 
 fn config() -> CoordinatorConfig {
     CoordinatorConfig {
@@ -41,6 +87,89 @@ fn stale_events_are_suppressed_and_latest_event_is_published() {
         coordinator.jobs("fake").unwrap()[0].state,
         IndexJobState::Stale
     );
+}
+
+#[test]
+#[allow(clippy::too_many_lines)]
+fn fake_target_converges_profile_documents_across_update_and_delete() {
+    let temp = tempfile::tempdir().unwrap();
+    let storage = Storage::open(temp.path().join("db")).unwrap();
+    storage
+        .create_node(Node::with_id(
+            "doc".into(),
+            vec!["document".into()],
+            HashMap::from([("body".into(), Value::String("old".into()))]),
+        ))
+        .unwrap();
+    let store = IndexProfileStore::new(&storage);
+    store.put(&profile()).unwrap();
+    store.activate("knowledge", 1).unwrap();
+    let coordinator = IndexCoordinator::new(&storage, config());
+    coordinator.register_target("fake").unwrap();
+    coordinator.enqueue_available("fake").unwrap();
+    let target = FakeIndexTarget::new("fake");
+    while coordinator.process_next("fake", &target).unwrap() {}
+    assert_eq!(target.documents(&storage).unwrap()[0].content, "old");
+
+    storage
+        .update_node(
+            "doc",
+            HashMap::from([("body".into(), Value::String("new".into()))]),
+        )
+        .unwrap();
+    coordinator.enqueue_available("fake").unwrap();
+    coordinator.process_next("fake", &target).unwrap();
+    assert_eq!(target.documents(&storage).unwrap()[0].content, "new");
+
+    storage.update_node("doc", HashMap::new()).unwrap();
+    coordinator.enqueue_available("fake").unwrap();
+    coordinator.process_next("fake", &target).unwrap();
+    assert!(target.documents(&storage).unwrap().is_empty());
+
+    storage.delete_node("doc").unwrap();
+    coordinator.enqueue_available("fake").unwrap();
+    coordinator.process_next("fake", &target).unwrap();
+    assert!(target.documents(&storage).unwrap().is_empty());
+}
+
+#[test]
+#[allow(clippy::too_many_lines)]
+fn fake_target_tracks_edge_property_updates_and_deletes() {
+    let temp = tempfile::tempdir().unwrap();
+    let storage = Storage::open(temp.path().join("db")).unwrap();
+    for id in ["a", "b"] {
+        storage
+            .create_node(Node::with_id(id.into(), vec![], HashMap::new()))
+            .unwrap();
+    }
+    storage
+        .create_edge(Edge::with_id(
+            "e1".into(),
+            "knows".into(),
+            "a".into(),
+            "b".into(),
+            HashMap::from([("note".into(), Value::String("old".into()))]),
+        ))
+        .unwrap();
+    let store = IndexProfileStore::new(&storage);
+    store.put(&edge_profile()).unwrap();
+    store.activate("edges", 1).unwrap();
+    let coordinator = IndexCoordinator::new(&storage, config());
+    coordinator.register_target("fake").unwrap();
+    coordinator.enqueue_available("fake").unwrap();
+    let target = FakeIndexTarget::new("fake");
+    while coordinator.process_next("fake", &target).unwrap() {}
+    assert_eq!(target.documents(&storage).unwrap()[0].content, "old");
+    storage
+        .set_edge_property("e1", "note", Value::String("new".into()))
+        .unwrap();
+    coordinator.enqueue_available("fake").unwrap();
+    coordinator.process_next("fake", &target).unwrap();
+    assert_eq!(target.documents(&storage).unwrap()[0].content, "new");
+    storage.delete_edge("e1").unwrap();
+    coordinator.enqueue_available("fake").unwrap();
+    coordinator.process_next("fake", &target).unwrap();
+    assert!(target.documents(&storage).unwrap().is_empty());
 }
 
 #[test]
