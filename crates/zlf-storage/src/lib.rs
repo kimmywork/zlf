@@ -14,6 +14,7 @@ mod lifecycle;
 mod memory;
 mod mutation;
 mod outbox;
+mod projection;
 mod property;
 mod query;
 mod raw;

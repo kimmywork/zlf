@@ -1,6 +1,8 @@
 pub mod bm25;
+pub mod chunking;
 pub mod generation;
 pub mod identity;
+pub mod manifest;
 pub mod metrics;
 pub mod model;
 pub mod profile;
@@ -9,10 +11,14 @@ pub mod temporal;
 pub mod vector;
 
 pub use bm25::BM25Index;
+pub use chunking::{
+    accept_explicit_chunks, chunk_text, content_fingerprint, ExplicitChunk, IndexChunk,
+};
 pub use generation::{GenerationId, GenerationMetadata, GenerationState, IndexStatus};
 pub use identity::{
     ContentFingerprint, IndexDocument, IndexDocumentId, SourceRange, INDEX_DOCUMENT_SCHEMA_VERSION,
 };
+pub use manifest::{reconcile_manifest, DocumentChanges, DocumentManifest};
 pub use metrics::{IndexInventory, IndexJobMetrics, IndexMetricsSnapshot};
 pub use model::{
     bge_m3_dense_v1, EmbeddingCapabilities, EmbeddingModelProfile, VectorMetric,
