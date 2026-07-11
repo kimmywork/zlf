@@ -70,7 +70,7 @@ BM25 must use document frequency, corpus/document length statistics, configurabl
 
 ### R4. Scalable vector retrieval
 
-Vector indexing must validate dimensions and model identity, support text-query and source-node-query workflows, provide exact search as a correctness oracle, and add a pluggable approximate nearest-neighbor backend selected by benchmark evidence. An embedded Rust ANN crate is allowed; it must not require an external vector service, and exact RocksDB search remains the oracle/fallback. Search contracts must include top-k, threshold, model/index generation, deterministic tie-breaking, and whether the source item is included.
+Vector indexing must validate dimensions and model identity, support text-query and source-node-query workflows, and provide exact search as the correctness oracle and first functional backend. A pluggable embedded ANN derivative may be added after the exact path is stable; `hnsw_rs` is the initial choice if integration is straightforward. It must not require an external vector service, and exact RocksDB search remains the oracle/fallback. Search contracts must include top-k, threshold, model/index generation, deterministic tie-breaking, and whether the source item is included.
 
 Embedding models use a pluggable versioned registry. Each profile covers provider, model ID/revision, dimension, metric, normalization, maximum input, query/document prompt or prefix templates, batch limits, and dense/sparse/multi-vector capabilities. Ollama `bge-m3:latest` 1024-dimensional dense embedding is the default and first benchmark baseline, not a hard-coded storage assumption. Embedding generation throughput, failure/retry behavior, batching, dedupe, stale-job suppression, and provider/model metadata must be measured separately from vector retrieval latency.
 
@@ -93,7 +93,7 @@ The facade must support:
 - retrieval-first and bound-entity lookup plans;
 - score, rank, source field/chunk, model/analyzer generation, and optional explanation metadata.
 
-Raw BM25 and cosine scores must not be added directly without calibration. Existing predicates remain compatible; new option-bearing APIs/predicates require an explicit contract and planner visibility.
+Raw BM25 and cosine scores must not be added directly without calibration. First-version predicates and option-bearing APIs require an explicit contract and planner visibility; no backward-compatibility aliases are required.
 
 ### R7. Call-time execution and bounded materialization
 
@@ -136,14 +136,14 @@ Validation must combine graph structure, searchable text, semantic relevance, an
 
 ### R12. Node and edge property mutation
 
-Nodes and edges both support mutable property maps. Provide explicit set/remove/atomic-patch APIs and Prolog predicates for each entity kind while preserving compatible `assertz/retract(property/3)` behavior. Set is a one-key upsert preserving other properties; remove is idempotent and `null` is not interpreted as deletion. Generic property mutation resolves an existing node or edge ID and errors on ambiguity instead of creating the wrong entity.
+Nodes and edges both support mutable property maps. Provide explicit set/remove/atomic-patch APIs and Prolog predicates for each entity kind. Generic `assertz/retract(property/3)` follows the approved first-version entity-resolution behavior. Set is a one-key upsert preserving other properties; remove is idempotent and `null` is not interpreted as deletion. Generic property mutation resolves an existing node or edge ID and errors on ambiguity instead of creating the wrong entity.
 
 Expose stable edge identity lookup for Prolog joins. Edge source/type/target/ID are immutable; changing relation identity is delete-old plus create-new. Edge property updates receive source versions, table invalidation, storage/index updates, and durable index jobs exactly like node updates.
 
-### R13. Compatibility and safety
+### R13. Architecture and safety
 
 - Preserve the active `ZlfDatabase -> WamRuntime -> CompositeFactProvider` architecture.
-- Keep default embedding configuration compatible with Ollama `bge-m3:latest`/1024 dimensions while allowing versioned alternatives.
+- Keep Ollama `bge-m3:latest`/1024 dimensions as the default embedding profile while allowing versioned alternatives.
 - Keep generated corpora, embeddings, index databases, and raw reports outside source control; curate only compact machine-readable evidence.
 - API keys and source content must not appear in logs or committed reports.
 

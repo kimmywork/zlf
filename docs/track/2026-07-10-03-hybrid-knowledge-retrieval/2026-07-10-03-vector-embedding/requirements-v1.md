@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: in_progress
 scope_type: stage
 parent_id: 2026-07-10-03-hybrid-knowledge-retrieval
 created: 2026-07-10
@@ -17,7 +17,7 @@ Deliver model-safe multi-vector storage, a reliable embedding pipeline, and scal
 - Key vectors by indexed-document identity plus embedding model/version; support multiple fields/chunks/models per node.
 - Validate dimension, finite values, metric, model identity, and normalization policy at ingestion.
 - Retain exact cosine/dot-product search as a deterministic oracle and small-corpus backend.
-- Define a pluggable ANN contract and benchmark at least one embedded Rust crate before selection; an external vector service is not required, and exact RocksDB search remains the oracle/fallback.
+- Define a pluggable ANN contract, but ship exact RocksDB retrieval first. Use `hnsw_rs` as the initial embedded ANN derivative if integration is straightforward; ANN does not block functional delivery and exact remains the oracle/fallback.
 - ANN persistence/rebuild/reopen must preserve or measurably reproduce Recall@k and deterministic tie rules.
 - Support top-k, threshold, model/generation filters, source inclusion/exclusion, and metadata filters supported by the chosen backend.
 - Support both source-document similarity and query-text/vector retrieval without performing remote embedding HTTP calls inside the WAM execution loop.
@@ -40,7 +40,7 @@ Deliver model-safe multi-vector storage, a reliable embedding pipeline, and scal
 
 ## Confirmed ANN policy
 
-Embedded ANN crates are allowed. Backend selection remains evidence-based, and ANN format/version lifecycle must satisfy Stage 01 rebuild and generation contracts.
+Embedded ANN crates are allowed. `hnsw_rs` is the initial optional choice after the exact path works; ANN format/version lifecycle must satisfy Stage 01 rebuild and generation contracts.
 
 ## Confirmed model strategy
 

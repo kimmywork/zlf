@@ -25,7 +25,7 @@ source_requirements:
 | Area | Assessment | Notes |
 |---|---|---|
 | property mutation/lifecycle | feasible | existing canonical record plans and raw storage batches provide foundations |
-| profile/generation/outbox | moderate | requires coordinated version contracts and migration, but no distributed transaction |
+| profile/generation/outbox | moderate | requires coordinated version contracts, but no distributed transaction |
 | real BM25 | feasible/moderate | compare embedded mature backend with custom RocksDB postings before selection |
 | vector ANN | moderate | embedded crate allowed; canonical vectors make ANN disposable/rebuildable |
 | model registry/worker | feasible | current providers/queue exist but require versioned batch job semantics |
@@ -69,7 +69,7 @@ remove_edge_property(EdgeId, Key).
 edge_id(Source, Type, Target, EdgeId).
 ```
 
-`assertz/retract(property/3)` remains compatible but resolves an existing entity ID and rejects ambiguity. Edge source/type/target/ID are immutable. Edge updates use external version/tombstone metadata keyed by entity rather than changing the existing bincode `Edge` record layout; the mutation sequence is the indexing source version. Updates atomically refresh storage property metadata. Relation identity changes are delete/create.
+`assertz/retract(property/3)` follows the approved first-version generic entity contract: resolve an existing entity ID and reject ambiguity. Edge source/type/target/ID are immutable. Edge updates use entity version/tombstone metadata keyed by entity; the mutation sequence is the indexing source version. Storage record layouts may change directly before first release. Relation identity changes are delete/create.
 
 ### Durable mutation outbox
 
@@ -165,14 +165,9 @@ Bm25Backend {
 }
 ```
 
-The implementation spike compares:
+Use Tantivy as the initial mainstream embedded backend with a versioned Jieba-compatible analyzer adapter. Keep it behind the common contract and retain independent score tests. A custom RocksDB postings layout is deferred until stable functionality shows a concrete need.
 
-1. a mature embedded text-index crate with custom Jieba-compatible analyzer integration;
-2. a custom RocksDB layout containing document lengths, corpus statistics, term DF, and TF postings.
-
-The mature backend is preferred if it satisfies deterministic score tests, Chinese analysis, generation directories, document replacement/deletion, and local resource limits. Custom RocksDB is selected only if integration constraints outweigh maintaining a search engine.
-
-Required scoring contract uses versioned field-aware BM25 with configurable `k1`/`b`, field weight, bounded top-k heap, and stable document-ID tie-break. Old token-count indexes are schema-incompatible and rebuilt, never migrated as scores.
+Required scoring contract uses versioned field-aware BM25 with configurable `k1`/`b`, field weight, bounded top-k heap, and stable document-ID tie-break. Prototype token-count indexes are discarded and rebuilt.
 
 ## 5. Embedding model and vector design
 
@@ -211,16 +206,7 @@ Persistent jobs carry source version/fingerprint/profile, claim lease, attempts,
 
 Canonical vectors remain in a versioned RocksDB store keyed by document ID + model profile + generation. Writes validate dimension, finite values, model, metric, and normalization. Exact search is always available for small data, diagnostics, and ANN Recall@k.
 
-ANN is a derived backend selected after comparing embedded candidates, including an annembed/HNSW-class implementation, on 10K and 100K vectors. Selection criteria:
-
-- Recall@1/10/100 against exact;
-- build/reopen/update/delete behavior;
-- p50/p95/p99 and throughput;
-- peak RSS and disk;
-- deterministic rebuild and format stability;
-- license/maintenance/platform compatibility.
-
-If the ANN cannot delete reliably, updates write a new generation or use tombstones plus threshold-triggered rebuild. Corrupt/incompatible snapshots rebuild from canonical vectors.
+ANN is optional for the first functional path because exact retrieval remains canonical. Use `hnsw_rs` as the initial embedded derivative if persistence/reopen integrates cleanly. If ANN integration or delete behavior is complex, defer it and ship exact retrieval. Corrupt/incompatible snapshots rebuild from canonical vectors or fall back to exact.
 
 ## 6. Temporal design
 
@@ -305,9 +291,9 @@ Graph/ACL filters support two plans:
 
 The plan reports candidate count, rejected count, exhaustion, and whether exact top-k was guaranteed. This avoids applying top-k before ACL filtering and silently returning too few hits.
 
-### Provider paging
+### Bounded provider answers
 
-Extend the external provider contract with an optional page/cursor API while keeping `facts_for_goal` as compatibility adapter. External choice points retain provider cursor/page position plus existing WAM checkpoints. Cut drops the cursor. Backtracking requests the next answer/page. Explicit per-query answer/candidate limits prevent unbounded materialization.
+Keep `facts_for_goal` and current WAM choice points for the first functional path, but enforce explicit backend candidate/page/answer limits before materialization. Report budget exhaustion. Defer a WAM-owned cursor API until stable functionality and measurements show it is necessary.
 
 Proof leaves include index kind, profile/generation, document ID, rank/score, and content fingerprint without copying source text. Tabled rules that consume indexes record index target generation/watermark dependencies; worker publication invalidates affected tables. Unsupported index/table combinations fail explicitly rather than caching indefinitely stale results.
 
@@ -381,4 +367,4 @@ Initial baselines set numeric regression thresholds. No performance claim is acc
 
 ## Rollback strategy
 
-Every new index uses schema/generation namespaces. Existing prototype indexes remain readable until a replacement generation validates, then can be retired. Profile activation and backend selection are metadata pointer changes. ANN can be disabled in favor of exact search. Failed workers preserve primary data and outbox records. Property/storage schema migrations require backup/open tests and cannot reuse incompatible bincode records without an explicit migration path. The initial design avoids modifying the serialized `Edge` shape by keeping indexing versions/tombstones in external metadata.
+Every new index uses schema/generation namespaces. Prototype indexes are disposable and need not remain readable. Profile activation and backend selection are metadata pointer changes. ANN can be disabled in favor of exact search. Failed workers preserve primary data and outbox records. Before first release, property/storage record layouts may change directly. Generation rollback applies only to generations created under the new implementation.

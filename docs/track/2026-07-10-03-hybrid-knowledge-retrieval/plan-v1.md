@@ -30,12 +30,11 @@ No backend stage may invent a separate document identity, job queue, or generati
 
 **Risk:** low
 
-- Add compact checked-in fixtures that expose current stale BM25 update/delete, vector model/dimension overwrite, temporal `valid_to` omission, and edge property update gap.
 - Freeze serializable `EntityRef`, `PropertyPatch`, `IndexDocumentId`, `IndexProfileArtifact`, `EmbeddingModelProfile`, generation/status, mutation event, retrieval request/hit, and metrics contracts.
-- Record current 1K/10K prototype baseline without claiming BM25/ANN correctness.
-- Verify old database open/migration requirements before changing `Edge` serialization.
+- Add focused tests that define the new first-version contracts and expose prototype limitations only where useful for replacement work.
+- Prototype database/index formats may be discarded; no migration or old-format fixture is required.
 
-**Exit:** contracts compile, fixtures fail for the intended current limitations, and migration strategy is reviewed.
+**Exit:** contracts compile and first-version schema behavior is explicit.
 
 ## P1 — Node/edge property mutation and durable outbox
 
@@ -68,8 +67,8 @@ No backend stage may invent a separate document identity, job queue, or generati
 **Risk:** medium
 
 - Implement one common lexical backend contract.
-- Spike a mature embedded backend and custom RocksDB alternative on the same 10K fixture; record analyzer/lifecycle/performance evidence.
-- Select one backend through design change note/review.
+- Use Tantivy as the initial mainstream embedded backend behind the common contract; keep independent analyzer/scoring fixtures.
+- Defer custom RocksDB backend comparison until functional behavior is stable and evidence shows a need.
 - Implement real field-aware BM25, Jieba-compatible versioned analysis, replace/delete, top-k, tie-break, explanations, generation/reopen.
 - Differential-test hand-calculated corpus and independent scorer.
 - Run 1K/10K/100K lexical quality and performance tiers.
@@ -83,9 +82,8 @@ No backend stage may invent a separate document identity, job queue, or generati
 - Implement versioned model registry and separate query/document transforms.
 - Refactor durable embedding jobs for batch, lease, retry/backoff, dead letter, stale suppression, and redacted diagnostics.
 - Implement multi-document/model canonical vector storage with strict validation and exact top-k oracle.
-- Benchmark embedded ANN candidates, including an annembed/HNSW-class candidate, at 10K/100K.
-- Select backend by Recall@k, latency, build/reopen/update, RSS, disk, license, and maintenance evidence.
-- Implement derived ANN generation, tombstone/rebuild policy, fallback, and fresh-process validation.
+- Ship canonical exact retrieval first; optionally integrate `hnsw_rs` as the initial embedded ANN derivative if persistence/reopen is straightforward.
+- Implement derived ANN generation, tombstone/rebuild policy, fallback, and fresh-process validation without blocking exact functional delivery.
 - Run deterministic vector tests and opt-in local `bge-m3` quality/throughput tiers.
 
 **Exit:** exact and ANN results meet agreed Recall@k; incompatible model/dimension/generation never mix; failed embedding does not lose primary data.
@@ -110,7 +108,7 @@ No backend stage may invent a separate document identity, job queue, or generati
 - Implement structured async retrieval request/context and prepared query embedding.
 - Add `retrieve/4` while retaining existing index predicates.
 - Implement RRF baseline, deterministic tie-break, provenance/explanation, and minimum-watermark waits.
-- Add provider cursor/page support to external WAM choice points with cut/backtracking/proof tests.
+- Keep existing WAM choice points and enforce bounded backend/provider answer materialization; defer WAM-owned cursors until measurements justify them.
 - Implement filter-first and progressive retrieval-first graph/ACL plans and query-plan visibility.
 - Add index generation/watermark table dependencies and worker-completion invalidation.
 - Test graph/property/rule/temporal joins, multiple goal orders, top-k/filter exhaustion, limits, mutation, restart, proof, and table behavior.
@@ -166,7 +164,7 @@ Opt-in provider/public-data tests record environment and may not replace determi
 ## Stop/rollback conditions
 
 - Return to requirements if a backend requires an external mandatory service, exceeds the 100K local scope, changes temporal semantics, or weakens explicit field/privacy controls.
-- Return to design if edge migration cannot open old databases, outbox cannot be atomic with primary writes, selected backend cannot rebuild by generation, ANN quality misses the approved threshold, or cursor state breaks WAM backtracking/cut.
+- Return to design if outbox cannot be atomic with primary writes or a selected backend cannot rebuild by generation.
 - Fall back to exact vectors, prior active generations, full index rebuild, or existing predicates rather than ship incorrect/stale retrieval.
 
 ## Immediate next action after design approval

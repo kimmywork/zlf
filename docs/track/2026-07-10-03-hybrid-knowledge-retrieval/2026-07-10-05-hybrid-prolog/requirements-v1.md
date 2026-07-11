@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: in_progress
 scope_type: stage
 parent_id: 2026-07-10-03-hybrid-knowledge-retrieval
 created: 2026-07-10
@@ -14,7 +14,7 @@ Combine lexical, semantic, temporal, graph, property, and rule constraints in on
 
 ## Requirements
 
-- Preserve existing `bm25/3`, `vector_similar/3`, `temporal_on/2`, and `temporal_between/3` behavior or version/migrate intentional semantic changes.
+- Define the first-version contracts for `bm25/3`, `vector_similar/3`, `temporal_on/2`, and `temporal_between/3`; prototype behavior may change directly and no compatibility aliases are required.
 - Add an option-bearing facade/predicate contract for top-k, threshold, field/chunk, model/analyzer generation, temporal constraints, and source exclusion.
 - Support lexical-first, vector-first, and bound-entity access paths; planner output shows selected retrieval/index/filter strategy.
 - Fuse lexical/vector ranks with an explicit method. Reciprocal-rank fusion is the recommended baseline because raw score scales differ.

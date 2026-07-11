@@ -18,7 +18,7 @@ Create one durable, observable mutation and generation contract shared by BM25, 
 - Accept explicit adapter chunks and raw field text with a versioned `ChunkingProfile`; provide deterministic whole-field, paragraph/heading-aware, and fixed-token-window baseline chunkers while allowing rich-format adapters to own semantic splitting.
 - Define immutable versioned `IndexProfile` artifacts matching node labels or edge types, with explicit per-field BM25/vector/temporal options; support Prolog directive and equivalent JSON/Rust entry points through one store/lowering path.
 - Define versioned analyzer, embedding model/dimension, temporal schema, and physical key metadata.
-- Add explicit node/edge set/remove/atomic-property-patch operations. Preserve compatible generic property dynamic writes, reject ambiguous IDs, keep edge source/type/target/ID immutable, and expose edge identity lookup.
+- Add explicit node/edge set/remove/atomic-property-patch operations. Generic property dynamic writes resolve existing entities and reject ambiguous IDs; edge source/type/target/ID remain immutable, and edge identity lookup is exposed.
 - Emit idempotent index upsert/delete jobs from every supported storage mutation path, including node/edge property patches, Prolog writes/retracts, and bulk/import workflows.
 - Prevent an old/retried job from overwriting a newer source version.
 - Support pending/claimed/completed/retryable-failed/dead-letter or equivalent durable states, bounded retries, recovery after process failure, and batch processing.

@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: in_progress
 scope_type: stage
 parent_id: 2026-07-10-03-hybrid-knowledge-retrieval
 created: 2026-07-10
@@ -22,7 +22,7 @@ Replace token-frequency accumulation with a real, update-safe, field/chunk-aware
 - Replace/update/delete removes obsolete postings and updates corpus statistics exactly once.
 - Tie-break equal scores deterministically by stable document identity.
 - Provide score components/explanation for diagnostics.
-- Migration/rebuild must not interpret old token-count scores as BM25 scores.
+- Prototype token-count index data is discarded; new generations contain only real BM25 data.
 
 ## Verification
 
@@ -37,6 +37,6 @@ Replace token-frequency accumulation with a real, update-safe, field/chunk-aware
 - Phrase/proximity, fuzzy search, stemming for every language, or learned sparse retrieval unless evidence makes them necessary.
 - Direct score addition with cosine similarity.
 
-## Design decision required
+## Confirmed backend policy
 
-Compare a custom RocksDB posting/statistics layout with a mature embedded text-index backend. Select based on lifecycle integration, Chinese analyzer support, deterministic scoring, operational complexity, and measured performance—not implementation novelty.
+Use Tantivy as the initial mainstream embedded backend with a versioned Chinese/English analyzer adapter. Keep the backend contract replaceable and retain independent correctness tests. Defer a custom RocksDB alternative until stable functionality demonstrates a need.
