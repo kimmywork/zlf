@@ -9,12 +9,17 @@ mod canonical;
 mod delete;
 mod graph_query;
 mod indexes;
+mod lifecycle;
 mod memory;
 mod query;
 mod raw;
 mod version;
 
 pub use bulk::{StorageRecord, StorageRecordPlan, STORAGE_KEY_VERSION};
+pub use lifecycle::{
+    EntityState, MutationEvent, MutationKind, MutationReceipt, MutationSequence,
+    MUTATION_EVENT_SCHEMA_VERSION,
+};
 pub use raw::RawMutation;
 pub use version::NodeVersion;
 
