@@ -10,6 +10,7 @@ pub mod model;
 pub mod profile;
 pub mod retrieval;
 pub mod temporal;
+pub mod temporal_contract;
 pub mod vector_contract;
 mod vector_exact;
 
@@ -43,6 +44,12 @@ pub use retrieval::{
     RetrievalHit, RetrievalMode, RetrievalQuery, RetrievalRequest, RetrieverScore,
 };
 pub use temporal::{TemporalEntry, TemporalIndex};
+pub use temporal_contract::{
+    decode_ordered_micros, encode_ordered_micros, event_range_oracle, parse_utc_micros,
+    utc_day_range, valid_at_oracle, valid_overlaps_oracle, validate_half_open_range, EventRecord,
+    TemporalAccessPath, TemporalHit, TemporalRecord, TemporalRecordId, ValidityRecord,
+    TEMPORAL_PARSER_VERSION, TEMPORAL_RECORD_SCHEMA_VERSION,
+};
 pub use vector_contract::{
     EmbeddingJob, EmbeddingJobState, VectorHit, VectorKey, VectorQuery, VectorRecord,
     EMBEDDING_JOB_SCHEMA_VERSION, VECTOR_RECORD_SCHEMA_VERSION,
