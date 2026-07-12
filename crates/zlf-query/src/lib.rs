@@ -14,6 +14,7 @@ mod bm25_target;
 mod coordinator;
 mod coordinator_store;
 mod embedding_job_store;
+mod embedding_worker_v2;
 mod explain;
 mod fake_documents;
 mod fake_index_target;
@@ -24,11 +25,13 @@ mod helpers;
 mod index_facade;
 mod index_wait;
 mod manifest_store;
+mod model_profile_store;
 mod mutation;
 mod profile_store;
 mod proof;
 mod registry;
 mod table;
+mod vector_embedding_target;
 
 pub use bm25_target::Bm25IndexTarget;
 pub use coordinator::{
@@ -36,12 +39,17 @@ pub use coordinator::{
     TargetApplyError, TargetProgress,
 };
 pub use embedding_job_store::EmbeddingJobStore;
+pub use embedding_worker_v2::{
+    BatchEmbeddingProvider, DurableEmbeddingWorker, EmbeddingProviderFailure,
+};
 pub use explain::{AccessPath, ArgumentMode, PlannedGoal, QueryPlan};
 pub use fake_index_target::{FakeFailureMode, FakeIndexTarget};
 pub use generation_manager::GenerationManager;
 pub use index_wait::wait_for_indexes;
 pub use manifest_store::IndexManifestStore;
+pub use model_profile_store::EmbeddingModelProfileStore;
 pub use profile_store::IndexProfileStore;
+pub use vector_embedding_target::VectorEmbeddingTarget;
 
 use helpers::lock_error;
 use zlf_prolog::{PrologParser, PrologRule, Query, Term};

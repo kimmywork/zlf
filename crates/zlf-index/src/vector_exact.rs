@@ -15,6 +15,7 @@ const PREFIX: &[u8] = b"vector:exact:v1:";
 const SCHEMA_KEY: &[u8] = b"vector:exact:schema";
 const SCHEMA_VALUE: &[u8] = b"1";
 
+#[derive(Clone)]
 pub struct ExactVectorStore {
     db: Arc<DB>,
 }
