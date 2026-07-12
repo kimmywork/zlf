@@ -105,6 +105,32 @@ impl ExactVectorStore {
         Ok(hits)
     }
 
+    pub fn records_for_entity(
+        &self,
+        generation: &str,
+        model_profile: &str,
+        model_version: u32,
+        entity: &zlf_core::EntityRef,
+    ) -> Result<Vec<VectorRecord>> {
+        let prefix = identity_prefix(generation, model_profile, model_version);
+        let mut records = Vec::new();
+        for item in self
+            .db
+            .iterator(IteratorMode::From(&prefix, rocksdb::Direction::Forward))
+        {
+            let (key, value) = item.map_err(internal)?;
+            if !key.starts_with(&prefix) {
+                break;
+            }
+            let record: VectorRecord = bincode::deserialize(&value).map_err(serialization)?;
+            if record.key.document_id.entity == *entity {
+                records.push(record);
+            }
+        }
+        records.sort_by(|left, right| left.key.cmp(&right.key));
+        Ok(records)
+    }
+
     pub fn count(&self, generation: &str, model_profile: &str, model_version: u32) -> Result<u64> {
         let prefix = identity_prefix(generation, model_profile, model_version);
         let mut count = 0;

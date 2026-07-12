@@ -3,7 +3,9 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 
 use zlf_core::{Edge, Node, Result, ZlfError};
-use zlf_index::{BM25Index, GenerationId, TemporalEntry, TemporalIndex, VectorIndex};
+use zlf_index::{
+    BM25Index, EmbeddingModelProfile, ExactVectorStore, GenerationId, TemporalEntry, TemporalIndex,
+};
 use zlf_prolog::wam::{
     CompiledRuleArtifact, CompositeFactProvider, GraphAlgorithmProvider, GraphViewProvider,
     IndexFactProvider, IntrospectionProvider, PredicateRegistry, RocksTableBackend,
@@ -21,6 +23,7 @@ mod fake_index_target;
 mod generation_facade;
 mod generation_manager;
 mod generation_rollback;
+mod graph_facade;
 mod helpers;
 mod index_facade;
 mod index_wait;
@@ -32,6 +35,7 @@ mod proof;
 mod registry;
 mod table;
 mod vector_embedding_target;
+mod vector_runtime;
 
 pub use bm25_target::Bm25IndexTarget;
 pub use coordinator::{
@@ -61,7 +65,9 @@ pub struct ZlfDatabase {
     bm25: RwLock<Arc<BM25Index>>,
     bm25_root: PathBuf,
     bm25_generation: RwLock<GenerationId>,
-    vector: Arc<VectorIndex>,
+    vector: Arc<ExactVectorStore>,
+    vector_generation: GenerationId,
+    vector_model: EmbeddingModelProfile,
     rules: RwLock<Vec<CompiledRuleArtifact>>,
     registry: RwLock<PredicateRegistry>,
     tabled: RwLock<HashSet<zlf_prolog::wam::PredicateKey>>,
@@ -74,13 +80,14 @@ impl ZlfDatabase {
         let storage = Arc::new(Storage::open(path.join("storage"))?);
         let bm25_root = path.join("bm25");
         let (bm25, generation) = bm25_runtime::open_active_generation(&storage, &bm25_root)?;
+        let vector = vector_runtime::open_active_generation(&storage, &path.join("vector"))?;
         Self::from_parts(
             Arc::clone(&storage),
             TemporalIndex::open(path.join("temporal"))?,
             bm25,
             bm25_root,
             generation,
-            VectorIndex::open(path.join("vector"))?,
+            vector,
         )
     }
 
@@ -89,13 +96,14 @@ impl ZlfDatabase {
         let storage = Arc::new(Storage::open_existing(path.join("storage"))?);
         let bm25_root = path.join("bm25");
         let (bm25, generation) = bm25_runtime::open_active_generation(&storage, &bm25_root)?;
+        let vector = vector_runtime::open_active_generation(&storage, &path.join("vector"))?;
         Self::from_parts(
             Arc::clone(&storage),
             TemporalIndex::open(path.join("temporal"))?,
             bm25,
             bm25_root,
             generation,
-            VectorIndex::open(path.join("vector"))?,
+            vector,
         )
     }
 
@@ -105,7 +113,7 @@ impl ZlfDatabase {
         bm25: BM25Index,
         bm25_root: PathBuf,
         bm25_generation: GenerationId,
-        vector: VectorIndex,
+        vector: vector_runtime::VectorRuntimeParts,
     ) -> Result<Self> {
         let rules = StorageRuleStore::new(storage.as_ref())
             .all_rules()
@@ -122,13 +130,15 @@ impl ZlfDatabase {
             bm25: RwLock::new(Arc::new(bm25)),
             bm25_root,
             bm25_generation: RwLock::new(bm25_generation),
-            vector: Arc::new(vector),
+            vector: Arc::new(vector.store),
+            vector_generation: vector.generation,
+            vector_model: vector.model,
             rules: RwLock::new(rules),
             registry: RwLock::new(pred_registry),
             tabled: RwLock::new(tabled),
             table_manager,
         };
-        database.catch_up_bm25()?;
+        database.catch_up_indexes()?;
         Ok(database)
     }
 
@@ -153,7 +163,7 @@ impl ZlfDatabase {
             .map_err(|e| ZlfError::Internal(e.to_string()))?;
         self.invalidate_fact(fact)?;
         self.refresh_registry()?;
-        self.catch_up_bm25()
+        self.catch_up_indexes()
     }
 
     pub fn store_rule(&self, rule: PrologRule) -> Result<()> {
@@ -192,7 +202,7 @@ impl ZlfDatabase {
             valid_from: created.created_at,
             valid_to: None,
         })?;
-        self.catch_up_bm25()?;
+        self.catch_up_indexes()?;
         self.invalidate_node(&created)?;
         Ok(created)
     }
@@ -203,7 +213,7 @@ impl ZlfDatabase {
 
     pub fn add_edge(&self, edge: Edge) -> Result<Edge> {
         let edge = self.storage.create_edge(edge)?;
-        self.catch_up_bm25()?;
+        self.catch_up_indexes()?;
         self.invalidate_edge(&edge.edge_type)?;
         Ok(edge)
     }
@@ -212,33 +222,17 @@ impl ZlfDatabase {
         self.storage.get_edge(id)
     }
 
-    pub fn get_all_nodes(&self) -> Result<Vec<Node>> {
-        self.storage
-            .scan_prefix("node:")?
-            .into_iter()
-            .map(|(_, value)| {
-                bincode::deserialize(&value).map_err(|e| ZlfError::Serialization(e.to_string()))
-            })
-            .collect()
-    }
-
-    pub fn get_all_edges(&self) -> Result<Vec<Edge>> {
-        self.storage
-            .scan_prefix("edge:")?
-            .into_iter()
-            .map(|(_, value)| {
-                bincode::deserialize(&value).map_err(|e| ZlfError::Serialization(e.to_string()))
-            })
-            .collect()
-    }
-
     #[allow(clippy::too_many_lines)]
     fn execute_terms(&self, terms: &[Term]) -> Result<Vec<serde_json::Value>> {
         let storage_provider = StorageFactProvider::new(self.storage.as_ref());
         let bm25 = self.bm25.read().map_err(lock_error)?.clone();
         let index_provider = IndexFactProvider::new()
             .with_bm25(bm25.as_ref())
-            .with_vector(self.vector.as_ref())
+            .with_exact_vector(
+                self.vector.as_ref(),
+                &self.vector_model,
+                &self.vector_generation,
+            )
             .with_temporal(self.temporal.as_ref());
         let reg = self.registry.read().map_err(lock_error)?.clone();
         let rules = self.rules.read().map_err(lock_error)?.clone();
@@ -268,7 +262,7 @@ impl ZlfDatabase {
             .map_err(|e| ZlfError::Internal(e.to_string()))?;
         if terms.iter().any(table::contains_mutation) {
             self.refresh_after_mutation(terms)?;
-            self.catch_up_bm25()?;
+            self.catch_up_indexes()?;
         }
         Ok(helpers::dedupe_results(
             rows.into_iter().map(helpers::solution_to_json).collect(),

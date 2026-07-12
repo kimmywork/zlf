@@ -105,13 +105,6 @@ pub(crate) enum Request {
     Query { path: Option<String>, query: String },
     #[serde(rename = "search")]
     Search { path: Option<String>, query: String },
-    #[serde(rename = "similar")]
-    Similar {
-        path: Option<String>,
-        node_id: String,
-        threshold: f32,
-        limit: usize,
-    },
     #[serde(rename = "import")]
     Import { path: Option<String>, file: String },
     #[serde(rename = "export")]
@@ -122,17 +115,6 @@ pub(crate) enum Request {
     #[serde(rename = "embed")]
     Embed {
         text: String,
-        #[serde(default)]
-        config: Option<EmbeddingConfig>,
-    },
-    #[serde(rename = "index_embedding")]
-    IndexEmbedding {
-        path: Option<String>,
-        node_id: String,
-        #[serde(default)]
-        text: Option<String>,
-        #[serde(default)]
-        embedding: Option<Vec<f32>>,
         #[serde(default)]
         config: Option<EmbeddingConfig>,
     },

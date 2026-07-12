@@ -102,22 +102,12 @@ pub mod storage_provider;
 #[path = "providers/view_helpers.rs"]
 pub mod view_helpers;
 
-#[path = "storage/embed_adapter.rs"]
-pub mod embed_adapter;
-#[path = "storage/embedding_queue.rs"]
-pub mod embedding_queue;
-#[path = "storage/embedding_worker.rs"]
-pub mod embedding_worker;
 #[path = "storage/fact_key.rs"]
 pub mod fact_key;
 #[path = "storage/fact_lowering.rs"]
 pub mod fact_lowering;
-#[path = "storage/persistent_embedding_queue.rs"]
-pub mod persistent_embedding_queue;
 #[path = "storage/rule_store.rs"]
 pub mod rule_store;
-#[path = "storage/storage_index_writer.rs"]
-pub mod storage_index_writer;
 #[path = "storage/storage_retract.rs"]
 pub mod storage_retract;
 #[path = "storage/storage_writer.rs"]
@@ -145,9 +135,6 @@ pub use codegen::WamCodegen;
 pub use compiler::M0Compiler;
 pub use composite_provider::CompositeFactProvider;
 pub use dependency_graph::RuleDependencyGraph;
-pub use embed_adapter::BlockingEmbeddingProvider;
-pub use embedding_queue::{EmbeddingJob, EmbeddingQueue};
-pub use embedding_worker::EmbeddingWorker;
 pub use error::{WamError, WamResult};
 pub use execution_result::ExecutionResult;
 pub use executor::WamExecutor;
@@ -162,7 +149,6 @@ pub use index_provider::IndexFactProvider;
 pub use instruction::Instruction;
 pub use introspection_provider::IntrospectionProvider;
 pub use machine::M0Machine;
-pub use persistent_embedding_queue::{PersistentEmbeddingJob, PersistentEmbeddingQueue};
 pub use predicate::{compound_args, predicate_key, PredicateKey};
 pub use predicate_catalog::{graph_algorithm_predicates, graph_view_predicates, index_predicates};
 pub use predicate_registry::{PredicateKind, PredicateRegistry};
@@ -173,7 +159,6 @@ pub use query_codegen::CompiledQuery;
 pub use register::RegisterFile;
 pub use rule_store::{CompiledRuleArtifact, StorageRuleStore};
 pub use runtime::WamRuntime;
-pub use storage_index_writer::{Embedder, IndexedStorageFactWriter};
 pub use storage_provider::StorageFactProvider;
 pub use storage_writer::StorageFactWriter;
 pub use tabling::{

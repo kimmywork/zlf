@@ -65,7 +65,7 @@ impl ZlfDatabase {
         );
         self.invalidate_predicates(&predicates)?;
         self.refresh_registry()?;
-        self.catch_up_bm25()
+        self.catch_up_indexes()
     }
 }
 

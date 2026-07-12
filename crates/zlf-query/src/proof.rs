@@ -30,7 +30,11 @@ impl ZlfDatabase {
         let bm25 = self.bm25.read().map_err(lock_error)?.clone();
         let index_provider = IndexFactProvider::new()
             .with_bm25(bm25.as_ref())
-            .with_vector(self.vector.as_ref())
+            .with_exact_vector(
+                self.vector.as_ref(),
+                &self.vector_model,
+                &self.vector_generation,
+            )
             .with_temporal(self.temporal.as_ref());
         let registry = self.registry.read().map_err(lock_error)?.clone();
         let rules = self.rules.read().map_err(lock_error)?.clone();

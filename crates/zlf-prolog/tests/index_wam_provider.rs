@@ -1,5 +1,12 @@
 use chrono::{DateTime, Utc};
-use zlf_index::{BM25Index, TemporalEntry, TemporalIndex, VectorEntry, VectorIndex};
+use std::collections::BTreeMap;
+
+use zlf_core::EntityRef;
+use zlf_index::{
+    bge_m3_dense_v1, content_fingerprint, BM25Index, ExactVectorStore, GenerationId,
+    IndexDocumentId, TemporalEntry, TemporalIndex, VectorKey, VectorRecord,
+    VECTOR_RECORD_SCHEMA_VERSION,
+};
 use zlf_prolog::wam::{IndexFactProvider, WamRuntime};
 use zlf_prolog::{PrologParser, Term};
 
@@ -23,26 +30,29 @@ fn bm25_provider_uses_jieba_chinese_tokenization_in_prolog_query() {
 #[test]
 fn vector_provider_exposes_similarity_to_prolog_query() {
     let dir = tempfile::tempdir().unwrap();
-    let vector = VectorIndex::open(dir.path().join("vector")).unwrap();
+    let vector = ExactVectorStore::open(dir.path().join("vector")).unwrap();
+    let mut profile = bge_m3_dense_v1();
+    profile.dimension = 2;
     vector
-        .add_entry(vector_entry("alice", vec![1.0, 0.0]))
+        .put(&vector_record("alice", vec![1.0, 0.0], &profile), &profile)
         .unwrap();
+    let norm = (0.9_f32.powi(2) + 0.1_f32.powi(2)).sqrt();
     vector
-        .add_entry(vector_entry("bob", vec![0.9, 0.1]))
+        .put(
+            &vector_record("bob", vec![0.9 / norm, 0.1 / norm], &profile),
+            &profile,
+        )
         .unwrap();
-    let provider = IndexFactProvider::new().with_vector(&vector);
+    let generation = GenerationId("g1".into());
+    let provider = IndexFactProvider::new().with_exact_vector(&vector, &profile, &generation);
     let runtime = WamRuntime::new(12);
 
     let solutions = runtime
         .query_all_with_provider(&term("vector_similar(alice, Node, Score)"), &provider)
         .unwrap();
 
-    assert!(solutions
-        .iter()
-        .any(|row| row.get("Node") == Some(&atom("alice"))));
-    assert!(solutions
-        .iter()
-        .any(|row| row.get("Node") == Some(&atom("bob"))));
+    assert_eq!(solutions.len(), 1);
+    assert_eq!(solutions[0].get("Node"), Some(&atom("bob")));
 }
 
 #[test]
@@ -72,11 +82,26 @@ fn temporal_provider_exposes_date_queries_to_prolog() {
     assert_eq!(in_range.len(), 2);
 }
 
-fn vector_entry(node_id: &str, embedding: Vec<f32>) -> VectorEntry {
-    VectorEntry {
-        node_id: node_id.to_string(),
-        embedding,
-        model: "test".to_string(),
+fn vector_record(
+    node_id: &str,
+    values: Vec<f32>,
+    profile: &zlf_index::EmbeddingModelProfile,
+) -> VectorRecord {
+    VectorRecord {
+        schema_version: VECTOR_RECORD_SCHEMA_VERSION,
+        key: VectorKey {
+            generation: GenerationId("g1".into()),
+            model_profile: profile.id.clone(),
+            model_version: profile.version,
+            document_id: IndexDocumentId::new(EntityRef::Node(node_id.into()), "body", "0"),
+        },
+        source_version: 1,
+        content_fingerprint: content_fingerprint(node_id),
+        model_revision: profile.model_revision.clone(),
+        metric: profile.metric,
+        normalized: profile.normalize,
+        values,
+        metadata: BTreeMap::new(),
     }
 }
 

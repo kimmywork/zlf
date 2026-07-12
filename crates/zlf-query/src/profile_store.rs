@@ -106,13 +106,14 @@ impl<'a> IndexProfileStore<'a> {
 impl ZlfDatabase {
     pub fn put_index_profile(&self, profile: &IndexProfileArtifact) -> Result<MutationSequence> {
         let sequence = IndexProfileStore::new(&self.storage).put(profile)?;
-        self.catch_up_bm25()?;
+        self.catch_up_indexes()?;
         Ok(sequence)
     }
 
     pub fn activate_index_profile(&self, name: &str, version: u32) -> Result<MutationSequence> {
         let sequence = IndexProfileStore::new(&self.storage).activate(name, version)?;
         self.rebuild_bm25_generation()?;
+        self.catch_up_vector()?;
         Ok(sequence)
     }
 

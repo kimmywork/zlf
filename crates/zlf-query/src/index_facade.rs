@@ -1,7 +1,5 @@
-use zlf_core::Result;
-use zlf_index::VectorEntry;
-
 use crate::ZlfDatabase;
+use zlf_core::Result;
 
 impl ZlfDatabase {
     pub fn search(&self, query: &str) -> Result<Vec<(String, f32)>> {
@@ -10,25 +8,5 @@ impl ZlfDatabase {
             .into_iter()
             .map(|hit| (hit.document_id.entity.id().to_string(), hit.score))
             .collect())
-    }
-
-    pub fn index_embedding(&self, node_id: &str, embedding: &[f32], model: &str) -> Result<()> {
-        self.vector.add_entry(VectorEntry {
-            node_id: node_id.to_string(),
-            embedding: embedding.to_vec(),
-            model: model.to_string(),
-        })
-    }
-
-    pub fn similar(
-        &self,
-        node_id: &str,
-        threshold: f32,
-        limit: usize,
-    ) -> Result<Vec<(String, f32)>> {
-        match self.vector.get_entry(node_id)? {
-            Some(entry) => self.vector.find_similar(&entry.embedding, threshold, limit),
-            None => Ok(Vec::new()),
-        }
     }
 }

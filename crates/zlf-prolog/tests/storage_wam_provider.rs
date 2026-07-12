@@ -1,10 +1,9 @@
 use std::collections::HashMap;
 
 use zlf_core::{Edge, Node, Value};
-use zlf_index::{BM25Index, VectorIndex};
+use zlf_index::BM25Index;
 use zlf_prolog::wam::{
-    CompositeFactProvider, Embedder, EmbeddingQueue, EmbeddingWorker, IndexFactProvider,
-    IndexedStorageFactWriter, PersistentEmbeddingQueue, StorageFactProvider, StorageFactWriter,
+    CompositeFactProvider, IndexFactProvider, StorageFactProvider, StorageFactWriter,
     StorageRuleStore, WamRuntime,
 };
 use zlf_prolog::{PrologParser, Term};
@@ -43,7 +42,7 @@ fn bm25_provider_reads_backend_documents() {
     let bm25_path = dir.path().join("bm25");
     let storage = Storage::open(&path).unwrap();
     let bm25 = BM25Index::open(&bm25_path).unwrap();
-    let writer = IndexedStorageFactWriter::new(&storage);
+    let writer = StorageFactWriter::new(&storage);
     writer
         .apply_fact(&term("node(doc1, [document], { title: \"软件工程师\" })"))
         .unwrap();
@@ -66,7 +65,7 @@ fn composite_provider_combines_storage_and_index_queries() {
     let bm25_path = dir.path().join("bm25");
     let storage = Storage::open(&storage_path).unwrap();
     let bm25 = BM25Index::open(&bm25_path).unwrap();
-    let writer = IndexedStorageFactWriter::new(&storage);
+    let writer = StorageFactWriter::new(&storage);
     writer
         .apply_fact(&term("node(doc1, [document], { title: \"软件工程师\" })"))
         .unwrap();
@@ -86,92 +85,6 @@ fn composite_provider_combines_storage_and_index_queries() {
         .unwrap();
 
     assert_eq!(solutions[0].get("Title"), Some(&string("软件工程师")));
-    assert!(solutions[0].contains_key("Score"));
-}
-
-#[test]
-fn embedding_worker_loop_processes_persistent_queue_until_idle() {
-    let dir = tempfile::tempdir().unwrap();
-    let storage_path = dir.path().join("db");
-    let vector_path = dir.path().join("vector");
-    let storage = Storage::open(&storage_path).unwrap();
-    let vector = VectorIndex::open(&vector_path).unwrap();
-    let embedder = FakeEmbedder;
-    let queue = PersistentEmbeddingQueue::new(&storage);
-    queue.enqueue("doc1", "软件工程师").unwrap();
-    let worker = EmbeddingWorker::new(&queue, &embedder, &vector)
-        .with_poll_interval(std::time::Duration::from_millis(1));
-
-    assert_eq!(worker.run_until_idle(1).unwrap(), 1);
-    assert!(queue.pending().unwrap().is_empty());
-}
-
-#[test]
-fn persistent_embedding_queue_survives_storage_and_processes_jobs() {
-    let dir = tempfile::tempdir().unwrap();
-    let storage_path = dir.path().join("db");
-    let vector_path = dir.path().join("vector");
-    let storage = Storage::open(&storage_path).unwrap();
-    let vector = VectorIndex::open(&vector_path).unwrap();
-    let embedder = FakeEmbedder;
-    let queue = PersistentEmbeddingQueue::new(&storage);
-
-    queue.enqueue("doc1", "软件工程师").unwrap();
-    assert_eq!(queue.pending().unwrap().len(), 1);
-    assert_eq!(queue.process_all(&embedder, &vector).unwrap(), 1);
-    assert!(queue.pending().unwrap().is_empty());
-
-    let provider = IndexFactProvider::new().with_vector(&vector);
-    let runtime = WamRuntime::new(12);
-    let solutions = runtime
-        .query_all_with_provider(&term("vector_similar(doc1, Node, Score)"), &provider)
-        .unwrap();
-    assert_eq!(solutions[0].get("Node"), Some(&atom("doc1")));
-}
-
-#[test]
-fn embedding_queue_processes_text_jobs_into_vector_index() {
-    let dir = tempfile::tempdir().unwrap();
-    let vector_path = dir.path().join("vector");
-    let vector = VectorIndex::open(&vector_path).unwrap();
-    let embedder = FakeEmbedder;
-    let mut queue = EmbeddingQueue::new();
-
-    queue
-        .enqueue_fact(&term("node(doc1, [document], { title: \"软件工程师\" })"))
-        .unwrap();
-    assert_eq!(queue.len(), 1);
-    assert_eq!(queue.process_all(&embedder, &vector).unwrap(), 1);
-
-    let provider = IndexFactProvider::new().with_vector(&vector);
-    let runtime = WamRuntime::new(12);
-    let solutions = runtime
-        .query_all_with_provider(&term("vector_similar(doc1, Node, Score)"), &provider)
-        .unwrap();
-
-    assert_eq!(solutions[0].get("Node"), Some(&atom("doc1")));
-}
-
-#[test]
-fn indexed_writer_updates_embedding_vector_for_text_properties() {
-    let dir = tempfile::tempdir().unwrap();
-    let storage_path = dir.path().join("db");
-    let vector_path = dir.path().join("vector");
-    let storage = Storage::open(&storage_path).unwrap();
-    let vector = VectorIndex::open(&vector_path).unwrap();
-    let embedder = FakeEmbedder;
-    let writer = IndexedStorageFactWriter::new(&storage).with_embedding(&vector, &embedder);
-    writer
-        .apply_fact(&term("node(doc1, [document], { title: \"软件工程师\" })"))
-        .unwrap();
-    let provider = IndexFactProvider::new().with_vector(&vector);
-    let runtime = WamRuntime::new(12);
-
-    let solutions = runtime
-        .query_all_with_provider(&term("vector_similar(doc1, Node, Score)"), &provider)
-        .unwrap();
-
-    assert_eq!(solutions[0].get("Node"), Some(&atom("doc1")));
     assert!(solutions[0].contains_key("Score"));
 }
 
@@ -376,20 +289,4 @@ fn term(source: &str) -> Term {
 
 fn rule(source: &str) -> zlf_prolog::PrologRule {
     PrologParser::parse_rule(source).unwrap()
-}
-
-struct FakeEmbedder;
-
-impl Embedder for FakeEmbedder {
-    fn model(&self) -> &str {
-        "fake"
-    }
-
-    fn embed(&self, text: &str) -> zlf_prolog::wam::WamResult<Vec<f32>> {
-        if text.contains("软件") {
-            Ok(vec![1.0, 0.0])
-        } else {
-            Ok(vec![0.0, 1.0])
-        }
-    }
 }

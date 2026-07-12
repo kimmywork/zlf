@@ -2,9 +2,7 @@ use zlf_config::ZlfConfig;
 use zlf_core::{Edge, Node};
 use zlf_query::ZlfDatabase;
 
-use crate::embed_commands::{
-    handle_config, handle_embed, handle_index_embedding, IndexEmbeddingRequest,
-};
+use crate::embed_commands::{handle_config, handle_embed};
 use crate::io_data::{export_json, import_json};
 use crate::mutation_commands::handle_mutation;
 use crate::protocol::{Request, Response};
@@ -184,34 +182,6 @@ pub(crate) async fn handle_request(request: Request, state: &AppState) -> Respon
                 },
             }
         }
-        Request::Similar {
-            path,
-            node_id,
-            threshold,
-            limit,
-        } => {
-            let path = path.unwrap_or_else(|| config.db_path.clone());
-            match ensure_db(state, &path).await {
-                Ok(db) => match db.similar(&node_id, threshold, limit) {
-                    Ok(results) => {
-                        let data: Vec<_> = results.into_iter().map(|(id, similarity)| {
-                                serde_json::json!({ "node_id": id, "similarity": similarity })
-                            }).collect();
-                        Response::Success {
-                            data: serde_json::json!(data),
-                        }
-                    }
-                    Err(e) => Response::Error {
-                        code: "SIMILAR_FAILED".to_string(),
-                        message: e.to_string(),
-                    },
-                },
-                Err(e) => Response::Error {
-                    code: "DB_OPEN_FAILED".to_string(),
-                    message: e,
-                },
-            }
-        }
         Request::Import { path, file } => {
             let path = path.unwrap_or_else(|| config.db_path.clone());
             match ensure_db(state, &path).await {
@@ -250,26 +220,6 @@ pub(crate) async fn handle_request(request: Request, state: &AppState) -> Respon
             text,
             config: embed_config,
         } => handle_embed(text, embed_config, &config).await,
-        Request::IndexEmbedding {
-            path,
-            node_id,
-            text,
-            embedding,
-            config: embed_config,
-        } => {
-            handle_index_embedding(
-                IndexEmbeddingRequest {
-                    path,
-                    node_id,
-                    text,
-                    embedding,
-                    config: embed_config,
-                },
-                &config,
-                state,
-            )
-            .await
-        }
         Request::Config { set, get } => handle_config(set, get, &config),
         _ => unreachable!("mutation requests are handled above"),
     }

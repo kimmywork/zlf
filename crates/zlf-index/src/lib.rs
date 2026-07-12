@@ -10,8 +10,7 @@ pub mod model;
 pub mod profile;
 pub mod retrieval;
 pub mod temporal;
-pub mod vector;
-mod vector_contract;
+pub mod vector_contract;
 mod vector_exact;
 
 pub use bm25::{BM25DocumentHit, BM25Index};
@@ -44,7 +43,6 @@ pub use retrieval::{
     RetrievalHit, RetrievalMode, RetrievalQuery, RetrievalRequest, RetrieverScore,
 };
 pub use temporal::{TemporalEntry, TemporalIndex};
-pub use vector::{VectorEntry, VectorIndex};
 pub use vector_contract::{
     EmbeddingJob, EmbeddingJobState, VectorHit, VectorKey, VectorQuery, VectorRecord,
     EMBEDDING_JOB_SCHEMA_VERSION, VECTOR_RECORD_SCHEMA_VERSION,
