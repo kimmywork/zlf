@@ -12,6 +12,7 @@ pub mod retrieval;
 pub mod temporal;
 pub mod vector;
 mod vector_contract;
+mod vector_exact;
 
 pub use bm25::{BM25DocumentHit, BM25Index};
 pub use chunking::{
@@ -48,3 +49,4 @@ pub use vector_contract::{
     EmbeddingJob, VectorHit, VectorKey, VectorQuery, VectorRecord, EMBEDDING_JOB_SCHEMA_VERSION,
     VECTOR_RECORD_SCHEMA_VERSION,
 };
+pub use vector_exact::ExactVectorStore;
