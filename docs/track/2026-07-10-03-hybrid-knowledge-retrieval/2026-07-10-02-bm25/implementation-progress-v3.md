@@ -2,7 +2,7 @@
 
 ## Increment B2/B3a — Field/chunk retrieval and lifecycle target
 
-**Status:** functional slice completed on 2026-07-11; B2/B3 remain open for non-default k1/b and generation directory publication.
+**Status:** functional slice completed on 2026-07-11; B3 remains open for generation directory publication.
 
 ### Delivered
 
@@ -28,7 +28,6 @@
 
 ### Remaining before Stage 02 acceptance
 
-- Either implement non-default profile `k1`/`b` scoring or explicitly narrow the first backend contract to the versioned Tantivy defaults.
 - Place physical Tantivy indexes under generation-scoped directories and connect validation/activation/rollback to `GenerationManager`.
 - Add rebuild/reopen/crash and independent corpus-oracle acceptance coverage at the lifecycle boundary.
 - Expose the final structured lexical request/hit/explanation contract through the Prolog/provider surface in Stage 05.

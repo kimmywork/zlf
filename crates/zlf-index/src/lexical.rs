@@ -4,6 +4,9 @@ use serde::{Deserialize, Serialize};
 use crate::{GenerationId, IndexDocumentId};
 
 pub const UNICODE_JIEBA_ANALYZER_ID: &str = "unicode_jieba_v1";
+pub const UNICODE_JIEBA_ANALYZER_VERSION: u32 = 1;
+pub const TANTIVY_BM25_K1: f32 = 1.2;
+pub const TANTIVY_BM25_B: f32 = 0.75;
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct Bm25Config {
@@ -16,8 +19,8 @@ pub struct Bm25Config {
 impl Default for Bm25Config {
     fn default() -> Self {
         Self {
-            k1: 1.2,
-            b: 0.75,
+            k1: TANTIVY_BM25_K1,
+            b: TANTIVY_BM25_B,
             top_k: 10,
             candidate_limit: 10_000,
         }

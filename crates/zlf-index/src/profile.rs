@@ -4,6 +4,10 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+use crate::lexical::{
+    TANTIVY_BM25_B, TANTIVY_BM25_K1, UNICODE_JIEBA_ANALYZER_ID, UNICODE_JIEBA_ANALYZER_VERSION,
+};
+
 pub const INDEX_PROFILE_SCHEMA_VERSION: u32 = 1;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -127,7 +131,10 @@ fn validate_field(field: &str, options: &FieldIndexOptions) -> Result<(), String
         return Err(format!("field {field} has no index options"));
     }
     if let Some(bm25) = &options.bm25 {
-        if bm25.analyzer_id.is_empty()
+        if bm25.analyzer_id != UNICODE_JIEBA_ANALYZER_ID
+            || bm25.analyzer_version != UNICODE_JIEBA_ANALYZER_VERSION
+            || bm25.k1 != TANTIVY_BM25_K1
+            || bm25.b != TANTIVY_BM25_B
             || !bm25.weight.is_finite()
             || bm25.weight <= 0.0
             || !bm25.k1.is_finite()
@@ -162,6 +169,27 @@ fn valid_chunking(profile: &ChunkingProfile) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn unsupported_tantivy_bm25_parameters_are_rejected() {
+        let mut options = FieldIndexOptions {
+            bm25: Some(Bm25FieldOptions {
+                analyzer_id: UNICODE_JIEBA_ANALYZER_ID.into(),
+                analyzer_version: UNICODE_JIEBA_ANALYZER_VERSION,
+                weight: 1.0,
+                k1: TANTIVY_BM25_K1,
+                b: TANTIVY_BM25_B,
+            }),
+            vector: None,
+            temporal: None,
+        };
+        assert!(validate_field("body", &options).is_ok());
+        options.bm25.as_mut().unwrap().k1 = 2.0;
+        assert!(validate_field("body", &options).is_err());
+        options.bm25.as_mut().unwrap().k1 = TANTIVY_BM25_K1;
+        options.bm25.as_mut().unwrap().analyzer_id = "unsupported".into();
+        assert!(validate_field("body", &options).is_err());
+    }
 
     #[test]
     fn fixed_window_configuration_round_trips() {

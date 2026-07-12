@@ -25,7 +25,8 @@ pub use identity::{
 };
 pub use lexical::{
     bm25_term_score, Bm25Config, Bm25Explanation, LexicalHit, LexicalQuery, TermScoreExplanation,
-    UnicodeJiebaAnalyzer, UNICODE_JIEBA_ANALYZER_ID,
+    UnicodeJiebaAnalyzer, TANTIVY_BM25_B, TANTIVY_BM25_K1, UNICODE_JIEBA_ANALYZER_ID,
+    UNICODE_JIEBA_ANALYZER_VERSION,
 };
 pub use manifest::{reconcile_manifest, DocumentChanges, DocumentManifest};
 pub use metrics::{IndexInventory, IndexJobMetrics, IndexMetricsSnapshot};
