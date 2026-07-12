@@ -1,288 +1,214 @@
-use std::collections::HashMap;
 use std::path::Path;
-use std::sync::Arc;
+use std::sync::Mutex;
 
-use jieba_rs::Jieba;
-use rocksdb::{Direction, IteratorMode, Options, WriteBatch, DB};
-use serde::{Deserialize, Serialize};
-
+use tantivy::collector::TopDocs;
+use tantivy::query::{BooleanQuery, Occur, Query, TermQuery};
+use tantivy::schema::{
+    Field, IndexRecordOption, Schema, TantivyDocument, Value, STORED, STRING, TEXT,
+};
+use tantivy::{doc, Index, IndexReader, IndexWriter, ReloadPolicy, Term};
 use zlf_core::{Result, ZlfError};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BM25Entry {
-    pub node_id: String,
-    pub token: String,
-    pub score: f32,
-}
+use crate::UnicodeJiebaAnalyzer;
+
+const DEFAULT_TOP_K: usize = 100;
 
 pub struct BM25Index {
-    db: Arc<DB>,
-    jieba: Jieba,
+    index: Index,
+    reader: IndexReader,
+    writer: Mutex<IndexWriter>,
+    id_field: Field,
+    body_field: Field,
+    analyzer: UnicodeJiebaAnalyzer,
 }
 
 impl BM25Index {
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
         let path = path.as_ref();
-
-        let mut opts = Options::default();
-        opts.create_if_missing(true);
-
-        let db = DB::open(&opts, path)
-            .map_err(|e| ZlfError::Internal(format!("Failed to open BM25 index: {}", e)))?;
-
+        std::fs::create_dir_all(path)?;
+        let (schema, id_field, body_field) = schema();
+        let index = if path.join("meta.json").exists() {
+            Index::open_in_dir(path).map_err(internal)?
+        } else {
+            Index::create_in_dir(path, schema).map_err(internal)?
+        };
+        let reader = index
+            .reader_builder()
+            .reload_policy(ReloadPolicy::Manual)
+            .try_into()
+            .map_err(internal)?;
+        let writer = index.writer(50_000_000).map_err(internal)?;
         Ok(Self {
-            db: Arc::new(db),
-            jieba: Jieba::new(),
+            index,
+            reader,
+            writer: Mutex::new(writer),
+            id_field,
+            body_field,
+            analyzer: UnicodeJiebaAnalyzer::default(),
         })
     }
 
     pub fn tokenize(&self, text: &str) -> Vec<String> {
-        // Use jieba for Chinese tokenization
-        let words = self.jieba.cut(text, false);
-        words
-            .iter()
-            .map(|w| w.word.to_lowercase())
-            .filter(|w| !w.is_empty())
-            .collect()
+        self.analyzer.analyze(text)
     }
 
-    pub fn add_entry(&self, entry: BM25Entry) -> Result<()> {
-        let key = format!("bm25:{}:{}", entry.token, entry.node_id);
-
-        let data =
-            bincode::serialize(&entry).map_err(|e| ZlfError::Serialization(e.to_string()))?;
-
-        self.db
-            .put(&key, data)
-            .map_err(|e| ZlfError::Internal(e.to_string()))?;
-
-        Ok(())
-    }
-
-    pub fn index_text(&self, node_id: &str, text: &str) -> Result<()> {
-        self.index_texts_batch(&[(node_id, text)])
+    pub fn index_text(&self, document_id: &str, text: &str) -> Result<()> {
+        self.index_texts_batch(&[(document_id, text)])
     }
 
     pub fn index_texts_batch(&self, documents: &[(&str, &str)]) -> Result<()> {
-        let mut batch = WriteBatch::default();
-        for (node_id, text) in documents {
-            for (token, score) in token_counts(self.tokenize(text)) {
-                let entry = BM25Entry {
-                    node_id: (*node_id).to_string(),
-                    token,
-                    score,
-                };
-                let key = format!("bm25:{}:{}", entry.token, entry.node_id);
-                let data = bincode::serialize(&entry)
-                    .map_err(|error| ZlfError::Serialization(error.to_string()))?;
-                batch.put(key.as_bytes(), data);
-            }
+        let mut writer = self.writer.lock().map_err(internal)?;
+        for (id, text) in documents {
+            writer.delete_term(Term::from_field_text(self.id_field, id));
+            writer
+                .add_document(doc!(
+                    self.id_field => *id,
+                    self.body_field => self.tokenize(text).join(" ")
+                ))
+                .map_err(internal)?;
         }
-        self.db
-            .write(batch)
-            .map_err(|error| ZlfError::Internal(error.to_string()))
+        writer.commit().map_err(internal)?;
+        self.reader.reload().map_err(internal)
     }
 
     pub fn search(&self, query: &str) -> Result<Vec<(String, f32)>> {
-        let tokens = self.tokenize(query);
-        let mut scores: HashMap<String, f32> = HashMap::new();
+        self.search_top_k(query, DEFAULT_TOP_K)
+    }
 
-        for token in &tokens {
-            let prefix = format!("bm25:{}:", token);
-            let iter = self
-                .db
-                .iterator(IteratorMode::From(prefix.as_bytes(), Direction::Forward));
-            for item in iter {
-                let (key, value) = item.map_err(|e| ZlfError::Internal(e.to_string()))?;
-                if !key.starts_with(prefix.as_bytes()) {
-                    break;
-                }
-                let entry: BM25Entry = bincode::deserialize(&value)
-                    .map_err(|e| ZlfError::Serialization(e.to_string()))?;
-                *scores.entry(entry.node_id).or_insert(0.0) += entry.score;
-            }
+    pub fn search_top_k(&self, query: &str, top_k: usize) -> Result<Vec<(String, f32)>> {
+        if top_k == 0 {
+            return Ok(Vec::new());
         }
-
-        let mut results: Vec<(String, f32)> = scores.into_iter().collect();
-        results.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-
+        let terms = self.tokenize(query);
+        if terms.is_empty() {
+            return Ok(Vec::new());
+        }
+        let query = term_query(self.body_field, &terms);
+        let searcher = self.reader.searcher();
+        let hits = searcher
+            .search(query.as_ref(), &TopDocs::with_limit(top_k))
+            .map_err(internal)?;
+        let mut results = hits
+            .into_iter()
+            .map(|(score, address)| {
+                let document = searcher.doc::<TantivyDocument>(address).map_err(internal)?;
+                let id = document
+                    .get_first(self.id_field)
+                    .and_then(|value| value.as_str())
+                    .ok_or_else(|| ZlfError::Internal("BM25 document has no ID".into()))?;
+                Ok((id.to_string(), score))
+            })
+            .collect::<Result<Vec<_>>>()?;
+        results.sort_by(|left, right| {
+            right
+                .1
+                .total_cmp(&left.1)
+                .then_with(|| left.0.cmp(&right.0))
+        });
         Ok(results)
     }
 
-    pub fn remove_entry(&self, node_id: &str, token: &str) -> Result<()> {
-        let key = format!("bm25:{}:{}", token, node_id);
-
-        self.db
-            .delete(&key)
-            .map_err(|e| ZlfError::Internal(e.to_string()))?;
-
-        Ok(())
+    pub fn remove_all_for_node(&self, document_id: &str) -> Result<()> {
+        let mut writer = self.writer.lock().map_err(internal)?;
+        writer.delete_term(Term::from_field_text(self.id_field, document_id));
+        writer.commit().map_err(internal)?;
+        self.reader.reload().map_err(internal)
     }
 
-    pub fn remove_all_for_node(&self, node_id: &str) -> Result<()> {
-        let iter = self.db.iterator(rocksdb::IteratorMode::Start);
+    pub fn document_count(&self) -> u64 {
+        self.reader.searcher().num_docs()
+    }
 
-        for item in iter {
-            let (key, _) = item.map_err(|e| ZlfError::Internal(e.to_string()))?;
-            let key_str = String::from_utf8_lossy(&key);
-
-            if key_str.contains(&format!(":{}", node_id)) {
-                self.db
-                    .delete(&key)
-                    .map_err(|e| ZlfError::Internal(e.to_string()))?;
-            }
-        }
-
-        Ok(())
+    pub fn schema(&self) -> Schema {
+        self.index.schema()
     }
 }
 
-fn token_counts(tokens: Vec<String>) -> HashMap<String, f32> {
-    let mut counts = HashMap::new();
-    for token in tokens {
-        *counts.entry(token).or_insert(0.0) += 1.0;
-    }
-    counts
+fn schema() -> (Schema, Field, Field) {
+    let mut builder = Schema::builder();
+    let id = builder.add_text_field("id", STRING | STORED);
+    let body = builder.add_text_field("body", TEXT);
+    (builder.build(), id, body)
+}
+
+fn term_query(field: Field, terms: &[String]) -> Box<dyn Query> {
+    let clauses = terms
+        .iter()
+        .map(|token| {
+            let query = TermQuery::new(
+                Term::from_field_text(field, token),
+                IndexRecordOption::WithFreqs,
+            );
+            (Occur::Should, Box::new(query) as Box<dyn Query>)
+        })
+        .collect();
+    Box::new(BooleanQuery::new(clauses))
+}
+
+fn internal(error: impl std::fmt::Display) -> ZlfError {
+    ZlfError::Internal(error.to_string())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
 
-    fn create_test_index() -> (BM25Index, TempDir) {
-        let temp_dir = TempDir::new().unwrap();
-        let index = BM25Index::open(temp_dir.path().join("bm25")).unwrap();
-        (index, temp_dir)
+    fn index() -> (BM25Index, tempfile::TempDir) {
+        let temp = tempfile::tempdir().unwrap();
+        let index = BM25Index::open(temp.path()).unwrap();
+        (index, temp)
     }
 
     #[test]
-    fn test_add_and_search() {
-        let (index, _temp) = create_test_index();
-
+    fn real_bm25_prefers_repeated_term_and_limits_results() {
+        let (index, _temp) = index();
         index
-            .add_entry(BM25Entry {
-                node_id: "alice".to_string(),
-                token: "engineer".to_string(),
-                score: 2.5,
-            })
+            .index_texts_batch(&[
+                ("alice", "rust rust database"),
+                ("bob", "rust graph database"),
+            ])
             .unwrap();
-
-        index
-            .add_entry(BM25Entry {
-                node_id: "bob".to_string(),
-                token: "software".to_string(),
-                score: 1.5,
-            })
-            .unwrap();
-
-        let results = index.search("engineer").unwrap();
-        assert_eq!(results.len(), 1);
-        assert_eq!(results[0].0, "alice");
-        assert_eq!(results[0].1, 2.5);
+        let hits = index.search_top_k("rust", 1).unwrap();
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].0, "alice");
     }
 
     #[test]
-    fn test_search_multiple_tokens() {
-        let (index, _temp) = create_test_index();
-
-        index
-            .add_entry(BM25Entry {
-                node_id: "alice".to_string(),
-                token: "software".to_string(),
-                score: 1.0,
-            })
-            .unwrap();
-
-        index
-            .add_entry(BM25Entry {
-                node_id: "alice".to_string(),
-                token: "engineer".to_string(),
-                score: 1.5,
-            })
-            .unwrap();
-
-        index
-            .add_entry(BM25Entry {
-                node_id: "bob".to_string(),
-                token: "software".to_string(),
-                score: 1.0,
-            })
-            .unwrap();
-
-        let results = index.search("software engineer").unwrap();
-        assert_eq!(results.len(), 2);
-        // alice should have higher score (1.0 + 1.5 = 2.5)
-        assert_eq!(results[0].0, "alice");
+    fn replacement_and_delete_remove_obsolete_terms() {
+        let (index, _temp) = index();
+        index.index_text("alice", "obsolete text").unwrap();
+        index.index_text("alice", "current value").unwrap();
+        assert!(index.search("obsolete").unwrap().is_empty());
+        assert_eq!(index.search("current").unwrap()[0].0, "alice");
+        index.remove_all_for_node("alice").unwrap();
+        assert!(index.search("current").unwrap().is_empty());
     }
 
     #[test]
-    fn test_remove_entry() {
-        let (index, _temp) = create_test_index();
+    fn chinese_mixed_tokenization_and_reopen_work() {
+        let temp = tempfile::tempdir().unwrap();
+        {
+            let index = BM25Index::open(temp.path()).unwrap();
+            index.index_text("alice", "Alice 是软件工程师").unwrap();
+            assert_eq!(index.search("软件").unwrap()[0].0, "alice");
+        }
+        let reopened = BM25Index::open(temp.path()).unwrap();
+        assert_eq!(reopened.search("Alice").unwrap()[0].0, "alice");
+        assert_eq!(reopened.document_count(), 1);
+    }
 
+    #[test]
+    fn equal_scores_use_stable_id_tie_break() {
+        let (index, _temp) = index();
         index
-            .add_entry(BM25Entry {
-                node_id: "alice".to_string(),
-                token: "engineer".to_string(),
-                score: 2.5,
-            })
+            .index_texts_batch(&[("b", "same"), ("a", "same")])
             .unwrap();
-
-        index.remove_entry("alice", "engineer").unwrap();
-
-        let results = index.search("engineer").unwrap();
-        assert!(results.is_empty());
-    }
-
-    #[test]
-    fn test_search_empty_query() {
-        let (index, _temp) = create_test_index();
-
-        index
-            .add_entry(BM25Entry {
-                node_id: "alice".to_string(),
-                token: "engineer".to_string(),
-                score: 2.5,
-            })
-            .unwrap();
-
-        let results = index.search("").unwrap();
-        assert!(results.is_empty());
-    }
-
-    #[test]
-    fn test_chinese_tokenization() {
-        let (index, _temp) = create_test_index();
-
-        // Test Chinese tokenization
-        let tokens = index.tokenize("我们中出了一个叛徒");
-        assert!(tokens.contains(&"我们".to_string()));
-        assert!(tokens.contains(&"叛徒".to_string()));
-    }
-
-    #[test]
-    fn test_index_text_with_chinese() {
-        let (index, _temp) = create_test_index();
-
-        index.index_text("alice", "软件工程师").unwrap();
-
-        let results = index.search("软件").unwrap();
-        assert_eq!(results.len(), 1);
-        assert_eq!(results[0].0, "alice");
-    }
-
-    #[test]
-    fn test_mixed_chinese_and_english() {
-        let (index, _temp) = create_test_index();
-
-        index.index_text("alice", "Alice is a 软件工程师").unwrap();
-
-        // Search in English
-        let results = index.search("Alice").unwrap();
-        assert_eq!(results.len(), 1);
-
-        // Search in Chinese
-        let results = index.search("软件").unwrap();
-        assert_eq!(results.len(), 1);
+        let ids = index
+            .search("same")
+            .unwrap()
+            .into_iter()
+            .map(|hit| hit.0)
+            .collect::<Vec<_>>();
+        assert_eq!(ids, vec!["a", "b"]);
     }
 }
