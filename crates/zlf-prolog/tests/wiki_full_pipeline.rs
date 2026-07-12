@@ -38,7 +38,7 @@ fn wiki_markdown_full_pipeline_with_compiled_rules_and_worker() {
     let storage = Storage::open(dir.path().join("db")).unwrap();
     let bm25 = BM25Index::open(dir.path().join("bm25")).unwrap();
     let vector = VectorIndex::open(dir.path().join("vector")).unwrap();
-    let writer = IndexedStorageFactWriter::new(&storage).with_bm25(&bm25);
+    let writer = IndexedStorageFactWriter::new(&storage);
     let queue = PersistentEmbeddingQueue::new(&storage);
     let embedder = wiki_embedder();
 
@@ -55,6 +55,7 @@ fn wiki_markdown_full_pipeline_with_compiled_rules_and_worker() {
         writer
             .apply_fact(&wiki_node(&id, &title, file, &content))
             .unwrap();
+        bm25.index_text(&id, &content).unwrap();
         queue.enqueue(&id, &content).unwrap();
     }
 

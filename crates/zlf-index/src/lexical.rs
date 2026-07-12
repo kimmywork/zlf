@@ -47,6 +47,8 @@ pub struct LexicalQuery {
     pub text: String,
     pub top_k: usize,
     pub fields: Vec<String>,
+    #[serde(default)]
+    pub languages: Vec<String>,
     pub generation: Option<GenerationId>,
     pub explain: bool,
 }

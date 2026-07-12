@@ -2,7 +2,8 @@ use std::collections::BTreeMap;
 
 use zlf_core::EntityRef;
 use zlf_index::{
-    content_fingerprint, BM25Index, IndexDocument, IndexDocumentId, INDEX_DOCUMENT_SCHEMA_VERSION,
+    bm25_term_score, content_fingerprint, BM25Index, DocumentChanges, IndexDocument,
+    IndexDocumentId, INDEX_DOCUMENT_SCHEMA_VERSION,
 };
 
 #[test]
@@ -32,6 +33,7 @@ fn real_bm25_replace_delete_limit_tie_and_reopen() {
 }
 
 #[test]
+#[allow(clippy::too_many_lines)]
 fn chunks_fields_weights_and_explanation_are_preserved() {
     let temp = tempfile::tempdir().unwrap();
     let index = BM25Index::open(temp.path()).unwrap();
@@ -52,6 +54,10 @@ fn chunks_fields_weights_and_explanation_are_preserved() {
     assert_eq!(explanation.terms[0].term_frequency, 1);
     assert_eq!(explanation.terms[0].document_frequency, 2);
     assert!(explanation.terms[0].score > 0.0);
+    assert!(index
+        .search_document_top_k_filtered("rust", 10, &[], &["zh".into()], &BTreeMap::new(), false,)
+        .unwrap()
+        .is_empty());
 
     let weighted = index
         .search_document_top_k(
@@ -69,6 +75,32 @@ fn chunks_fields_weights_and_explanation_are_preserved() {
 }
 
 #[test]
+fn tantivy_scores_match_the_independent_formula_fixture() {
+    let temp = tempfile::tempdir().unwrap();
+    let index = BM25Index::open(temp.path()).unwrap();
+    index
+        .apply_document_changes(&DocumentChanges {
+            upserts: vec![
+                document("body", "0", "rust rust graph"),
+                document_for("other", "body", "0", "rust data graph"),
+            ],
+            deletes: Vec::new(),
+        })
+        .unwrap();
+    let hits = index
+        .search_document_top_k("rust", 2, &[], &BTreeMap::new(), false)
+        .unwrap();
+    let expected = [
+        bm25_term_score(2, 2, 2, 3, 3.0, 1.2, 0.75),
+        bm25_term_score(1, 2, 2, 3, 3.0, 1.2, 0.75),
+    ];
+    assert_eq!(hits[0].document_id.entity.id(), "doc");
+    for (hit, score) in hits.iter().zip(expected) {
+        assert!((f64::from(hit.score) - score).abs() < 0.001);
+    }
+}
+
+#[test]
 fn chinese_and_english_queries_share_versioned_analysis() {
     let temp = tempfile::tempdir().unwrap();
     let index = BM25Index::open(temp.path()).unwrap();
@@ -78,14 +110,19 @@ fn chinese_and_english_queries_share_versioned_analysis() {
 }
 
 fn document(field: &str, chunk: &str, content: &str) -> IndexDocument {
+    document_for("doc", field, chunk, content)
+}
+
+fn document_for(node: &str, field: &str, chunk: &str, content: &str) -> IndexDocument {
     IndexDocument {
         schema_version: INDEX_DOCUMENT_SCHEMA_VERSION,
-        id: IndexDocumentId::new(EntityRef::Node("doc".into()), field, chunk),
+        id: IndexDocumentId::new(EntityRef::Node(node.into()), field, chunk),
         source_version: 1,
         content_fingerprint: content_fingerprint(content),
         source_range: None,
         chunk_ordinal: chunk.parse().unwrap(),
         chunk_profile: "whole_field_v1".into(),
+        language: Some("en".into()),
         content: content.into(),
     }
 }

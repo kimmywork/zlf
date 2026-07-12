@@ -4,15 +4,17 @@ use std::sync::Mutex;
 
 use tantivy::collector::TopDocs;
 use tantivy::query::Query;
-use tantivy::schema::{Schema, TantivyDocument};
+use tantivy::schema::TantivyDocument;
 use tantivy::{doc, DocAddress, Index, IndexReader, IndexWriter, ReloadPolicy, Term};
-use zlf_core::{EntityRef, Result, ZlfError};
+use zlf_core::Result;
 
 use crate::bm25_support::{
-    bm25_explanation, combined_query, document_key, entity_parts, schema, stored_text,
-    validate_schema, validate_weights, DocumentParts, Fields,
+    bm25_explanation, combined_query, document_key, entity_parts, internal, schema, stored_entity,
+    stored_text, validate_schema, validate_weights, DocumentParts, Fields,
 };
-use crate::{Bm25Explanation, IndexDocument, IndexDocumentId, UnicodeJiebaAnalyzer};
+use crate::{
+    Bm25Explanation, DocumentChanges, IndexDocument, IndexDocumentId, UnicodeJiebaAnalyzer,
+};
 
 const DEFAULT_TOP_K: usize = 100;
 
@@ -20,11 +22,11 @@ const DEFAULT_TOP_K: usize = 100;
 pub struct BM25DocumentHit {
     pub document_id: IndexDocumentId,
     pub score: f32,
+    pub language: Option<String>,
     pub explanation: Option<Bm25Explanation>,
 }
 
 pub struct BM25Index {
-    index: Index,
     reader: IndexReader,
     writer: Mutex<IndexWriter>,
     fields: Fields,
@@ -49,7 +51,6 @@ impl BM25Index {
             .map_err(internal)?;
         let writer = index.writer(50_000_000).map_err(internal)?;
         Ok(Self {
-            index,
             reader,
             writer: Mutex::new(writer),
             fields,
@@ -76,6 +77,7 @@ impl BM25Index {
                     entity_id: id,
                     field: "_all",
                     chunk: "0",
+                    language: "",
                     text,
                 },
             )?;
@@ -84,25 +86,28 @@ impl BM25Index {
     }
 
     pub fn index_document(&self, document: &IndexDocument) -> Result<()> {
-        let (kind, entity_id) = entity_parts(&document.id.entity);
-        let mut writer = self.writer.lock().map_err(internal)?;
-        let key = document_key(&document.id);
-        self.write_document(
-            &mut writer,
-            DocumentParts {
-                key: &key,
-                entity_kind: kind,
-                entity_id,
-                field: &document.id.field,
-                chunk: &document.id.chunk_id,
-                text: &document.content,
-            },
-        )?;
-        self.commit(&mut writer)
+        self.apply_document_changes(&DocumentChanges {
+            upserts: vec![document.clone()],
+            deletes: Vec::new(),
+        })
     }
 
     pub fn remove_document(&self, id: &IndexDocumentId) -> Result<()> {
-        self.remove_key(&document_key(id))
+        self.apply_document_changes(&DocumentChanges {
+            upserts: Vec::new(),
+            deletes: vec![id.clone()],
+        })
+    }
+
+    pub fn apply_document_changes(&self, changes: &DocumentChanges) -> Result<()> {
+        let mut writer = self.writer.lock().map_err(internal)?;
+        for id in &changes.deletes {
+            writer.delete_term(Term::from_field_text(self.fields.key, &document_key(id)));
+        }
+        for document in &changes.upserts {
+            self.write_index_document(&mut writer, document)?;
+        }
+        self.commit(&mut writer)
     }
 
     pub fn remove_all_for_node(&self, document_id: &str) -> Result<()> {
@@ -133,6 +138,18 @@ impl BM25Index {
         field_weights: &BTreeMap<String, f32>,
         explain: bool,
     ) -> Result<Vec<BM25DocumentHit>> {
+        self.search_document_top_k_filtered(query, top_k, fields, &[], field_weights, explain)
+    }
+
+    pub fn search_document_top_k_filtered(
+        &self,
+        query: &str,
+        top_k: usize,
+        fields: &[String],
+        languages: &[String],
+        field_weights: &BTreeMap<String, f32>,
+        explain: bool,
+    ) -> Result<Vec<BM25DocumentHit>> {
         if top_k == 0 {
             return Ok(Vec::new());
         }
@@ -146,7 +163,7 @@ impl BM25Index {
             return Ok(Vec::new());
         }
         validate_weights(field_weights)?;
-        let query = combined_query(self.fields, &terms, fields);
+        let query = combined_query(self.fields, &terms, fields, languages);
         let mut results = self.collect_hits(
             query.as_ref(),
             &terms,
@@ -168,10 +185,6 @@ impl BM25Index {
         self.reader.searcher().num_docs()
     }
 
-    pub fn schema(&self) -> Schema {
-        self.index.schema()
-    }
-
     fn collect_hits(
         &self,
         query: &dyn Query,
@@ -191,6 +204,27 @@ impl BM25Index {
             .collect()
     }
 
+    fn write_index_document(
+        &self,
+        writer: &mut IndexWriter,
+        document: &IndexDocument,
+    ) -> Result<()> {
+        let (entity_kind, entity_id) = entity_parts(&document.id.entity);
+        let key = document_key(&document.id);
+        self.write_document(
+            writer,
+            DocumentParts {
+                key: &key,
+                entity_kind,
+                entity_id,
+                field: &document.id.field,
+                chunk: &document.id.chunk_id,
+                language: document.language.as_deref().unwrap_or(""),
+                text: &document.content,
+            },
+        )
+    }
+
     fn write_document(&self, writer: &mut IndexWriter, parts: DocumentParts<'_>) -> Result<()> {
         writer.delete_term(Term::from_field_text(self.fields.key, parts.key));
         writer
@@ -200,6 +234,7 @@ impl BM25Index {
                 self.fields.entity_id => parts.entity_id,
                 self.fields.field => parts.field,
                 self.fields.chunk => parts.chunk,
+                self.fields.language => parts.language,
                 self.fields.body => self.tokenize(parts.text).join(" ")
             ))
             .map(|_| ())
@@ -229,15 +264,7 @@ impl BM25Index {
         let document = searcher.doc::<TantivyDocument>(address).map_err(internal)?;
         let text = |field| stored_text(&document, field);
         let field = text(self.fields.field)?;
-        let entity = match text(self.fields.entity_kind)?.as_str() {
-            "node" => EntityRef::Node(text(self.fields.entity_id)?),
-            "edge" => EntityRef::Edge(text(self.fields.entity_id)?),
-            kind => {
-                return Err(ZlfError::Internal(format!(
-                    "invalid BM25 entity kind: {kind}"
-                )))
-            }
-        };
+        let entity = stored_entity(&document, self.fields)?;
         let weight = weights.get(&field).copied().unwrap_or(1.0);
         let explanation = explain
             .then(|| {
@@ -250,14 +277,12 @@ impl BM25Index {
                 )
             })
             .transpose()?;
+        let language = text(self.fields.language)?;
         Ok(BM25DocumentHit {
             document_id: IndexDocumentId::new(entity, field.clone(), text(self.fields.chunk)?),
             score: score * weight,
+            language: (!language.is_empty()).then_some(language),
             explanation,
         })
     }
-}
-
-fn internal(error: impl std::fmt::Display) -> ZlfError {
-    ZlfError::Internal(error.to_string())
 }

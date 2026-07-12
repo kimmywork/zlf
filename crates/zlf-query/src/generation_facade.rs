@@ -38,6 +38,7 @@ impl ZlfDatabase {
                 .fail(target, id, detail.unwrap_or_default())
                 .map(|_| None),
             "activate" => manager.activate(target, id).map(Some),
+            "rollback" => manager.rollback(target, id).map(Some),
             _ => Err(ZlfError::Internal("unknown generation action".into())),
         }
     }

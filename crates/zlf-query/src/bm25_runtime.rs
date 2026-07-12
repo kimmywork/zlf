@@ -46,11 +46,22 @@ impl ZlfDatabase {
         fields: &[String],
         explain: bool,
     ) -> Result<Vec<BM25DocumentHit>> {
+        self.search_bm25_filtered(query, top_k, fields, &[], explain)
+    }
+
+    pub fn search_bm25_filtered(
+        &self,
+        query: &str,
+        top_k: usize,
+        fields: &[String],
+        languages: &[String],
+        explain: bool,
+    ) -> Result<Vec<BM25DocumentHit>> {
         let weights = self.active_bm25_weights()?;
         self.bm25
             .read()
             .map_err(lock_error)?
-            .search_document_top_k(query, top_k, fields, &weights, explain)
+            .search_document_top_k_filtered(query, top_k, fields, languages, &weights, explain)
     }
 
     pub fn rebuild_bm25_generation(&self) -> Result<GenerationId> {
@@ -79,6 +90,14 @@ impl ZlfDatabase {
                 Err(error)
             }
         }
+    }
+
+    pub fn rollback_bm25_generation(&self, id: &GenerationId) -> Result<()> {
+        let index = Arc::new(BM25Index::open(generation_path(&self.bm25_root, id))?);
+        GenerationManager::new(&self.storage).rollback(TARGET, id)?;
+        *self.bm25.write().map_err(lock_error)? = index;
+        *self.bm25_generation.write().map_err(lock_error)? = id.clone();
+        self.catch_up_bm25()
     }
 
     pub(crate) fn catch_up_bm25(&self) -> Result<()> {

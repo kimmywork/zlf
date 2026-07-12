@@ -18,6 +18,7 @@ mod fake_documents;
 mod fake_index_target;
 mod generation_facade;
 mod generation_manager;
+mod generation_rollback;
 mod helpers;
 mod index_facade;
 mod index_wait;

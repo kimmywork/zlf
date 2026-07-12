@@ -119,12 +119,6 @@ pub(crate) enum Request {
         path: Option<String>,
         file: Option<String>,
     },
-    #[serde(rename = "index_text")]
-    IndexText {
-        path: Option<String>,
-        node_id: String,
-        text: String,
-    },
     #[serde(rename = "embed")]
     Embed {
         text: String,

@@ -140,13 +140,7 @@ impl<'a> Bm25IndexTarget<'a> {
     }
 
     fn apply_changes(&self, changes: DocumentChanges) -> Result<()> {
-        for id in changes.deletes {
-            self.index.remove_document(&id)?;
-        }
-        for document in changes.upserts {
-            self.index.index_document(&document)?;
-        }
-        Ok(())
+        self.index.apply_document_changes(&changes)
     }
 }
 

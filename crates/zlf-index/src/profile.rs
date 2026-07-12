@@ -39,6 +39,8 @@ pub enum ChunkingProfile {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Bm25FieldOptions {
     pub analyzer_id: String,
+    #[serde(default)]
+    pub language: Option<String>,
     pub analyzer_version: u32,
     pub weight: f32,
     pub k1: f32,
@@ -175,6 +177,7 @@ mod tests {
         let mut options = FieldIndexOptions {
             bm25: Some(Bm25FieldOptions {
                 analyzer_id: UNICODE_JIEBA_ANALYZER_ID.into(),
+                language: None,
                 analyzer_version: UNICODE_JIEBA_ANALYZER_VERSION,
                 weight: 1.0,
                 k1: TANTIVY_BM25_K1,

@@ -56,6 +56,7 @@ pub struct IndexDocument {
     pub source_range: Option<SourceRange>,
     pub chunk_ordinal: u32,
     pub chunk_profile: String,
+    pub language: Option<String>,
     pub content: String,
 }
 

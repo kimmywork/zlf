@@ -52,6 +52,7 @@ fn document(chunk: &str, content: &str) -> IndexDocument {
         source_range: None,
         chunk_ordinal: chunk.parse().unwrap(),
         chunk_profile: "whole_field_v1".into(),
+        language: None,
         content: content.into(),
     }
 }

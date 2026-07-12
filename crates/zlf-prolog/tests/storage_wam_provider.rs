@@ -37,17 +37,17 @@ fn storage_writer_persists_node_object_literal_to_database() {
 }
 
 #[test]
-fn indexed_writer_updates_bm25_for_text_properties() {
+fn bm25_provider_reads_backend_documents() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("db");
     let bm25_path = dir.path().join("bm25");
     let storage = Storage::open(&path).unwrap();
     let bm25 = BM25Index::open(&bm25_path).unwrap();
-    let writer = IndexedStorageFactWriter::new(&storage).with_bm25(&bm25);
-
+    let writer = IndexedStorageFactWriter::new(&storage);
     writer
         .apply_fact(&term("node(doc1, [document], { title: \"软件工程师\" })"))
         .unwrap();
+    bm25.index_text("doc1", "软件工程师").unwrap();
 
     let provider = IndexFactProvider::new().with_bm25(&bm25);
     let runtime = WamRuntime::new(12);
@@ -66,10 +66,11 @@ fn composite_provider_combines_storage_and_index_queries() {
     let bm25_path = dir.path().join("bm25");
     let storage = Storage::open(&storage_path).unwrap();
     let bm25 = BM25Index::open(&bm25_path).unwrap();
-    let writer = IndexedStorageFactWriter::new(&storage).with_bm25(&bm25);
+    let writer = IndexedStorageFactWriter::new(&storage);
     writer
         .apply_fact(&term("node(doc1, [document], { title: \"软件工程师\" })"))
         .unwrap();
+    bm25.index_text("doc1", "软件工程师").unwrap();
     let storage_provider = StorageFactProvider::new(&storage);
     let index_provider = IndexFactProvider::new().with_bm25(&bm25);
     let provider = CompositeFactProvider::new()

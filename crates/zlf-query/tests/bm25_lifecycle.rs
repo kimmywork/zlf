@@ -13,7 +13,7 @@ use zlf_storage::Storage;
 #[test]
 fn generation_rebuild_activates_and_reopens_the_physical_tantivy_index() {
     let temp = tempfile::tempdir().unwrap();
-    let active;
+    let final_active;
     {
         let db = ZlfDatabase::open(temp.path()).unwrap();
         db.put_index_profile(&profile()).unwrap();
@@ -25,14 +25,16 @@ fn generation_rebuild_activates_and_reopens_the_physical_tantivy_index() {
         ))
         .unwrap();
         let previous = db.index_status("bm25").unwrap().active_generation.unwrap();
-        active = db.rebuild_bm25_generation().unwrap();
-        assert_ne!(active, previous);
+        let rebuilt = db.rebuild_bm25_generation().unwrap();
+        assert_ne!(rebuilt, previous);
+        db.rollback_bm25_generation(&previous).unwrap();
+        final_active = previous;
         assert_eq!(db.search("durable").unwrap()[0].0, "doc");
     }
     let reopened = ZlfDatabase::open_existing(temp.path()).unwrap();
     assert_eq!(
         reopened.index_status("bm25").unwrap().active_generation,
-        Some(active)
+        Some(final_active)
     );
     assert_eq!(reopened.search("durable").unwrap()[0].0, "doc");
 }
@@ -124,6 +126,7 @@ fn profile() -> IndexProfileArtifact {
             FieldIndexOptions {
                 bm25: Some(Bm25FieldOptions {
                     analyzer_id: "unicode_jieba_v1".into(),
+                    language: None,
                     analyzer_version: 1,
                     weight: 1.0,
                     k1: 1.2,

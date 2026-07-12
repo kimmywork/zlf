@@ -246,28 +246,6 @@ pub(crate) async fn handle_request(request: Request, state: &AppState) -> Respon
                 },
             }
         }
-        Request::IndexText {
-            path,
-            node_id,
-            text,
-        } => {
-            let path = path.unwrap_or_else(|| config.db_path.clone());
-            match ensure_db(state, &path).await {
-                Ok(db) => match db.index_text(&node_id, &text) {
-                    Ok(_) => Response::Success {
-                        data: serde_json::json!({ "indexed": true }),
-                    },
-                    Err(e) => Response::Error {
-                        code: "INDEX_FAILED".to_string(),
-                        message: e.to_string(),
-                    },
-                },
-                Err(e) => Response::Error {
-                    code: "DB_OPEN_FAILED".to_string(),
-                    message: e,
-                },
-            }
-        }
         Request::Embed {
             text,
             config: embed_config,

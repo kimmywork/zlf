@@ -82,6 +82,7 @@ fn profile(name: &str, version: u32, weight: f32) -> IndexProfileArtifact {
             FieldIndexOptions {
                 bm25: Some(Bm25FieldOptions {
                     analyzer_id: "unicode_jieba_v1".into(),
+                    language: None,
                     analyzer_version: 1,
                     weight,
                     k1: 1.2,

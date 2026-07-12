@@ -128,6 +128,7 @@ pub(crate) fn profile_documents(
                 source_range: Some(chunk.source_range),
                 chunk_ordinal: chunk.ordinal,
                 chunk_profile: format!("{chunking:?}"),
+                language: options.bm25.as_ref().and_then(|bm25| bm25.language.clone()),
                 content: chunk.text,
             });
         }

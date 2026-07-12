@@ -16,6 +16,7 @@ pub(crate) struct Fields {
     pub entity_id: Field,
     pub field: Field,
     pub chunk: Field,
+    pub language: Field,
     pub body: Field,
 }
 
@@ -25,6 +26,7 @@ pub(crate) struct DocumentParts<'a> {
     pub entity_id: &'a str,
     pub field: &'a str,
     pub chunk: &'a str,
+    pub language: &'a str,
     pub text: &'a str,
 }
 
@@ -36,6 +38,7 @@ pub(crate) fn schema() -> (Schema, Fields) {
         entity_id: builder.add_text_field("entity_id", STRING | STORED),
         field: builder.add_text_field("field", STRING | STORED),
         chunk: builder.add_text_field("chunk", STRING | STORED),
+        language: builder.add_text_field("language", STRING | STORED),
         body: builder.add_text_field("body", TEXT | STORED),
     };
     (builder.build(), fields)
@@ -48,6 +51,7 @@ pub(crate) fn validate_schema(schema: &Schema) -> Result<()> {
         "entity_id",
         "field",
         "chunk",
+        "language",
         "body",
     ] {
         schema.get_field(field).map_err(internal)?;
@@ -58,30 +62,34 @@ pub(crate) fn validate_schema(schema: &Schema) -> Result<()> {
 pub(crate) fn combined_query(
     fields: Fields,
     terms: &[String],
-    filters: &[String],
+    field_filters: &[String],
+    language_filters: &[String],
 ) -> Box<dyn Query> {
-    let body = term_query(fields.body, terms);
-    if filters.is_empty() {
-        return body;
+    let mut clauses = vec![(Occur::Must, term_query(fields.body, terms))];
+    if !field_filters.is_empty() {
+        clauses.push((Occur::Must, filter_query(fields.field, field_filters)));
     }
-    let field_query = BooleanQuery::new(
+    if !language_filters.is_empty() {
+        clauses.push((Occur::Must, filter_query(fields.language, language_filters)));
+    }
+    Box::new(BooleanQuery::new(clauses))
+}
+
+fn filter_query(field: Field, filters: &[String]) -> Box<dyn Query> {
+    Box::new(BooleanQuery::new(
         filters
             .iter()
-            .map(|field| {
+            .map(|value| {
                 (
                     Occur::Should,
                     Box::new(TermQuery::new(
-                        Term::from_field_text(fields.field, field),
+                        Term::from_field_text(field, value),
                         IndexRecordOption::Basic,
                     )) as Box<dyn Query>,
                 )
             })
             .collect(),
-    );
-    Box::new(BooleanQuery::new(vec![
-        (Occur::Must, body),
-        (Occur::Must, Box::new(field_query)),
-    ]))
+    ))
 }
 
 pub(crate) fn entity_parts(entity: &EntityRef) -> (&'static str, &str) {
@@ -96,6 +104,17 @@ pub(crate) fn document_key(id: &IndexDocumentId) -> String {
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect()
+}
+
+pub(crate) fn stored_entity(document: &TantivyDocument, fields: Fields) -> Result<EntityRef> {
+    let id = stored_text(document, fields.entity_id)?;
+    match stored_text(document, fields.entity_kind)?.as_str() {
+        "node" => Ok(EntityRef::Node(id)),
+        "edge" => Ok(EntityRef::Edge(id)),
+        kind => Err(ZlfError::Internal(format!(
+            "invalid BM25 entity kind: {kind}"
+        ))),
+    }
 }
 
 pub(crate) fn stored_text(document: &TantivyDocument, field: Field) -> Result<String> {
@@ -208,6 +227,6 @@ fn term_query(field: Field, terms: &[String]) -> Box<dyn Query> {
     ))
 }
 
-fn internal(error: impl std::fmt::Display) -> ZlfError {
+pub(crate) fn internal(error: impl std::fmt::Display) -> ZlfError {
     ZlfError::Internal(error.to_string())
 }

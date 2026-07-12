@@ -9,10 +9,10 @@ use zlf_storage::Storage;
 
 use crate::{CoordinatorConfig, IndexCoordinator};
 
-const NAMESPACE: &str = "index-generation";
+pub(crate) const NAMESPACE: &str = "index-generation";
 
 pub struct GenerationManager<'a> {
-    storage: &'a Storage,
+    pub(crate) storage: &'a Storage,
 }
 
 impl<'a> GenerationManager<'a> {
@@ -264,15 +264,18 @@ fn generation_prefix(target: &str) -> String {
     )
 }
 
-fn generation_key(target: &str, id: &GenerationId) -> String {
+pub(crate) fn generation_key(target: &str, id: &GenerationId) -> String {
     format!("{}{}", generation_prefix(target), hex(id.0.as_bytes()))
 }
 
-fn active_key(target: &str) -> String {
+pub(crate) fn active_key(target: &str) -> String {
     format!("projection:{NAMESPACE}:active:{}", hex(target.as_bytes()))
 }
 
-fn serialized_record(key: String, metadata: &GenerationMetadata) -> Result<(Vec<u8>, Vec<u8>)> {
+pub(crate) fn serialized_record(
+    key: String,
+    metadata: &GenerationMetadata,
+) -> Result<(Vec<u8>, Vec<u8>)> {
     Ok((
         key.into_bytes(),
         bincode::serialize(metadata).map_err(serialization)?,
