@@ -46,6 +46,8 @@ impl EmbeddingModelProfile {
             || self.dimension == 0
             || self.max_input == 0
             || self.batch_limit == 0
+            || !valid_template(&self.query_template)
+            || !valid_template(&self.document_template)
         {
             return Err("embedding identity and positive limits are required".into());
         }
@@ -54,6 +56,26 @@ impl EmbeddingModelProfile {
         }
         Ok(())
     }
+
+    pub fn transform_query(&self, text: &str) -> Result<String, String> {
+        self.transform(&self.query_template, text)
+    }
+
+    pub fn transform_document(&self, text: &str) -> Result<String, String> {
+        self.transform(&self.document_template, text)
+    }
+
+    fn transform(&self, template: &str, text: &str) -> Result<String, String> {
+        self.validate_dense_v1()?;
+        if text.chars().count() > self.max_input {
+            return Err("embedding input exceeds profile maximum".into());
+        }
+        Ok(template.replace("{text}", text))
+    }
+}
+
+fn valid_template(template: &str) -> bool {
+    template.matches("{text}").count() == 1
 }
 
 pub fn bge_m3_dense_v1() -> EmbeddingModelProfile {
@@ -88,5 +110,17 @@ mod tests {
         let profile = bge_m3_dense_v1();
         assert!(profile.validate_dense_v1().is_ok());
         assert_eq!(profile.dimension, 1024);
+        assert_eq!(profile.transform_query("hello").unwrap(), "hello");
+    }
+
+    #[test]
+    fn transforms_enforce_template_and_input_limits() {
+        let mut profile = bge_m3_dense_v1();
+        profile.query_template = "query: {text}".into();
+        profile.max_input = 3;
+        assert_eq!(profile.transform_query("abc").unwrap(), "query: abc");
+        assert!(profile.transform_query("abcd").is_err());
+        profile.query_template = "missing".into();
+        assert!(profile.validate_dense_v1().is_err());
     }
 }

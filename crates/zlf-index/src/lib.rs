@@ -11,6 +11,7 @@ pub mod profile;
 pub mod retrieval;
 pub mod temporal;
 pub mod vector;
+mod vector_contract;
 
 pub use bm25::{BM25DocumentHit, BM25Index};
 pub use chunking::{
@@ -43,3 +44,7 @@ pub use retrieval::{
 };
 pub use temporal::{TemporalEntry, TemporalIndex};
 pub use vector::{VectorEntry, VectorIndex};
+pub use vector_contract::{
+    EmbeddingJob, VectorHit, VectorKey, VectorQuery, VectorRecord, EMBEDDING_JOB_SCHEMA_VERSION,
+    VECTOR_RECORD_SCHEMA_VERSION,
+};
