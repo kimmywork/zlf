@@ -21,4 +21,14 @@ cargo test -p zlf-prolog --test ollama_embedding_provider -- --ignored --nocaptu
 
 Result: **pass** in 3.11 seconds for one Chinese query (`软件工程师`) using `bge-m3:latest`. The response contained exactly 1024 finite components and at least one non-zero component. No vector values, source content beyond the fixed test phrase, endpoint credentials, or API keys are recorded.
 
-This is a connectivity/dimension smoke gate, not an embedding quality or sustained-throughput benchmark.
+A reproducible four-document batch smoke was also run:
+
+```bash
+cargo run --release -p zlf-embed --example ollama_openai_smoke
+```
+
+| Provider | Model | Batch | Characters | Dimension | Elapsed | Docs/s | Failures / retries | Cost |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| `ollama_openai_compatible` | `bge-m3:latest` | 4 | 81 | 1024 | 2550.45 ms | 1.568 | 0 / 0 | unavailable/local |
+
+Inputs are fixed English/Chinese smoke phrases; only their total character count is reported. This is a connectivity, batch, dimension, and basic throughput gate—not an embedding semantic-quality or sustained-load benchmark.
