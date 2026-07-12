@@ -12,7 +12,7 @@ fn manifest_store_reconciles_and_reopens() {
     let path = temp.path().join("storage");
     {
         let storage = Storage::open(&path).unwrap();
-        let store = IndexManifestStore::new(&storage);
+        let store = IndexManifestStore::new(&storage, "bm25");
         let first = manifest(1, &[document("0", "old"), document("1", "remove")]);
         assert_eq!(store.reconcile_and_save(&first).unwrap().upserts.len(), 2);
         let second = manifest(2, &[document("0", "new")]);
@@ -21,7 +21,7 @@ fn manifest_store_reconciles_and_reopens() {
         assert_eq!(changes.deletes.len(), 1);
     }
     let storage = Storage::open_existing(&path).unwrap();
-    let loaded = IndexManifestStore::new(&storage)
+    let loaded = IndexManifestStore::new(&storage, "bm25")
         .get(&EntityRef::Node("doc".into()), "knowledge", 1)
         .unwrap()
         .unwrap();

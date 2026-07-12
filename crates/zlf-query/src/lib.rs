@@ -6,9 +6,11 @@ use zlf_core::{Edge, Node, Result, ZlfError};
 use zlf_index::{BM25Index, TemporalEntry, TemporalIndex, VectorEntry, VectorIndex};
 use zlf_prolog::wam::{
     CompiledRuleArtifact, CompositeFactProvider, GraphAlgorithmProvider, GraphViewProvider,
-    IndexFactProvider, IndexedStorageFactWriter, IntrospectionProvider, PredicateRegistry,
-    RocksTableBackend, StorageFactProvider, StorageRuleStore, TableManager, WamRuntime,
+    IndexFactProvider, IntrospectionProvider, PredicateRegistry, RocksTableBackend,
+    StorageFactProvider, StorageFactWriter, StorageRuleStore, TableManager, WamRuntime,
 };
+mod bm25_runtime;
+mod bm25_target;
 mod coordinator;
 mod coordinator_store;
 mod explain;
@@ -25,6 +27,7 @@ mod proof;
 mod registry;
 mod table;
 
+pub use bm25_target::Bm25IndexTarget;
 pub use coordinator::{
     CoordinatorConfig, DurableIndexJob, IndexCoordinator, IndexJobState, IndexTarget,
     TargetApplyError, TargetProgress,
@@ -36,6 +39,7 @@ pub use index_wait::wait_for_indexes;
 pub use manifest_store::IndexManifestStore;
 pub use profile_store::IndexProfileStore;
 
+use helpers::lock_error;
 use zlf_prolog::{PrologParser, PrologRule, Query, Term};
 use zlf_storage::Storage;
 
@@ -88,7 +92,7 @@ impl ZlfDatabase {
             RocksTableBackend::new(Arc::clone(&storage)),
         )));
         let tabled = table::load_declarations(&storage)?;
-        Ok(Self {
+        let database = Self {
             storage,
             temporal: Arc::new(temporal),
             bm25: Arc::new(bm25),
@@ -97,7 +101,9 @@ impl ZlfDatabase {
             registry: RwLock::new(pred_registry),
             tabled: RwLock::new(tabled),
             table_manager,
-        })
+        };
+        database.catch_up_bm25()?;
+        Ok(database)
     }
 
     pub fn query_prolog(&self, source: &str) -> Result<Vec<serde_json::Value>> {
@@ -116,12 +122,12 @@ impl ZlfDatabase {
     }
 
     pub fn apply_fact(&self, fact: &Term) -> Result<()> {
-        IndexedStorageFactWriter::new(self.storage.as_ref())
-            .with_bm25(self.bm25.as_ref())
+        StorageFactWriter::new(self.storage.as_ref())
             .apply_fact(fact)
             .map_err(|e| ZlfError::Internal(e.to_string()))?;
         self.invalidate_fact(fact)?;
-        self.refresh_registry()
+        self.refresh_registry()?;
+        self.catch_up_bm25()
     }
 
     pub fn store_rule(&self, rule: PrologRule) -> Result<()> {
@@ -160,7 +166,7 @@ impl ZlfDatabase {
             valid_from: created.created_at,
             valid_to: None,
         })?;
-        self.index_node_text(&created)?;
+        self.catch_up_bm25()?;
         self.invalidate_node(&created)?;
         Ok(created)
     }
@@ -171,6 +177,7 @@ impl ZlfDatabase {
 
     pub fn add_edge(&self, edge: Edge) -> Result<Edge> {
         let edge = self.storage.create_edge(edge)?;
+        self.catch_up_bm25()?;
         self.invalidate_edge(&edge.edge_type)?;
         Ok(edge)
     }
@@ -200,7 +207,11 @@ impl ZlfDatabase {
     }
 
     pub fn search(&self, query: &str) -> Result<Vec<(String, f32)>> {
-        self.bm25.search(query)
+        Ok(self
+            .search_bm25(query, 100, &[], false)?
+            .into_iter()
+            .map(|hit| (hit.document_id.entity.id().to_string(), hit.score))
+            .collect())
     }
 
     pub fn index_text(&self, node_id: &str, text: &str) -> Result<()> {
@@ -262,6 +273,7 @@ impl ZlfDatabase {
             .map_err(|e| ZlfError::Internal(e.to_string()))?;
         if terms.iter().any(table::contains_mutation) {
             self.refresh_after_mutation(terms)?;
+            self.catch_up_bm25()?;
         }
         Ok(helpers::dedupe_results(
             rows.into_iter().map(helpers::solution_to_json).collect(),
@@ -283,17 +295,4 @@ impl ZlfDatabase {
         *self.registry.write().map_err(lock_error)? = registry;
         Ok(())
     }
-
-    fn index_node_text(&self, node: &Node) -> Result<()> {
-        let mut parts = vec![node.id.clone()];
-        parts.extend(node.labels.iter().cloned());
-        for value in node.properties.values() {
-            helpers::collect_text(value, &mut parts);
-        }
-        self.bm25.index_text(&node.id, &parts.join(" "))
-    }
-}
-
-fn lock_error(error: impl std::fmt::Display) -> ZlfError {
-    helpers::lock_error(error)
 }

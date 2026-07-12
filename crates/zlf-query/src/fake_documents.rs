@@ -47,7 +47,7 @@ pub(crate) fn fake_documents(storage: &Storage, target: &str) -> Result<Vec<Inde
         .collect()
 }
 
-fn active_profiles(storage: &Storage) -> Result<Vec<IndexProfileArtifact>> {
+pub(crate) fn active_profiles(storage: &Storage) -> Result<Vec<IndexProfileArtifact>> {
     let store = IndexProfileStore::new(storage);
     let names = store
         .list()?
@@ -63,7 +63,7 @@ fn active_profiles(storage: &Storage) -> Result<Vec<IndexProfileArtifact>> {
         .collect())
 }
 
-fn matching_fields(
+pub(crate) fn matching_fields(
     storage: &Storage,
     entity: &EntityRef,
     profile: &IndexProfileArtifact,
@@ -96,11 +96,13 @@ fn reconcile_profile(
         source_version,
         documents: profile_documents(entity, source_version, profile, &fields)?,
     };
-    let changes = IndexManifestStore::new(storage).reconcile_and_save(&manifest)?;
-    apply_changes(storage, target, changes)
+    let store = IndexManifestStore::new(storage, target);
+    let changes = store.changes(&manifest)?;
+    apply_changes(storage, target, changes)?;
+    store.save(&manifest)
 }
 
-fn profile_documents(
+pub(crate) fn profile_documents(
     entity: &EntityRef,
     source_version: u64,
     profile: &IndexProfileArtifact,
@@ -139,7 +141,7 @@ fn delete_entity_documents(
     entity: &EntityRef,
     source_version: u64,
 ) -> Result<()> {
-    let store = IndexManifestStore::new(storage);
+    let store = IndexManifestStore::new(storage, target);
     for old in store.list_for_entity(entity)? {
         let empty = DocumentManifest {
             entity: entity.clone(),
@@ -148,8 +150,9 @@ fn delete_entity_documents(
             source_version,
             documents: Vec::new(),
         };
-        let changes = store.reconcile_and_save(&empty)?;
+        let changes = store.changes(&empty)?;
         apply_changes(storage, target, changes)?;
+        store.save(&empty)?;
     }
     Ok(())
 }

@@ -105,11 +105,15 @@ impl<'a> IndexProfileStore<'a> {
 
 impl ZlfDatabase {
     pub fn put_index_profile(&self, profile: &IndexProfileArtifact) -> Result<MutationSequence> {
-        IndexProfileStore::new(&self.storage).put(profile)
+        let sequence = IndexProfileStore::new(&self.storage).put(profile)?;
+        self.catch_up_bm25()?;
+        Ok(sequence)
     }
 
     pub fn activate_index_profile(&self, name: &str, version: u32) -> Result<MutationSequence> {
-        IndexProfileStore::new(&self.storage).activate(name, version)
+        let sequence = IndexProfileStore::new(&self.storage).activate(name, version)?;
+        self.catch_up_bm25()?;
+        Ok(sequence)
     }
 
     pub fn active_index_profile(&self, name: &str) -> Result<Option<IndexProfileArtifact>> {

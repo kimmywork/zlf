@@ -1,4 +1,5 @@
 pub mod bm25;
+mod bm25_support;
 pub mod chunking;
 pub mod generation;
 pub mod identity;
@@ -11,7 +12,7 @@ pub mod retrieval;
 pub mod temporal;
 pub mod vector;
 
-pub use bm25::BM25Index;
+pub use bm25::{BM25DocumentHit, BM25Index};
 pub use chunking::{
     accept_explicit_chunks, chunk_text, content_fingerprint, ExplicitChunk, IndexChunk,
 };

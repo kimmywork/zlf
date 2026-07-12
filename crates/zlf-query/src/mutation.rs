@@ -64,7 +64,8 @@ impl ZlfDatabase {
                 .map(|key| predicate(&format!("prop_{key}"), 2)),
         );
         self.invalidate_predicates(&predicates)?;
-        self.refresh_registry()
+        self.refresh_registry()?;
+        self.catch_up_bm25()
     }
 }
 

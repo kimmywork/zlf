@@ -1,6 +1,5 @@
 use std::collections::{HashMap, HashSet};
 
-use zlf_core::Value;
 use zlf_prolog::Term;
 
 use crate::PrologRule;
@@ -81,16 +80,6 @@ fn term_to_json(term: &Term) -> serde_json::Value {
                 .map(|(key, value)| (key.clone(), term_to_json(value)))
                 .collect(),
         ),
-    }
-}
-
-pub fn collect_text(value: &Value, parts: &mut Vec<String>) {
-    match value {
-        Value::String(text) => parts.push(text.clone()),
-        Value::Number(number) => parts.push(number.to_string()),
-        Value::Array(items) => items.iter().for_each(|item| collect_text(item, parts)),
-        Value::Object(map) => map.values().for_each(|item| collect_text(item, parts)),
-        _ => {}
     }
 }
 
