@@ -106,9 +106,21 @@ pub struct VectorHit {
     pub source_version: u64,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EmbeddingJobState {
+    Pending,
+    Leased,
+    Retry,
+    Dead,
+    Completed,
+    Stale,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EmbeddingJob {
     pub schema_version: u32,
+    pub generation: GenerationId,
     pub document_id: IndexDocumentId,
     pub source_version: u64,
     pub content_fingerprint: ContentFingerprint,
@@ -116,9 +128,11 @@ pub struct EmbeddingJob {
     pub model_version: u32,
     pub expected_dimension: usize,
     pub attempts: u32,
+    pub state: EmbeddingJobState,
     pub created_at: DateTime<Utc>,
     pub lease_until: Option<DateTime<Utc>>,
     pub retry_at: Option<DateTime<Utc>>,
+    pub completed_at: Option<DateTime<Utc>>,
     pub last_error_class: Option<String>,
 }
 
@@ -130,6 +144,7 @@ fn push_part(target: &mut Vec<u8>, part: &[u8]) {
 impl EmbeddingJob {
     pub fn validate(&self) -> Result<(), String> {
         if self.schema_version != EMBEDDING_JOB_SCHEMA_VERSION
+            || self.generation.0.is_empty()
             || self.model_profile.is_empty()
             || self.model_version == 0
             || self.expected_dimension == 0

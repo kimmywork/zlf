@@ -13,6 +13,7 @@ mod bm25_runtime;
 mod bm25_target;
 mod coordinator;
 mod coordinator_store;
+mod embedding_job_store;
 mod explain;
 mod fake_documents;
 mod fake_index_target;
@@ -34,6 +35,7 @@ pub use coordinator::{
     CoordinatorConfig, DurableIndexJob, IndexCoordinator, IndexJobState, IndexTarget,
     TargetApplyError, TargetProgress,
 };
+pub use embedding_job_store::EmbeddingJobStore;
 pub use explain::{AccessPath, ArgumentMode, PlannedGoal, QueryPlan};
 pub use fake_index_target::{FakeFailureMode, FakeIndexTarget};
 pub use generation_manager::GenerationManager;

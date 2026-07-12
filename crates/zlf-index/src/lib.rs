@@ -46,7 +46,7 @@ pub use retrieval::{
 pub use temporal::{TemporalEntry, TemporalIndex};
 pub use vector::{VectorEntry, VectorIndex};
 pub use vector_contract::{
-    EmbeddingJob, VectorHit, VectorKey, VectorQuery, VectorRecord, EMBEDDING_JOB_SCHEMA_VERSION,
-    VECTOR_RECORD_SCHEMA_VERSION,
+    EmbeddingJob, EmbeddingJobState, VectorHit, VectorKey, VectorQuery, VectorRecord,
+    EMBEDDING_JOB_SCHEMA_VERSION, VECTOR_RECORD_SCHEMA_VERSION,
 };
 pub use vector_exact::ExactVectorStore;
