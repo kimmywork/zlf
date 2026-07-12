@@ -1,6 +1,10 @@
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+mod openai_compatible;
+
+pub use openai_compatible::{OllamaProvider, OpenAIProvider};
+
 #[derive(Error, Debug)]
 pub enum EmbedError {
     #[error("HTTP request failed: {0}")]
@@ -50,162 +54,6 @@ pub trait EmbeddingProvider: Send + Sync {
     async fn embed_batch(&self, texts: &[&str]) -> Result<Vec<Vec<f32>>>;
     fn dimension(&self) -> usize;
     fn name(&self) -> &str;
-}
-
-pub struct OllamaProvider {
-    config: EmbeddingConfig,
-    client: reqwest::Client,
-}
-
-impl OllamaProvider {
-    pub fn new(config: EmbeddingConfig) -> Self {
-        Self {
-            config,
-            client: reqwest::Client::new(),
-        }
-    }
-}
-
-#[async_trait::async_trait]
-impl EmbeddingProvider for OllamaProvider {
-    async fn embed(&self, text: &str) -> Result<Vec<f32>> {
-        let request = serde_json::json!({
-            "model": self.config.model,
-            "prompt": text
-        });
-
-        let response = self
-            .client
-            .post(format!("{}/api/embeddings", self.config.api_endpoint))
-            .json(&request)
-            .send()
-            .await?;
-
-        let response_json: serde_json::Value = response.json().await?;
-
-        response_json["embedding"]
-            .as_array()
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|v| v.as_f64().map(|f| f as f32))
-                    .collect()
-            })
-            .ok_or_else(|| EmbedError::InvalidResponse("No embedding in response".to_string()))
-    }
-
-    async fn embed_batch(&self, texts: &[&str]) -> Result<Vec<Vec<f32>>> {
-        let mut results = Vec::new();
-        for text in texts {
-            results.push(self.embed(text).await?);
-        }
-        Ok(results)
-    }
-
-    fn dimension(&self) -> usize {
-        self.config.dimension
-    }
-
-    fn name(&self) -> &str {
-        "ollama"
-    }
-}
-
-pub struct OpenAIProvider {
-    config: EmbeddingConfig,
-    client: reqwest::Client,
-}
-
-impl OpenAIProvider {
-    pub fn new(config: EmbeddingConfig) -> Self {
-        Self {
-            config,
-            client: reqwest::Client::new(),
-        }
-    }
-}
-
-#[async_trait::async_trait]
-impl EmbeddingProvider for OpenAIProvider {
-    async fn embed(&self, text: &str) -> Result<Vec<f32>> {
-        let request = serde_json::json!({
-            "model": self.config.model,
-            "input": text
-        });
-
-        let url = if self.config.api_endpoint.ends_with("/v1") {
-            format!("{}/embeddings", self.config.api_endpoint)
-        } else {
-            format!("{}/v1/embeddings", self.config.api_endpoint)
-        };
-
-        let mut builder = self.client.post(&url).json(&request);
-
-        if let Some(api_key) = &self.config.api_key {
-            builder = builder.header("Authorization", format!("Bearer {}", api_key));
-        }
-
-        let response = builder.send().await?;
-        let response_json: serde_json::Value = response.json().await?;
-
-        response_json["data"][0]["embedding"]
-            .as_array()
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|v| v.as_f64().map(|f| f as f32))
-                    .collect()
-            })
-            .ok_or_else(|| {
-                EmbedError::InvalidResponse(format!(
-                    "No embedding in response: {:?}",
-                    response_json
-                ))
-            })
-    }
-
-    async fn embed_batch(&self, texts: &[&str]) -> Result<Vec<Vec<f32>>> {
-        let request = serde_json::json!({
-            "model": self.config.model,
-            "input": texts
-        });
-
-        let url = if self.config.api_endpoint.ends_with("/v1") {
-            format!("{}/embeddings", self.config.api_endpoint)
-        } else {
-            format!("{}/v1/embeddings", self.config.api_endpoint)
-        };
-
-        let mut builder = self.client.post(&url).json(&request);
-
-        if let Some(api_key) = &self.config.api_key {
-            builder = builder.header("Authorization", format!("Bearer {}", api_key));
-        }
-
-        let response = builder.send().await?;
-        let response_json: serde_json::Value = response.json().await?;
-
-        response_json["data"]
-            .as_array()
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|item| {
-                        item["embedding"].as_array().map(|emb| {
-                            emb.iter()
-                                .filter_map(|v| v.as_f64().map(|f| f as f32))
-                                .collect()
-                        })
-                    })
-                    .collect()
-            })
-            .ok_or_else(|| EmbedError::InvalidResponse("No embeddings in response".to_string()))
-    }
-
-    fn dimension(&self) -> usize {
-        self.config.dimension
-    }
-
-    fn name(&self) -> &str {
-        "openai"
-    }
 }
 
 pub struct HuggingFaceProvider {

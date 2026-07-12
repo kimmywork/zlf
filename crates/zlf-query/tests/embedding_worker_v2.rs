@@ -1,5 +1,5 @@
-use std::cell::RefCell;
 use std::collections::HashMap;
+use std::sync::Mutex;
 
 use chrono::{Duration, Utc};
 use zlf_core::{EntityRef, Node, Value};
@@ -14,9 +14,9 @@ use zlf_query::{
 };
 use zlf_storage::Storage;
 
-#[test]
+#[tokio::test]
 #[allow(clippy::too_many_lines)]
-fn worker_batches_transforms_normalizes_publishes_and_suppresses_stale_jobs() {
+async fn worker_batches_transforms_normalizes_publishes_and_suppresses_stale_jobs() {
     let temp = tempfile::tempdir().unwrap();
     let storage = Storage::open(temp.path().join("db")).unwrap();
     storage
@@ -53,8 +53,11 @@ fn worker_batches_transforms_normalizes_publishes_and_suppresses_stale_jobs() {
         "vector:g1",
     )
     .unwrap();
-    assert_eq!(worker.run_batch(Utc::now()).unwrap(), 1);
-    assert_eq!(provider.documents.borrow().as_slice(), ["doc: hello"]);
+    assert_eq!(worker.run_batch(Utc::now()).await.unwrap(), 1);
+    assert_eq!(
+        provider.documents.lock().unwrap().as_slice(),
+        ["doc: hello"]
+    );
     let record = exact.get(&vector_key("doc")).unwrap().unwrap();
     assert!((record.values[0] - 0.6).abs() < 1e-6);
     assert!((record.values[1] - 0.8).abs() < 1e-6);
@@ -66,13 +69,16 @@ fn worker_batches_transforms_normalizes_publishes_and_suppresses_stale_jobs() {
         jobs.get(&job(&stale_document)).unwrap().unwrap().state,
         EmbeddingJobState::Stale
     );
-    assert_eq!(worker.embed_query("hello").unwrap(), vec![0.6, 0.8]);
-    assert_eq!(provider.query.borrow().as_deref(), Some("query: hello"));
+    assert_eq!(worker.embed_query("hello").await.unwrap(), vec![0.6, 0.8]);
+    assert_eq!(
+        provider.query.lock().unwrap().as_deref(),
+        Some("query: hello")
+    );
 }
 
-#[test]
+#[tokio::test]
 #[allow(clippy::too_many_lines)]
-fn provider_failures_retry_then_dead_letter_without_storing_source_text() {
+async fn provider_failures_retry_then_dead_letter_without_storing_source_text() {
     let temp = tempfile::tempdir().unwrap();
     let storage = Storage::open(temp.path().join("db")).unwrap();
     storage
@@ -97,8 +103,11 @@ fn provider_failures_retry_then_dead_letter_without_storing_source_text() {
         .unwrap()
         .with_policy(Duration::seconds(1), 2);
     let now = Utc::now();
-    assert_eq!(worker.run_batch(now).unwrap(), 0);
-    assert_eq!(worker.run_batch(now + Duration::seconds(2)).unwrap(), 0);
+    assert_eq!(worker.run_batch(now).await.unwrap(), 0);
+    assert_eq!(
+        worker.run_batch(now + Duration::seconds(2)).await.unwrap(),
+        0
+    );
     let stored = jobs.get(&job(&document)).unwrap().unwrap();
     assert_eq!(stored.state, EmbeddingJobState::Dead);
     assert_eq!(stored.last_error_class.as_deref(), Some("network_timeout"));
@@ -108,34 +117,36 @@ fn provider_failures_retry_then_dead_letter_without_storing_source_text() {
 
 #[derive(Default)]
 struct FakeProvider {
-    documents: RefCell<Vec<String>>,
-    query: RefCell<Option<String>>,
+    documents: Mutex<Vec<String>>,
+    query: Mutex<Option<String>>,
 }
 
+#[async_trait::async_trait]
 impl BatchEmbeddingProvider for FakeProvider {
-    fn embed_query(
+    async fn embed_query(
         &self,
         _profile: &zlf_index::EmbeddingModelProfile,
         text: &str,
     ) -> Result<Vec<f32>, EmbeddingProviderFailure> {
-        *self.query.borrow_mut() = Some(text.into());
+        *self.query.lock().unwrap() = Some(text.into());
         Ok(vec![3.0, 4.0])
     }
 
-    fn embed_documents(
+    async fn embed_documents(
         &self,
         _profile: &zlf_index::EmbeddingModelProfile,
         texts: &[String],
     ) -> Result<Vec<Vec<f32>>, EmbeddingProviderFailure> {
-        self.documents.borrow_mut().extend_from_slice(texts);
+        self.documents.lock().unwrap().extend_from_slice(texts);
         Ok(texts.iter().map(|_| vec![3.0, 4.0]).collect())
     }
 }
 
 struct FailingProvider;
 
+#[async_trait::async_trait]
 impl BatchEmbeddingProvider for FailingProvider {
-    fn embed_query(
+    async fn embed_query(
         &self,
         _profile: &zlf_index::EmbeddingModelProfile,
         _text: &str,
@@ -143,7 +154,7 @@ impl BatchEmbeddingProvider for FailingProvider {
         unreachable!()
     }
 
-    fn embed_documents(
+    async fn embed_documents(
         &self,
         _profile: &zlf_index::EmbeddingModelProfile,
         _texts: &[String],

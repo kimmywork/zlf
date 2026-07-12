@@ -14,18 +14,40 @@ pub struct EmbeddingProviderFailure {
     pub retryable: bool,
 }
 
-pub trait BatchEmbeddingProvider {
-    fn embed_query(
+#[async_trait::async_trait]
+pub trait BatchEmbeddingProvider: Send + Sync {
+    async fn embed_query(
         &self,
         profile: &EmbeddingModelProfile,
         text: &str,
     ) -> std::result::Result<Vec<f32>, EmbeddingProviderFailure>;
 
-    fn embed_documents(
+    async fn embed_documents(
         &self,
         profile: &EmbeddingModelProfile,
         texts: &[String],
     ) -> std::result::Result<Vec<Vec<f32>>, EmbeddingProviderFailure>;
+}
+
+#[async_trait::async_trait]
+impl<T: zlf_embed::EmbeddingProvider + ?Sized> BatchEmbeddingProvider for T {
+    async fn embed_query(
+        &self,
+        _profile: &EmbeddingModelProfile,
+        text: &str,
+    ) -> std::result::Result<Vec<f32>, EmbeddingProviderFailure> {
+        self.embed(text).await.map_err(embed_failure)
+    }
+
+    async fn embed_documents(
+        &self,
+        _profile: &EmbeddingModelProfile,
+        texts: &[String],
+    ) -> std::result::Result<Vec<Vec<f32>>, EmbeddingProviderFailure> {
+        self.embed_batch(&texts.iter().map(String::as_str).collect::<Vec<_>>())
+            .await
+            .map_err(embed_failure)
+    }
 }
 
 pub struct DurableEmbeddingWorker<'a, P> {
@@ -64,7 +86,7 @@ impl<'a, P: BatchEmbeddingProvider> DurableEmbeddingWorker<'a, P> {
         self
     }
 
-    pub fn run_batch(&self, now: DateTime<Utc>) -> Result<usize> {
+    pub async fn run_batch(&self, now: DateTime<Utc>) -> Result<usize> {
         let current = self.current_jobs(now)?;
         if current.is_empty() {
             return Ok(0);
@@ -77,7 +99,11 @@ impl<'a, P: BatchEmbeddingProvider> DurableEmbeddingWorker<'a, P> {
                     .map_err(ZlfError::Internal)
             })
             .collect::<Result<Vec<_>>>()?;
-        let vectors = match self.provider.embed_documents(&self.profile, &transformed) {
+        let vectors = match self
+            .provider
+            .embed_documents(&self.profile, &transformed)
+            .await
+        {
             Ok(vectors) if vectors.len() == current.len() => vectors,
             Ok(_) => return self.batch_size_failure(&current, now),
             Err(failure) => return self.fail_batch(&current, failure, now),
@@ -85,7 +111,7 @@ impl<'a, P: BatchEmbeddingProvider> DurableEmbeddingWorker<'a, P> {
         self.publish_batch(&current, vectors, now)
     }
 
-    pub fn embed_query(&self, text: &str) -> Result<Vec<f32>> {
+    pub async fn embed_query(&self, text: &str) -> Result<Vec<f32>> {
         let transformed = self
             .profile
             .transform_query(text)
@@ -93,6 +119,7 @@ impl<'a, P: BatchEmbeddingProvider> DurableEmbeddingWorker<'a, P> {
         let values = self
             .provider
             .embed_query(&self.profile, &transformed)
+            .await
             .map_err(provider_error)?;
         normalize_and_validate(values, &self.profile)
     }
@@ -242,6 +269,19 @@ fn normalize_and_validate(
 
 fn retry_delay(attempts: u32) -> Duration {
     Duration::seconds(1_i64 << attempts.min(10))
+}
+
+fn embed_failure(error: zlf_embed::EmbedError) -> EmbeddingProviderFailure {
+    let (class, retryable) = match error {
+        zlf_embed::EmbedError::Http(_) => ("http", true),
+        zlf_embed::EmbedError::Provider(_) => ("provider", true),
+        zlf_embed::EmbedError::Json(_) => ("invalid_json", false),
+        zlf_embed::EmbedError::InvalidResponse(_) => ("invalid_response", false),
+    };
+    EmbeddingProviderFailure {
+        class: class.into(),
+        retryable,
+    }
 }
 
 fn provider_error(failure: EmbeddingProviderFailure) -> ZlfError {

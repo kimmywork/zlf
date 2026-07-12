@@ -13,9 +13,9 @@ use zlf_query::{
 };
 use zlf_storage::Storage;
 
-#[test]
+#[tokio::test]
 #[allow(clippy::too_many_lines)]
-fn lifecycle_enqueues_publishes_replaces_deletes_and_replays_vectors() {
+async fn lifecycle_enqueues_publishes_replaces_deletes_and_replays_vectors() {
     let temp = tempfile::tempdir().unwrap();
     let storage = Storage::open(temp.path().join("db")).unwrap();
     let exact = ExactVectorStore::open(temp.path().join("vectors")).unwrap();
@@ -49,7 +49,7 @@ fn lifecycle_enqueues_publishes_replaces_deletes_and_replays_vectors() {
         target.manifest_scope(),
     )
     .unwrap();
-    assert_eq!(worker.run_batch(Utc::now()).unwrap(), 1);
+    assert_eq!(worker.run_batch(Utc::now()).await.unwrap(), 1);
     assert_eq!(
         exact.get(&initial_key).unwrap().unwrap().values,
         vec![1.0, 0.0]
@@ -71,7 +71,7 @@ fn lifecycle_enqueues_publishes_replaces_deletes_and_replays_vectors() {
         .max_by_key(|job| job.source_version)
         .unwrap();
     let updated_key = key(updated_job.document_id);
-    assert_eq!(worker.run_batch(Utc::now()).unwrap(), 1);
+    assert_eq!(worker.run_batch(Utc::now()).await.unwrap(), 1);
     assert_eq!(
         exact.get(&updated_key).unwrap().unwrap().values,
         vec![0.0, 1.0]
@@ -87,8 +87,9 @@ fn lifecycle_enqueues_publishes_replaces_deletes_and_replays_vectors() {
 
 struct ContentProvider;
 
+#[async_trait::async_trait]
 impl BatchEmbeddingProvider for ContentProvider {
-    fn embed_query(
+    async fn embed_query(
         &self,
         _profile: &EmbeddingModelProfile,
         _text: &str,
@@ -96,7 +97,7 @@ impl BatchEmbeddingProvider for ContentProvider {
         unreachable!()
     }
 
-    fn embed_documents(
+    async fn embed_documents(
         &self,
         _profile: &EmbeddingModelProfile,
         texts: &[String],

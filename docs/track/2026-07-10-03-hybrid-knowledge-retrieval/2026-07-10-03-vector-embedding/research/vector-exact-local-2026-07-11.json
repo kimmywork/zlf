@@ -1,0 +1,41 @@
+{
+  "schema": "zlf-vector-exact-local-report-v1",
+  "date": "2026-07-11",
+  "machine": "Apple M2 Pro, 32 GiB",
+  "configuration": {"dimension": 64, "metric": "cosine", "top_k": 10, "queries": 100},
+  "command": "cargo run --release -p zlf-index --example vector_exact_benchmark -- <documents>",
+  "tiers": [
+    {
+      "documents": 1000,
+      "build_ms": 0.969917,
+      "build_docs_per_second": 1031016.0560130402,
+      "update_docs": 100,
+      "update_ms": 0.17325,
+      "warm_query_us": {"p50": 586, "p95": 610, "p99": 631},
+      "fresh_reader_query_us": {"p50": 630, "p95": 686, "p99": 692},
+      "peak_rss_bytes": 17940480,
+      "index_bytes": 465035,
+      "quality": {"mrr": 1.0, "recall_at_10": 1.0}
+    },
+    {
+      "documents": 10000,
+      "build_ms": 8.742,
+      "build_docs_per_second": 1143902.9970258523,
+      "update_docs": 100,
+      "update_ms": 0.219042,
+      "warm_query_us": {"p50": 5631, "p95": 5745, "p99": 5859},
+      "fresh_reader_query_us": {"p50": 5893, "p95": 6038, "p99": 6189},
+      "peak_rss_bytes": 59883520,
+      "index_bytes": 3904293,
+      "quality": {"mrr": 1.0, "recall_at_10": 1.0}
+    }
+  ],
+  "regression_budgets": {
+    "build_10000_max_ms": 1000,
+    "query_10000_p99_max_us": 50000,
+    "peak_rss_max_bytes": 536870912,
+    "index_10000_max_bytes": 52428800,
+    "mrr_min": 1.0,
+    "recall_at_10_min": 1.0
+  }
+}
