@@ -92,6 +92,12 @@ pub struct TemporalHit {
     pub candidates_scanned: u64,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EventQueryResult {
+    pub records: Vec<EventRecord>,
+    pub candidates_scanned: u64,
+}
+
 pub fn parse_utc_micros(input: &str) -> Result<i64, String> {
     if let Ok(date) = NaiveDate::parse_from_str(input, "%Y-%m-%d") {
         return utc_midnight(date);
