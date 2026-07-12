@@ -20,7 +20,7 @@ Stage 06 owns benchmark orchestration, but every implementation stage must deliv
 | ID | Folder | Status | Primary responsibility |
 |---|---|---|---|
 | 01 | `2026-07-10-01-index-lifecycle/` | done | indexed-document identity, mutations, generations, rebuild, observability |
-| 02 | `2026-07-10-02-bm25/` | B0–B1 complete; B2/B3a lifecycle slice complete | corpus-normalized lexical ranking and multilingual analysis |
+| 02 | `2026-07-10-02-bm25/` | B0–B3 complete; B4 quality/scale next | corpus-normalized lexical ranking and multilingual analysis |
 | 03 | `2026-07-10-03-vector-embedding/` | implementation ready after Stage 02 | model-safe vectors, exact oracle, ANN, embedding jobs |
 | 04 | `2026-07-10-04-temporal/` | implementation ready after Stage 02 | event-time `temporal_*` and valid-time `valid_*` indexes |
 | 05 | `2026-07-10-05-hybrid-prolog/` | design approved; blocked on Stages 01–04 | fusion, graph/rule/time joins, bounded provider contracts |

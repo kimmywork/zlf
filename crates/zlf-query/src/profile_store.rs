@@ -112,7 +112,7 @@ impl ZlfDatabase {
 
     pub fn activate_index_profile(&self, name: &str, version: u32) -> Result<MutationSequence> {
         let sequence = IndexProfileStore::new(&self.storage).activate(name, version)?;
-        self.catch_up_bm25()?;
+        self.rebuild_bm25_generation()?;
         Ok(sequence)
     }
 

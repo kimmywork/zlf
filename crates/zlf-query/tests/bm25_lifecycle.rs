@@ -11,6 +11,33 @@ use zlf_query::{
 use zlf_storage::Storage;
 
 #[test]
+fn generation_rebuild_activates_and_reopens_the_physical_tantivy_index() {
+    let temp = tempfile::tempdir().unwrap();
+    let active;
+    {
+        let db = ZlfDatabase::open(temp.path()).unwrap();
+        db.put_index_profile(&profile()).unwrap();
+        db.activate_index_profile("knowledge", 1).unwrap();
+        db.add_node(Node::with_id(
+            "doc".into(),
+            vec!["document".into()],
+            HashMap::from([("body".into(), Value::String("durable text".into()))]),
+        ))
+        .unwrap();
+        let previous = db.index_status("bm25").unwrap().active_generation.unwrap();
+        active = db.rebuild_bm25_generation().unwrap();
+        assert_ne!(active, previous);
+        assert_eq!(db.search("durable").unwrap()[0].0, "doc");
+    }
+    let reopened = ZlfDatabase::open_existing(temp.path()).unwrap();
+    assert_eq!(
+        reopened.index_status("bm25").unwrap().active_generation,
+        Some(active)
+    );
+    assert_eq!(reopened.search("durable").unwrap()[0].0, "doc");
+}
+
+#[test]
 fn database_facade_routes_writes_through_bm25_lifecycle() {
     let temp = tempfile::tempdir().unwrap();
     let db = ZlfDatabase::open(temp.path()).unwrap();

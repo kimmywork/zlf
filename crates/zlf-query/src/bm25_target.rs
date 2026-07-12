@@ -121,7 +121,7 @@ impl<'a> Bm25IndexTarget<'a> {
         Ok(())
     }
 
-    fn rebuild_current(&self, storage: &Storage) -> Result<()> {
+    pub(crate) fn rebuild(&self, storage: &Storage) -> Result<()> {
         for node in storage.get_all_nodes()? {
             let entity = EntityRef::Node(node.id);
             let version = storage
@@ -163,7 +163,7 @@ impl IndexTarget for Bm25IndexTarget<'_> {
                 event.source_version,
                 matches!(event.kind, MutationKind::Delete),
             ),
-            None => self.rebuild_current(storage),
+            None => self.rebuild(storage),
         };
         result.map_err(|error| TargetApplyError {
             message: error.to_string(),

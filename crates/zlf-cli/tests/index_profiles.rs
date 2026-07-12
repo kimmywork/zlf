@@ -36,7 +36,7 @@ fn json_profile_api_puts_activates_and_lists() {
     assert_eq!(responses[2]["type"], "success");
     assert_eq!(responses[3]["data"]["profiles"][0]["name"], "knowledge");
     assert_eq!(responses[4]["data"]["target"], "bm25");
-    assert_eq!(responses[5]["data"]["reached"], false);
+    assert_eq!(responses[5]["data"]["reached"], true);
 }
 
 fn run(requests: &[serde_json::Value]) -> Vec<serde_json::Value> {

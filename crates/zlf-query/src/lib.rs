@@ -1,9 +1,9 @@
 use std::collections::HashSet;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 
 use zlf_core::{Edge, Node, Result, ZlfError};
-use zlf_index::{BM25Index, TemporalEntry, TemporalIndex, VectorEntry, VectorIndex};
+use zlf_index::{BM25Index, GenerationId, TemporalEntry, TemporalIndex, VectorIndex};
 use zlf_prolog::wam::{
     CompiledRuleArtifact, CompositeFactProvider, GraphAlgorithmProvider, GraphViewProvider,
     IndexFactProvider, IntrospectionProvider, PredicateRegistry, RocksTableBackend,
@@ -19,6 +19,7 @@ mod fake_index_target;
 mod generation_facade;
 mod generation_manager;
 mod helpers;
+mod index_facade;
 mod index_wait;
 mod manifest_store;
 mod mutation;
@@ -46,7 +47,9 @@ use zlf_storage::Storage;
 pub struct ZlfDatabase {
     storage: Arc<Storage>,
     temporal: Arc<TemporalIndex>,
-    bm25: Arc<BM25Index>,
+    bm25: RwLock<Arc<BM25Index>>,
+    bm25_root: PathBuf,
+    bm25_generation: RwLock<GenerationId>,
     vector: Arc<VectorIndex>,
     rules: RwLock<Vec<CompiledRuleArtifact>>,
     registry: RwLock<PredicateRegistry>,
@@ -58,10 +61,14 @@ impl ZlfDatabase {
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
         let path = path.as_ref();
         let storage = Arc::new(Storage::open(path.join("storage"))?);
+        let bm25_root = path.join("bm25");
+        let (bm25, generation) = bm25_runtime::open_active_generation(&storage, &bm25_root)?;
         Self::from_parts(
             Arc::clone(&storage),
             TemporalIndex::open(path.join("temporal"))?,
-            BM25Index::open(path.join("bm25"))?,
+            bm25,
+            bm25_root,
+            generation,
             VectorIndex::open(path.join("vector"))?,
         )
     }
@@ -69,10 +76,14 @@ impl ZlfDatabase {
     pub fn open_existing(path: impl AsRef<Path>) -> Result<Self> {
         let path = path.as_ref();
         let storage = Arc::new(Storage::open_existing(path.join("storage"))?);
+        let bm25_root = path.join("bm25");
+        let (bm25, generation) = bm25_runtime::open_active_generation(&storage, &bm25_root)?;
         Self::from_parts(
             Arc::clone(&storage),
             TemporalIndex::open(path.join("temporal"))?,
-            BM25Index::open(path.join("bm25"))?,
+            bm25,
+            bm25_root,
+            generation,
             VectorIndex::open(path.join("vector"))?,
         )
     }
@@ -81,6 +92,8 @@ impl ZlfDatabase {
         storage: Arc<Storage>,
         temporal: TemporalIndex,
         bm25: BM25Index,
+        bm25_root: PathBuf,
+        bm25_generation: GenerationId,
         vector: VectorIndex,
     ) -> Result<Self> {
         let rules = StorageRuleStore::new(storage.as_ref())
@@ -95,7 +108,9 @@ impl ZlfDatabase {
         let database = Self {
             storage,
             temporal: Arc::new(temporal),
-            bm25: Arc::new(bm25),
+            bm25: RwLock::new(Arc::new(bm25)),
+            bm25_root,
+            bm25_generation: RwLock::new(bm25_generation),
             vector: Arc::new(vector),
             rules: RwLock::new(rules),
             registry: RwLock::new(pred_registry),
@@ -206,43 +221,12 @@ impl ZlfDatabase {
             .collect()
     }
 
-    pub fn search(&self, query: &str) -> Result<Vec<(String, f32)>> {
-        Ok(self
-            .search_bm25(query, 100, &[], false)?
-            .into_iter()
-            .map(|hit| (hit.document_id.entity.id().to_string(), hit.score))
-            .collect())
-    }
-
-    pub fn index_text(&self, node_id: &str, text: &str) -> Result<()> {
-        self.bm25.index_text(node_id, text)
-    }
-
-    pub fn index_embedding(&self, node_id: &str, embedding: &[f32], model: &str) -> Result<()> {
-        self.vector.add_entry(VectorEntry {
-            node_id: node_id.to_string(),
-            embedding: embedding.to_vec(),
-            model: model.to_string(),
-        })
-    }
-
-    pub fn similar(
-        &self,
-        node_id: &str,
-        threshold: f32,
-        limit: usize,
-    ) -> Result<Vec<(String, f32)>> {
-        match self.vector.get_entry(node_id)? {
-            Some(entry) => self.vector.find_similar(&entry.embedding, threshold, limit),
-            None => Ok(Vec::new()),
-        }
-    }
-
     #[allow(clippy::too_many_lines)]
     fn execute_terms(&self, terms: &[Term]) -> Result<Vec<serde_json::Value>> {
         let storage_provider = StorageFactProvider::new(self.storage.as_ref());
+        let bm25 = self.bm25.read().map_err(lock_error)?.clone();
         let index_provider = IndexFactProvider::new()
-            .with_bm25(self.bm25.as_ref())
+            .with_bm25(bm25.as_ref())
             .with_vector(self.vector.as_ref())
             .with_temporal(self.temporal.as_ref());
         let reg = self.registry.read().map_err(lock_error)?.clone();

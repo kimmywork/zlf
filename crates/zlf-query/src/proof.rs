@@ -27,8 +27,9 @@ impl ZlfDatabase {
 
     fn execute_terms_with_proof(&self, terms: &[Term]) -> Result<Vec<ProofAnswer>> {
         let storage_provider = StorageFactProvider::new(self.storage.as_ref());
+        let bm25 = self.bm25.read().map_err(lock_error)?.clone();
         let index_provider = IndexFactProvider::new()
-            .with_bm25(self.bm25.as_ref())
+            .with_bm25(bm25.as_ref())
             .with_vector(self.vector.as_ref())
             .with_temporal(self.temporal.as_ref());
         let registry = self.registry.read().map_err(lock_error)?.clone();

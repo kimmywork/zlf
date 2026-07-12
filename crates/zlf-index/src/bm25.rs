@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 use std::sync::Mutex;
 
@@ -9,10 +9,10 @@ use tantivy::{doc, DocAddress, Index, IndexReader, IndexWriter, ReloadPolicy, Te
 use zlf_core::{EntityRef, Result, ZlfError};
 
 use crate::bm25_support::{
-    combined_query, document_key, entity_parts, schema, stored_text, validate_schema,
-    validate_weights, DocumentParts, Fields,
+    bm25_explanation, combined_query, document_key, entity_parts, schema, stored_text,
+    validate_schema, validate_weights, DocumentParts, Fields,
 };
-use crate::{IndexDocument, IndexDocumentId, UnicodeJiebaAnalyzer};
+use crate::{Bm25Explanation, IndexDocument, IndexDocumentId, UnicodeJiebaAnalyzer};
 
 const DEFAULT_TOP_K: usize = 100;
 
@@ -20,7 +20,7 @@ const DEFAULT_TOP_K: usize = 100;
 pub struct BM25DocumentHit {
     pub document_id: IndexDocumentId,
     pub score: f32,
-    pub explanation: Option<String>,
+    pub explanation: Option<Bm25Explanation>,
 }
 
 pub struct BM25Index {
@@ -136,7 +136,12 @@ impl BM25Index {
         if top_k == 0 {
             return Ok(Vec::new());
         }
-        let terms = self.tokenize(query);
+        let terms = self
+            .tokenize(query)
+            .into_iter()
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
         if terms.is_empty() {
             return Ok(Vec::new());
         }
@@ -144,6 +149,7 @@ impl BM25Index {
         let query = combined_query(self.fields, &terms, fields);
         let mut results = self.collect_hits(
             query.as_ref(),
+            &terms,
             top_k.saturating_mul(8).max(top_k).min(10_000),
             field_weights,
             explain,
@@ -169,6 +175,7 @@ impl BM25Index {
     fn collect_hits(
         &self,
         query: &dyn Query,
+        terms: &[String],
         candidate_limit: usize,
         field_weights: &BTreeMap<String, f32>,
         explain: bool,
@@ -179,7 +186,7 @@ impl BM25Index {
             .map_err(internal)?
             .into_iter()
             .map(|(score, address)| {
-                self.document_hit(&searcher, query, address, score, field_weights, explain)
+                self.document_hit(&searcher, terms, address, score, field_weights, explain)
             })
             .collect()
     }
@@ -213,7 +220,7 @@ impl BM25Index {
     fn document_hit(
         &self,
         searcher: &tantivy::Searcher,
-        query: &dyn Query,
+        terms: &[String],
         address: DocAddress,
         score: f32,
         weights: &BTreeMap<String, f32>,
@@ -231,17 +238,21 @@ impl BM25Index {
                 )))
             }
         };
+        let weight = weights.get(&field).copied().unwrap_or(1.0);
         let explanation = explain
             .then(|| {
-                query
-                    .explain(searcher, address)
-                    .map(|value| format!("{value:?}"))
+                bm25_explanation(
+                    searcher,
+                    self.fields.body,
+                    terms,
+                    &text(self.fields.body)?,
+                    weight,
+                )
             })
-            .transpose()
-            .map_err(internal)?;
+            .transpose()?;
         Ok(BM25DocumentHit {
             document_id: IndexDocumentId::new(entity, field.clone(), text(self.fields.chunk)?),
-            score: score * weights.get(&field).copied().unwrap_or(1.0),
+            score: score * weight,
             explanation,
         })
     }

@@ -1,13 +1,13 @@
 use std::collections::BTreeMap;
 
-use tantivy::query::{BooleanQuery, Occur, Query, TermQuery};
+use tantivy::query::{Bm25StatisticsProvider, BooleanQuery, Occur, Query, TermQuery};
 use tantivy::schema::{
     Field, IndexRecordOption, Schema, TantivyDocument, Value, STORED, STRING, TEXT,
 };
 use tantivy::Term;
 use zlf_core::{EntityRef, Result, ZlfError};
 
-use crate::IndexDocumentId;
+use crate::{bm25_term_score, Bm25Config, Bm25Explanation, IndexDocumentId, TermScoreExplanation};
 
 #[derive(Clone, Copy)]
 pub(crate) struct Fields {
@@ -36,7 +36,7 @@ pub(crate) fn schema() -> (Schema, Fields) {
         entity_id: builder.add_text_field("entity_id", STRING | STORED),
         field: builder.add_text_field("field", STRING | STORED),
         chunk: builder.add_text_field("chunk", STRING | STORED),
-        body: builder.add_text_field("body", TEXT),
+        body: builder.add_text_field("body", TEXT | STORED),
     };
     (builder.build(), fields)
 }
@@ -104,6 +104,78 @@ pub(crate) fn stored_text(document: &TantivyDocument, field: Field) -> Result<St
         .and_then(|value| value.as_str())
         .map(str::to_string)
         .ok_or_else(|| ZlfError::Internal("BM25 stored field is missing".into()))
+}
+
+pub(crate) fn bm25_explanation(
+    searcher: &tantivy::Searcher,
+    body_field: Field,
+    terms: &[String],
+    body: &str,
+    field_weight: f32,
+) -> Result<Bm25Explanation> {
+    let tokens = body.split_whitespace().collect::<Vec<_>>();
+    let document_count = searcher.num_docs();
+    let average_document_length = if document_count == 0 {
+        0.0
+    } else {
+        searcher.total_num_tokens(body_field).map_err(internal)? as f32 / document_count as f32
+    };
+    let stats = ExplanationStats {
+        document_count,
+        document_length: tokens.len() as u64,
+        average_document_length,
+        field_weight,
+    };
+    let components = terms
+        .iter()
+        .map(|term| term_component(searcher, body_field, term, &tokens, stats))
+        .collect::<Result<Vec<_>>>()?;
+    Ok(Bm25Explanation {
+        terms: components,
+        document_length: stats.document_length,
+        average_document_length,
+        field_weight,
+    })
+}
+
+#[derive(Clone, Copy)]
+struct ExplanationStats {
+    document_count: u64,
+    document_length: u64,
+    average_document_length: f32,
+    field_weight: f32,
+}
+
+fn term_component(
+    searcher: &tantivy::Searcher,
+    body_field: Field,
+    term: &str,
+    tokens: &[&str],
+    stats: ExplanationStats,
+) -> Result<TermScoreExplanation> {
+    let frequency = tokens.iter().filter(|token| **token == term).count() as u64;
+    let document_frequency = searcher
+        .doc_freq(&Term::from_field_text(body_field, term))
+        .map_err(internal)?;
+    let numerator = (stats.document_count - document_frequency) as f64 + 0.5;
+    let idf = (1.0 + numerator / (document_frequency as f64 + 0.5)).ln();
+    let config = Bm25Config::default();
+    let score = bm25_term_score(
+        frequency,
+        document_frequency,
+        stats.document_count,
+        stats.document_length,
+        stats.average_document_length.into(),
+        config.k1.into(),
+        config.b.into(),
+    );
+    Ok(TermScoreExplanation {
+        term: term.into(),
+        term_frequency: frequency,
+        document_frequency,
+        inverse_document_frequency: idf as f32,
+        score: score as f32 * stats.field_weight,
+    })
 }
 
 pub(crate) fn validate_weights(weights: &BTreeMap<String, f32>) -> Result<()> {

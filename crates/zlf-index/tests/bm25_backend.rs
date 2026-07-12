@@ -46,7 +46,12 @@ fn chunks_fields_weights_and_explanation_are_preserved() {
         .unwrap();
     assert_eq!(title_only.len(), 1);
     assert_eq!(title_only[0].document_id.field, "title");
-    assert!(title_only[0].explanation.is_some());
+    let explanation = title_only[0].explanation.as_ref().unwrap();
+    assert_eq!(explanation.document_length, 2);
+    assert!((explanation.average_document_length - 2.5).abs() < 0.001);
+    assert_eq!(explanation.terms[0].term_frequency, 1);
+    assert_eq!(explanation.terms[0].document_frequency, 2);
+    assert!(explanation.terms[0].score > 0.0);
 
     let weighted = index
         .search_document_top_k(
