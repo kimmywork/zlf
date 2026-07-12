@@ -2,6 +2,7 @@ pub mod bm25;
 pub mod chunking;
 pub mod generation;
 pub mod identity;
+pub mod lexical;
 pub mod manifest;
 pub mod metrics;
 pub mod model;
@@ -20,6 +21,10 @@ pub use generation::{
 };
 pub use identity::{
     ContentFingerprint, IndexDocument, IndexDocumentId, SourceRange, INDEX_DOCUMENT_SCHEMA_VERSION,
+};
+pub use lexical::{
+    bm25_term_score, Bm25Config, Bm25Explanation, LexicalHit, LexicalQuery, TermScoreExplanation,
+    UnicodeJiebaAnalyzer, UNICODE_JIEBA_ANALYZER_ID,
 };
 pub use manifest::{reconcile_manifest, DocumentChanges, DocumentManifest};
 pub use metrics::{IndexInventory, IndexJobMetrics, IndexMetricsSnapshot};
