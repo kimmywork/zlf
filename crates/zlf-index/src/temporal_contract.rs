@@ -98,6 +98,13 @@ pub struct EventQueryResult {
     pub candidates_scanned: u64,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ValidityQueryResult {
+    pub records: Vec<ValidityRecord>,
+    pub candidates_scanned: u64,
+    pub access_path: TemporalAccessPath,
+}
+
 pub fn parse_utc_micros(input: &str) -> Result<i64, String> {
     if let Ok(date) = NaiveDate::parse_from_str(input, "%Y-%m-%d") {
         return utc_midnight(date);

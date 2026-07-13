@@ -12,6 +12,8 @@ pub mod retrieval;
 pub mod temporal;
 pub mod temporal_contract;
 mod temporal_event;
+mod temporal_validity;
+mod temporal_validity_support;
 pub mod vector_contract;
 mod vector_exact;
 
@@ -49,9 +51,11 @@ pub use temporal_contract::{
     decode_ordered_micros, encode_ordered_micros, event_range_oracle, parse_utc_micros,
     utc_day_range, valid_at_oracle, valid_overlaps_oracle, validate_half_open_range,
     EventQueryResult, EventRecord, TemporalAccessPath, TemporalHit, TemporalRecord,
-    TemporalRecordId, ValidityRecord, TEMPORAL_PARSER_VERSION, TEMPORAL_RECORD_SCHEMA_VERSION,
+    TemporalRecordId, ValidityQueryResult, ValidityRecord, TEMPORAL_PARSER_VERSION,
+    TEMPORAL_RECORD_SCHEMA_VERSION,
 };
 pub use temporal_event::EventTimeStore;
+pub use temporal_validity::ValidityStore;
 pub use vector_contract::{
     EmbeddingJob, EmbeddingJobState, VectorHit, VectorKey, VectorQuery, VectorRecord,
     EMBEDDING_JOB_SCHEMA_VERSION, VECTOR_RECORD_SCHEMA_VERSION,
