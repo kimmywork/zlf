@@ -49,9 +49,10 @@ fn validity_indexes_match_oracle_choose_endpoints_and_survive_updates_reopen() {
         assert!(store.valid_at(&generation, 10, 0).is_err());
 
         let old = records.remove(1);
-        store.delete(&old).unwrap();
         let moved = validity("middle", "doc", 30, Some(50), &generation);
-        store.put(&moved).unwrap();
+        store
+            .apply(std::slice::from_ref(&moved), std::slice::from_ref(&old))
+            .unwrap();
         records.push(moved);
         store.delete(&records[0]).unwrap();
         records.remove(0);

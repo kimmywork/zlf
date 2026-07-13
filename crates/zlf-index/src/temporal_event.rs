@@ -35,18 +35,25 @@ impl EventTimeStore {
     }
 
     pub fn put(&self, record: &EventRecord) -> Result<()> {
-        record.validate().map_err(ZlfError::Internal)?;
-        let value = bincode::serialize(record).map_err(serialization)?;
-        let mut batch = WriteBatch::default();
-        batch.put(time_key(record), &value);
-        batch.put(entity_key(record), &value);
-        self.db.write(batch).map_err(internal)
+        self.apply(std::slice::from_ref(record), &[])
     }
 
     pub fn delete(&self, record: &EventRecord) -> Result<()> {
+        self.apply(&[], std::slice::from_ref(record))
+    }
+
+    pub fn apply(&self, upserts: &[EventRecord], deletes: &[EventRecord]) -> Result<()> {
         let mut batch = WriteBatch::default();
-        batch.delete(time_key(record));
-        batch.delete(entity_key(record));
+        for record in deletes {
+            batch.delete(time_key(record));
+            batch.delete(entity_key(record));
+        }
+        for record in upserts {
+            record.validate().map_err(ZlfError::Internal)?;
+            let value = bincode::serialize(record).map_err(serialization)?;
+            batch.put(time_key(record), &value);
+            batch.put(entity_key(record), &value);
+        }
         self.db.write(batch).map_err(internal)
     }
 

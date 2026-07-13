@@ -54,11 +54,11 @@ fn bounded_event_seeks_preserve_duplicates_boundaries_entities_updates_and_reope
         assert!(store.range(&generation, at_20, at_20, 10).is_err());
         assert!(store.range(&generation, at_10, at_next, 0).is_err());
 
-        store.delete(&first).unwrap();
         let mut moved = second.clone();
-        store.delete(&second).unwrap();
         moved.at_micros = at_20;
-        store.put(&moved).unwrap();
+        store
+            .apply(&[moved], &[first.clone(), second.clone()])
+            .unwrap();
     }
     let reopened = EventTimeStore::open(temp.path()).unwrap();
     assert_eq!(

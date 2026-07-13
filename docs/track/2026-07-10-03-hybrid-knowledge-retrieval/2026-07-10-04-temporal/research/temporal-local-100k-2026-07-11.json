@@ -1,0 +1,121 @@
+{
+  "peak_rss_bytes": 531759104,
+  "records_per_kind": 100000,
+  "reports": [
+    {
+      "build_ms": 407.7125,
+      "build_records_per_second": 490541.7420363614,
+      "distribution": "uniform",
+      "event_candidates": {
+        "average": 1440.0,
+        "max": 1440
+      },
+      "event_matches": 1440,
+      "event_query_us": {
+        "p50": 359,
+        "p95": 416,
+        "p99": 436
+      },
+      "index_bytes": 96558927,
+      "overlap_candidates": {
+        "average": 51439.0,
+        "max": 51439
+      },
+      "overlap_matches": 2879,
+      "overlap_query_us": {
+        "p50": 12799,
+        "p95": 13714,
+        "p99": 13798
+      },
+      "update_ms": 25.310292,
+      "update_records": 200,
+      "valid_at_candidates": {
+        "average": 50001.0,
+        "max": 50001
+      },
+      "valid_at_matches": 1440,
+      "valid_at_query_us": {
+        "p50": 12653,
+        "p95": 13392,
+        "p99": 13538
+      }
+    },
+    {
+      "build_ms": 434.194625,
+      "build_records_per_second": 460622.92917605786,
+      "distribution": "skewed",
+      "event_candidates": {
+        "average": 100000.0,
+        "max": 100000
+      },
+      "event_matches": 100000,
+      "event_query_us": {
+        "p50": 31212,
+        "p95": 32848,
+        "p99": 33406
+      },
+      "index_bytes": 95520877,
+      "overlap_candidates": {
+        "average": 100000.0,
+        "max": 100000
+      },
+      "overlap_matches": 100000,
+      "overlap_query_us": {
+        "p50": 55789,
+        "p95": 59337,
+        "p99": 61927
+      },
+      "update_ms": 29.495583,
+      "update_records": 200,
+      "valid_at_candidates": {
+        "average": 1000.0,
+        "max": 1000
+      },
+      "valid_at_matches": 1000,
+      "valid_at_query_us": {
+        "p50": 373,
+        "p95": 447,
+        "p99": 598
+      }
+    },
+    {
+      "build_ms": 377.87399999999997,
+      "build_records_per_second": 529276.9547521132,
+      "distribution": "long_open",
+      "event_candidates": {
+        "average": 144.0,
+        "max": 144
+      },
+      "event_matches": 144,
+      "event_query_us": {
+        "p50": 36,
+        "p95": 49,
+        "p99": 60
+      },
+      "index_bytes": 94072071,
+      "overlap_candidates": {
+        "average": 50144.0,
+        "max": 50144
+      },
+      "overlap_matches": 50144,
+      "overlap_query_us": {
+        "p50": 22573,
+        "p95": 23886,
+        "p99": 24336
+      },
+      "update_ms": 26.388333,
+      "update_records": 200,
+      "valid_at_candidates": {
+        "average": 50001.0,
+        "max": 50001
+      },
+      "valid_at_matches": 50001,
+      "valid_at_query_us": {
+        "p50": 22306,
+        "p95": 23767,
+        "p99": 27678
+      }
+    }
+  ],
+  "schema": "zlf-temporal-benchmark-v1"
+}

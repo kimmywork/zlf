@@ -1,4 +1,4 @@
-use std::collections::BinaryHeap;
+use std::collections::{BTreeSet, BinaryHeap};
 use std::path::Path;
 use std::sync::Arc;
 
@@ -43,29 +43,41 @@ impl ValidityStore {
     }
 
     pub fn put(&self, record: &ValidityRecord) -> Result<()> {
-        record.validate().map_err(ZlfError::Internal)?;
-        let value = bincode::serialize(record).map_err(serialization)?;
-        let mut batch = WriteBatch::default();
-        batch.put(start_key(record), &value);
-        match record.valid_to_micros {
-            Some(_) => batch.put(end_key(record), &value),
-            None => batch.put(open_key(record), &value),
-        }
-        batch.put(entity_key(record), &value);
-        self.db.write(batch).map_err(internal)?;
-        self.refresh_stats(&record.generation)
+        self.apply(std::slice::from_ref(record), &[])
     }
 
     pub fn delete(&self, record: &ValidityRecord) -> Result<()> {
+        self.apply(&[], std::slice::from_ref(record))
+    }
+
+    pub fn apply(&self, upserts: &[ValidityRecord], deletes: &[ValidityRecord]) -> Result<()> {
         let mut batch = WriteBatch::default();
-        batch.delete(start_key(record));
-        match record.valid_to_micros {
-            Some(_) => batch.delete(end_key(record)),
-            None => batch.delete(open_key(record)),
+        let mut generations = BTreeSet::new();
+        for record in deletes {
+            generations.insert(record.generation.clone());
+            batch.delete(start_key(record));
+            match record.valid_to_micros {
+                Some(_) => batch.delete(end_key(record)),
+                None => batch.delete(open_key(record)),
+            }
+            batch.delete(entity_key(record));
         }
-        batch.delete(entity_key(record));
+        for record in upserts {
+            record.validate().map_err(ZlfError::Internal)?;
+            generations.insert(record.generation.clone());
+            let value = bincode::serialize(record).map_err(serialization)?;
+            batch.put(start_key(record), &value);
+            match record.valid_to_micros {
+                Some(_) => batch.put(end_key(record), &value),
+                None => batch.put(open_key(record), &value),
+            }
+            batch.put(entity_key(record), &value);
+        }
         self.db.write(batch).map_err(internal)?;
-        self.refresh_stats(&record.generation)
+        for generation in generations {
+            self.refresh_stats(&generation)?;
+        }
+        Ok(())
     }
 
     pub fn valid_at(

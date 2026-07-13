@@ -1,0 +1,121 @@
+{
+  "peak_rss_bytes": 25477120,
+  "records_per_kind": 1000,
+  "reports": [
+    {
+      "build_ms": 3.365541,
+      "build_records_per_second": 594258.0999607493,
+      "distribution": "uniform",
+      "event_candidates": {
+        "average": 500.0,
+        "max": 500
+      },
+      "event_matches": 500,
+      "event_query_us": {
+        "p50": 124,
+        "p95": 140,
+        "p99": 164
+      },
+      "index_bytes": 1160473,
+      "overlap_candidates": {
+        "average": 1000.0,
+        "max": 1000
+      },
+      "overlap_matches": 1000,
+      "overlap_query_us": {
+        "p50": 347,
+        "p95": 399,
+        "p99": 498
+      },
+      "update_ms": 0.9808749999999999,
+      "update_records": 200,
+      "valid_at_candidates": {
+        "average": 501.0,
+        "max": 501
+      },
+      "valid_at_matches": 501,
+      "valid_at_query_us": {
+        "p50": 167,
+        "p95": 194,
+        "p99": 200
+      }
+    },
+    {
+      "build_ms": 3.353333,
+      "build_records_per_second": 596421.5304593967,
+      "distribution": "skewed",
+      "event_candidates": {
+        "average": 1000.0,
+        "max": 1000
+      },
+      "event_matches": 1000,
+      "event_query_us": {
+        "p50": 243,
+        "p95": 296,
+        "p99": 353
+      },
+      "index_bytes": 1148820,
+      "overlap_candidates": {
+        "average": 1000.0,
+        "max": 1000
+      },
+      "overlap_matches": 1000,
+      "overlap_query_us": {
+        "p50": 357,
+        "p95": 389,
+        "p99": 447
+      },
+      "update_ms": 0.9782919999999999,
+      "update_records": 200,
+      "valid_at_candidates": {
+        "average": 10.0,
+        "max": 10
+      },
+      "valid_at_matches": 10,
+      "valid_at_query_us": {
+        "p50": 4,
+        "p95": 5,
+        "p99": 23
+      }
+    },
+    {
+      "build_ms": 3.237542,
+      "build_records_per_second": 617752.6036727864,
+      "distribution": "long_open",
+      "event_candidates": {
+        "average": 144.0,
+        "max": 144
+      },
+      "event_matches": 144,
+      "event_query_us": {
+        "p50": 35,
+        "p95": 36,
+        "p99": 36
+      },
+      "index_bytes": 1132626,
+      "overlap_candidates": {
+        "average": 644.0,
+        "max": 644
+      },
+      "overlap_matches": 644,
+      "overlap_query_us": {
+        "p50": 214,
+        "p95": 225,
+        "p99": 243
+      },
+      "update_ms": 0.974375,
+      "update_records": 200,
+      "valid_at_candidates": {
+        "average": 501.0,
+        "max": 501
+      },
+      "valid_at_matches": 501,
+      "valid_at_query_us": {
+        "p50": 162,
+        "p95": 170,
+        "p99": 184
+      }
+    }
+  ],
+  "schema": "zlf-temporal-benchmark-v1"
+}
