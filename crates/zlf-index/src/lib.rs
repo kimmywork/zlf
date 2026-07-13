@@ -43,7 +43,9 @@ pub use profile::{
     TemporalRole, VectorFieldOptions, INDEX_PROFILE_SCHEMA_VERSION,
 };
 pub use retrieval::{
-    RetrievalHit, RetrievalMode, RetrievalQuery, RetrievalRequest, RetrieverScore,
+    reciprocal_rank_fusion, RankedRetrieverHit, ResultAggregation, RetrievalBudgets,
+    RetrievalContractError, RetrievalHit, RetrievalMode, RetrievalQuery, RetrievalRequest,
+    RetrieverScore, TemporalFilter, DEFAULT_RRF_K,
 };
 pub use temporal_contract::{
     decode_ordered_micros, encode_ordered_micros, event_range_oracle, parse_utc_micros,
