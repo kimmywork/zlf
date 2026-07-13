@@ -6,25 +6,25 @@ use rocksdb::{Direction, IteratorMode, Options, WriteBatch, DB};
 use zlf_core::{Result, ZlfError};
 
 use crate::temporal_validity_support::{
-    end_key, entity_document_prefix, entity_key, generation_prefix, internal, open_key,
-    prefer_start, result, serialization, start_key, stats_key, time_seek_key, upper_seek,
-    validate_limit, HeapValidity, ValidityStats,
+    end_key, entity_key, generation_prefix, graph_entity_key, internal, open_key, prefer_start,
+    result, serialization, start_key, stats_key, time_seek_key, upper_seek, validate_limit,
+    HeapValidity, ValidityStats,
 };
 use crate::{
-    validate_half_open_range, GenerationId, IndexDocumentId, TemporalAccessPath,
-    ValidityQueryResult, ValidityRecord,
+    validate_half_open_range, GenerationId, TemporalAccessPath, ValidityQueryResult, ValidityRecord,
 };
 
 pub(crate) const START_PREFIX: &[u8] = b"temporal:v1:valid:start:";
 pub(crate) const END_PREFIX: &[u8] = b"temporal:v1:valid:end:";
 pub(crate) const OPEN_PREFIX: &[u8] = b"temporal:v1:valid:open:";
 pub(crate) const ENTITY_PREFIX: &[u8] = b"temporal:v1:valid:entity:";
+pub(crate) const GRAPH_ENTITY_PREFIX: &[u8] = b"temporal:v1:valid:graph-entity:";
 pub(crate) const STATS_PREFIX: &[u8] = b"temporal:v1:valid:stats:";
 const SCHEMA_KEY: &[u8] = b"temporal:v1:valid:schema";
 
 #[derive(Clone)]
 pub struct ValidityStore {
-    db: Arc<DB>,
+    pub(crate) db: Arc<DB>,
 }
 
 impl ValidityStore {
@@ -61,6 +61,7 @@ impl ValidityStore {
                 None => batch.delete(open_key(record)),
             }
             batch.delete(entity_key(record));
+            batch.delete(graph_entity_key(record));
         }
         for record in upserts {
             record.validate().map_err(ZlfError::Internal)?;
@@ -72,6 +73,7 @@ impl ValidityStore {
                 None => batch.put(open_key(record), &value),
             }
             batch.put(entity_key(record), &value);
+            batch.put(graph_entity_key(record), &value);
         }
         self.db.write(batch).map_err(internal)?;
         for generation in generations {
@@ -122,23 +124,6 @@ impl ValidityStore {
                 record.overlaps(start, end)
             })
         }
-    }
-
-    pub fn for_document(
-        &self,
-        generation: &GenerationId,
-        document_id: &IndexDocumentId,
-        limit: usize,
-    ) -> Result<ValidityQueryResult> {
-        validate_limit(generation, limit)?;
-        let prefix = entity_document_prefix(generation, document_id);
-        self.scan_records(
-            &prefix,
-            |key| key.starts_with(&prefix),
-            limit,
-            |_| true,
-            TemporalAccessPath::ValidByStart,
-        )
     }
 
     fn scan_start(

@@ -119,6 +119,8 @@ fn query(values: Vec<f32>) -> VectorQuery {
         threshold: None,
         include_sources: Vec::new(),
         exclude_sources: Vec::new(),
+        include_entities: Vec::new(),
+        exclude_entities: Vec::new(),
         metadata: BTreeMap::new(),
     }
 }

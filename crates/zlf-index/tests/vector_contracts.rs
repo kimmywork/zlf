@@ -52,6 +52,8 @@ fn record_and_query_validation_reject_dimension_nonfinite_zero_and_normalization
         threshold: Some(0.5),
         include_sources: Vec::new(),
         exclude_sources: Vec::new(),
+        include_entities: Vec::new(),
+        exclude_entities: Vec::new(),
         metadata: BTreeMap::new(),
     };
     assert!(query.validate(&profile).is_ok());

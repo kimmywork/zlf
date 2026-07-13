@@ -1,7 +1,7 @@
 use zlf_core::EntityRef;
 use zlf_index::{
-    parse_utc_micros, EventRecord, EventTimeStore, GenerationId, IndexDocumentId, TemporalRecordId,
-    TEMPORAL_RECORD_SCHEMA_VERSION,
+    parse_utc_micros, EventRecord, EventTimeStore, GenerationId, IndexDocumentId, IndexPageRequest,
+    TemporalRecordId, TEMPORAL_RECORD_SCHEMA_VERSION,
 };
 
 #[test]
@@ -50,6 +50,33 @@ fn bounded_event_seeks_preserve_duplicates_boundaries_entities_updates_and_reope
         assert_eq!(
             ids(&store.day(&generation, "2026-01-01", 10).unwrap().records),
             ["a", "b", "c"]
+        );
+        let page = store
+            .range_page(
+                &generation,
+                at_10,
+                at_next,
+                IndexPageRequest {
+                    offset: 1,
+                    page_size: 1,
+                    candidate_limit: 3,
+                },
+            )
+            .unwrap();
+        assert_eq!(ids(&page.items), ["b"]);
+        assert_eq!(page.next_offset, Some(2));
+        assert_eq!(
+            ids(&store
+                .range_for_entity(
+                    &generation,
+                    &EntityRef::Node("other".into()),
+                    at_10,
+                    at_next,
+                    10,
+                )
+                .unwrap()
+                .records),
+            ["c"]
         );
         assert!(store.range(&generation, at_20, at_20, 10).is_err());
         assert!(store.range(&generation, at_10, at_next, 0).is_err());

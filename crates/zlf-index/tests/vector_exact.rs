@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use zlf_core::EntityRef;
 use zlf_index::{
     bge_m3_dense_v1, content_fingerprint, ExactVectorStore, GenerationId, IndexDocumentId,
-    VectorKey, VectorQuery, VectorRecord, VECTOR_RECORD_SCHEMA_VERSION,
+    IndexPageRequest, VectorKey, VectorQuery, VectorRecord, VECTOR_RECORD_SCHEMA_VERSION,
 };
 
 #[test]
@@ -34,6 +34,23 @@ fn exact_search_filters_ranks_ties_updates_deletes_and_reopens() {
         query.exclude_sources.clear();
         query.include_sources.push(document_id("c"));
         assert_eq!(ids(store.search(&query, &profile).unwrap()), ["c"]);
+        query.include_sources.clear();
+        query.include_entities.push(EntityRef::Node("c".into()));
+        assert_eq!(ids(store.search(&query, &profile).unwrap()), ["c"]);
+        query.include_entities.clear();
+        let page = store
+            .search_page(
+                &query,
+                &profile,
+                IndexPageRequest {
+                    offset: 1,
+                    page_size: 1,
+                    candidate_limit: 2,
+                },
+            )
+            .unwrap();
+        assert_eq!(page.items[0].key.document_id.entity.id(), "c");
+        assert!(page.candidate_budget_exhausted);
 
         store
             .put(&record("a", [0.0, 1.0], "keep"), &profile)
@@ -123,6 +140,8 @@ fn query() -> VectorQuery {
         threshold: Some(0.0),
         include_sources: Vec::new(),
         exclude_sources: Vec::new(),
+        include_entities: Vec::new(),
+        exclude_entities: Vec::new(),
         metadata: BTreeMap::new(),
     }
 }

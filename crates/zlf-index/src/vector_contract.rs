@@ -81,6 +81,8 @@ pub struct VectorQuery {
     pub threshold: Option<f32>,
     pub include_sources: Vec<IndexDocumentId>,
     pub exclude_sources: Vec<IndexDocumentId>,
+    pub include_entities: Vec<zlf_core::EntityRef>,
+    pub exclude_entities: Vec<zlf_core::EntityRef>,
     pub metadata: BTreeMap<String, String>,
 }
 

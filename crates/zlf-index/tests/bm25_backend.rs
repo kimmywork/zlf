@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use zlf_core::EntityRef;
 use zlf_index::{
     bm25_term_score, content_fingerprint, BM25Index, DocumentChanges, IndexDocument,
-    IndexDocumentId, INDEX_DOCUMENT_SCHEMA_VERSION,
+    IndexDocumentId, IndexPageRequest, INDEX_DOCUMENT_SCHEMA_VERSION,
 };
 
 #[test]
@@ -72,6 +72,49 @@ fn chunks_fields_weights_and_explanation_are_preserved() {
     assert_eq!(weighted.len(), 2);
     index.remove_document(&weighted[0].document_id).unwrap();
     assert_eq!(index.search("rust").unwrap().len(), 1);
+}
+
+#[test]
+#[allow(clippy::too_many_lines)]
+fn entity_filter_and_ranked_pages_are_pushed_into_tantivy() {
+    let temp = tempfile::tempdir().unwrap();
+    let index = BM25Index::open(temp.path()).unwrap();
+    index
+        .index_texts_batch(&[("a", "rust rust"), ("b", "rust"), ("c", "rust")])
+        .unwrap();
+    let bound = index
+        .search_document_top_k_for_entities("rust", 1, &[], &["c".into()], &BTreeMap::new(), false)
+        .unwrap();
+    assert_eq!(bound[0].document_id.entity.id(), "c");
+    let first = index
+        .search_document_page_for_entities(
+            "rust",
+            IndexPageRequest {
+                offset: 0,
+                page_size: 1,
+                candidate_limit: 3,
+            },
+            &[],
+            &[],
+            &BTreeMap::new(),
+            false,
+        )
+        .unwrap();
+    let second = index
+        .search_document_page_for_entities(
+            "rust",
+            IndexPageRequest {
+                offset: first.next_offset.unwrap(),
+                page_size: 1,
+                candidate_limit: 3,
+            },
+            &[],
+            &[],
+            &BTreeMap::new(),
+            false,
+        )
+        .unwrap();
+    assert_ne!(first.items[0].document_id, second.items[0].document_id);
 }
 
 #[test]

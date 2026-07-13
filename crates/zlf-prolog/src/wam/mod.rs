@@ -95,6 +95,8 @@ pub mod graph_view_provider;
 mod index_limits;
 #[path = "providers/index.rs"]
 pub mod index_provider;
+#[path = "providers/index_temporal.rs"]
+mod index_temporal_provider;
 #[path = "providers/index_vector.rs"]
 mod index_vector_provider;
 #[path = "providers/introspection.rs"]

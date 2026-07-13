@@ -7,7 +7,7 @@ use zlf_index::{
     GenerationId, IndexDocumentId, TemporalRecordId, ValidityRecord, ValidityStore, VectorKey,
     VectorRecord, TEMPORAL_RECORD_SCHEMA_VERSION, VECTOR_RECORD_SCHEMA_VERSION,
 };
-use zlf_prolog::wam::{IndexFactProvider, WamRuntime};
+use zlf_prolog::wam::{IndexAnswerLimits, IndexFactProvider, WamRuntime};
 use zlf_prolog::{PrologParser, Term};
 
 #[test]
@@ -16,7 +16,13 @@ fn bm25_provider_uses_jieba_chinese_tokenization_in_prolog_query() {
     let bm25 = BM25Index::open(dir.path().join("bm25")).unwrap();
     bm25.index_text("doc1", "软件工程师").unwrap();
     bm25.index_text("doc2", "苹果公司").unwrap();
-    let provider = IndexFactProvider::new().with_bm25(&bm25);
+    let provider = IndexFactProvider::new()
+        .with_bm25(&bm25)
+        .with_limits(IndexAnswerLimits {
+            candidate_limit: 1,
+            answer_limit: 1,
+        })
+        .unwrap();
     let runtime = WamRuntime::new(12);
 
     let solutions = runtime
@@ -25,9 +31,14 @@ fn bm25_provider_uses_jieba_chinese_tokenization_in_prolog_query() {
 
     assert_eq!(solutions[0].get("Node"), Some(&atom("doc1")));
     assert!(solutions[0].contains_key("Score"));
+    let bound = runtime
+        .query_all_with_provider(&term("bm25(\"软件\", doc1, Score)"), &provider)
+        .unwrap();
+    assert_eq!(bound.len(), 1);
 }
 
 #[test]
+#[allow(clippy::too_many_lines)]
 fn vector_provider_exposes_similarity_to_prolog_query() {
     let dir = tempfile::tempdir().unwrap();
     let vector = ExactVectorStore::open(dir.path().join("vector")).unwrap();
@@ -43,6 +54,9 @@ fn vector_provider_exposes_similarity_to_prolog_query() {
             &profile,
         )
         .unwrap();
+    vector
+        .put(&vector_record("carol", vec![1.0, 0.0], &profile), &profile)
+        .unwrap();
     let generation = GenerationId("g1".into());
     let provider = IndexFactProvider::new().with_exact_vector(&vector, &profile, &generation);
     let runtime = WamRuntime::new(12);
@@ -51,8 +65,19 @@ fn vector_provider_exposes_similarity_to_prolog_query() {
         .query_all_with_provider(&term("vector_similar(alice, Node, Score)"), &provider)
         .unwrap();
 
-    assert_eq!(solutions.len(), 1);
-    assert_eq!(solutions[0].get("Node"), Some(&atom("bob")));
+    assert_eq!(solutions.len(), 2);
+    assert_eq!(solutions[0].get("Node"), Some(&atom("carol")));
+    let bounded = IndexFactProvider::new()
+        .with_exact_vector(&vector, &profile, &generation)
+        .with_limits(IndexAnswerLimits {
+            candidate_limit: 1,
+            answer_limit: 1,
+        })
+        .unwrap();
+    let bob = runtime
+        .query_all_with_provider(&term("vector_similar(alice, bob, Score)"), &bounded)
+        .unwrap();
+    assert_eq!(bob.len(), 1);
 }
 
 #[test]
@@ -92,9 +117,23 @@ fn temporal_provider_exposes_date_queries_to_prolog() {
     let valid = runtime
         .query_all_with_provider(&term("valid_at(\"2027-01-01T00:00:00Z\", Node)"), &provider)
         .unwrap();
+    let bounded = IndexFactProvider::new()
+        .with_temporal(&events, &validities, &generation)
+        .with_limits(IndexAnswerLimits {
+            candidate_limit: 1,
+            answer_limit: 1,
+        })
+        .unwrap();
+    let bob = runtime
+        .query_all_with_provider(
+            &term("temporal_between(\"2026-01-01\", \"2026-12-31\", bob)"),
+            &bounded,
+        )
+        .unwrap();
     assert_eq!(on_date[0].get("Node"), Some(&atom("alice")));
     assert_eq!(in_range.len(), 2);
     assert_eq!(valid[0].get("Node"), Some(&atom("alice")));
+    assert_eq!(bob.len(), 1);
 }
 
 fn vector_record(

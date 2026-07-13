@@ -30,9 +30,10 @@ impl<'a> ExactVectorProvider<'a> {
     pub(super) fn source_facts(
         &self,
         source: &str,
+        target: Option<&str>,
         candidate_limit: usize,
     ) -> WamResult<(Vec<Term>, bool)> {
-        let scores = self.source_scores(source, candidate_limit)?;
+        let scores = self.source_scores(source, target, candidate_limit)?;
         let exhausted = scores.len() == candidate_limit;
         Ok((
             scores
@@ -48,7 +49,12 @@ impl<'a> ExactVectorProvider<'a> {
         ))
     }
 
-    fn source_scores(&self, source: &str, candidate_limit: usize) -> WamResult<Vec<(String, f32)>> {
+    fn source_scores(
+        &self,
+        source: &str,
+        target: Option<&str>,
+        candidate_limit: usize,
+    ) -> WamResult<Vec<(String, f32)>> {
         let records = self
             .store
             .records_for_entity(
@@ -60,7 +66,7 @@ impl<'a> ExactVectorProvider<'a> {
             .map_err(provider_error)?;
         let mut scores = BTreeMap::<String, f32>::new();
         for record in records {
-            self.merge_record_scores(source, record.values, candidate_limit, &mut scores)?;
+            self.merge_record_scores(source, target, record.values, candidate_limit, &mut scores)?;
             trim_scores(&mut scores, candidate_limit);
         }
         let mut scores = scores.into_iter().collect::<Vec<_>>();
@@ -76,6 +82,7 @@ impl<'a> ExactVectorProvider<'a> {
     fn merge_record_scores(
         &self,
         source: &str,
+        target: Option<&str>,
         values: Vec<f32>,
         candidate_limit: usize,
         scores: &mut BTreeMap<String, f32>,
@@ -89,6 +96,10 @@ impl<'a> ExactVectorProvider<'a> {
             threshold: Some(0.0),
             include_sources: Vec::new(),
             exclude_sources: Vec::new(),
+            include_entities: target
+                .map(|target| vec![EntityRef::Node(target.into())])
+                .unwrap_or_default(),
+            exclude_entities: Vec::new(),
             metadata: BTreeMap::new(),
         };
         for hit in self

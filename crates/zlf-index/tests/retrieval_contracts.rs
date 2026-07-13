@@ -1,8 +1,8 @@
 use zlf_core::EntityRef;
 use zlf_index::{
-    reciprocal_rank_fusion, GenerationId, IndexDocumentId, RankedRetrieverHit, ResultAggregation,
-    RetrievalBudgets, RetrievalMode, RetrievalQuery, RetrievalRequest, TemporalFilter,
-    DEFAULT_RRF_K,
+    ranked_page, reciprocal_rank_fusion, GenerationId, IndexDocumentId, IndexPageRequest,
+    RankedRetrieverHit, ResultAggregation, RetrievalBudgets, RetrievalMode, RetrievalQuery,
+    RetrievalRequest, TemporalFilter, DEFAULT_RRF_K,
 };
 
 #[test]
@@ -47,6 +47,33 @@ fn rrf_preserves_missing_retrievers_limits_and_rejects_invalid_inputs() {
     assert!(reciprocal_rank_fusion(&lexical, &[], 1, f64::NAN).is_err());
     let invalid = vec![ranked(document("bad"), f32::NAN, &generation, 2)];
     assert!(reciprocal_rank_fusion(&invalid, &[], 1, DEFAULT_RRF_K).is_err());
+}
+
+#[test]
+fn paging_is_stable_bounded_and_reports_candidate_exhaustion() {
+    let first = ranked_page(
+        vec![0, 1, 2],
+        IndexPageRequest {
+            offset: 0,
+            page_size: 2,
+            candidate_limit: 4,
+        },
+    )
+    .unwrap();
+    assert_eq!(first.items, vec![0, 1]);
+    assert_eq!(first.next_offset, Some(2));
+    let last = ranked_page(
+        vec![0, 1, 2, 3],
+        IndexPageRequest {
+            offset: 2,
+            page_size: 2,
+            candidate_limit: 4,
+        },
+    )
+    .unwrap();
+    assert_eq!(last.items, vec![2, 3]);
+    assert!(last.candidate_budget_exhausted);
+    assert_eq!(last.next_offset, None);
 }
 
 #[test]

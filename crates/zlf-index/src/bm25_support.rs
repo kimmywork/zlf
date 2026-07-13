@@ -4,10 +4,13 @@ use tantivy::query::{Bm25StatisticsProvider, BooleanQuery, Occur, Query, TermQue
 use tantivy::schema::{
     Field, IndexRecordOption, Schema, TantivyDocument, Value, STORED, STRING, TEXT,
 };
-use tantivy::Term;
+use tantivy::{DocAddress, Searcher, Term};
 use zlf_core::{EntityRef, Result, ZlfError};
 
-use crate::{bm25_term_score, Bm25Config, Bm25Explanation, IndexDocumentId, TermScoreExplanation};
+use crate::{
+    bm25_term_score, BM25DocumentHit, Bm25Config, Bm25Explanation, IndexDocumentId,
+    TermScoreExplanation,
+};
 
 #[derive(Clone, Copy)]
 pub(crate) struct Fields {
@@ -64,6 +67,7 @@ pub(crate) fn combined_query(
     terms: &[String],
     field_filters: &[String],
     language_filters: &[String],
+    entity_filters: &[String],
 ) -> Box<dyn Query> {
     let mut clauses = vec![(Occur::Must, term_query(fields.body, terms))];
     if !field_filters.is_empty() {
@@ -71,6 +75,9 @@ pub(crate) fn combined_query(
     }
     if !language_filters.is_empty() {
         clauses.push((Occur::Must, filter_query(fields.language, language_filters)));
+    }
+    if !entity_filters.is_empty() {
+        clauses.push((Occur::Must, filter_query(fields.entity_id, entity_filters)));
     }
     Box::new(BooleanQuery::new(clauses))
 }
@@ -123,6 +130,32 @@ pub(crate) fn stored_text(document: &TantivyDocument, field: Field) -> Result<St
         .and_then(|value| value.as_str())
         .map(str::to_string)
         .ok_or_else(|| ZlfError::Internal("BM25 stored field is missing".into()))
+}
+
+pub(crate) fn document_hit(
+    searcher: &Searcher,
+    fields: Fields,
+    terms: &[String],
+    address: DocAddress,
+    score: f32,
+    weights: &BTreeMap<String, f32>,
+    explain: bool,
+) -> Result<BM25DocumentHit> {
+    let document = searcher.doc::<TantivyDocument>(address).map_err(internal)?;
+    let text = |field| stored_text(&document, field);
+    let field = text(fields.field)?;
+    let entity = stored_entity(&document, fields)?;
+    let weight = weights.get(&field).copied().unwrap_or(1.0);
+    let explanation = explain
+        .then(|| bm25_explanation(searcher, fields.body, terms, &text(fields.body)?, weight))
+        .transpose()?;
+    let language = text(fields.language)?;
+    Ok(BM25DocumentHit {
+        document_id: IndexDocumentId::new(entity, field.clone(), text(fields.chunk)?),
+        score: score * weight,
+        language: (!language.is_empty()).then_some(language),
+        explanation,
+    })
 }
 
 pub(crate) fn bm25_explanation(

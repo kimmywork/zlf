@@ -2,10 +2,10 @@ use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 
 use serde::{Deserialize, Serialize};
-use zlf_core::{Result, ZlfError};
+use zlf_core::{EntityRef, Result, ZlfError};
 
 use crate::temporal_validity::{
-    END_PREFIX, ENTITY_PREFIX, OPEN_PREFIX, START_PREFIX, STATS_PREFIX,
+    END_PREFIX, ENTITY_PREFIX, GRAPH_ENTITY_PREFIX, OPEN_PREFIX, START_PREFIX, STATS_PREFIX,
 };
 use crate::{
     encode_ordered_micros, GenerationId, IndexDocumentId, TemporalAccessPath, ValidityQueryResult,
@@ -141,6 +141,19 @@ pub(crate) fn entity_document_prefix(
 ) -> Vec<u8> {
     let mut key = generation_prefix(ENTITY_PREFIX, generation);
     push_part(&mut key, &document.canonical_bytes());
+    key
+}
+
+pub(crate) fn graph_entity_key(record: &ValidityRecord) -> Vec<u8> {
+    let mut key = graph_entity_prefix(&record.generation, &record.document_id.entity);
+    push_part(&mut key, record.id.0.as_bytes());
+    key
+}
+
+pub(crate) fn graph_entity_prefix(generation: &GenerationId, entity: &EntityRef) -> Vec<u8> {
+    let mut key = generation_prefix(GRAPH_ENTITY_PREFIX, generation);
+    key.push(u8::from(matches!(entity, EntityRef::Edge(_))));
+    push_part(&mut key, entity.id().as_bytes());
     key
 }
 

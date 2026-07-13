@@ -6,9 +6,10 @@ use std::sync::Arc;
 use rocksdb::{IteratorMode, Options, WriteBatch, DB};
 use zlf_core::{Result, ZlfError};
 
+use crate::vector_exact_support::{matches_filters, DocumentFilters};
 use crate::{
-    validate_query_vector, EmbeddingModelProfile, IndexDocumentId, VectorHit, VectorKey,
-    VectorMetric, VectorQuery, VectorRecord,
+    ranked_page, validate_query_vector, EmbeddingModelProfile, IndexPage, IndexPageRequest,
+    VectorHit, VectorKey, VectorMetric, VectorQuery, VectorRecord,
 };
 
 const PREFIX: &[u8] = b"vector:exact:v1:";
@@ -79,9 +80,37 @@ impl ExactVectorStore {
         profile: &EmbeddingModelProfile,
     ) -> Result<Vec<VectorHit>> {
         query.validate(profile).map_err(ZlfError::Internal)?;
-        validate_query_values(&query.values, profile)?;
+        validate_query_vector(&query.values, profile).map_err(ZlfError::Internal)?;
         let includes = query.include_sources.iter().collect::<HashSet<_>>();
         let excludes = query.exclude_sources.iter().collect::<HashSet<_>>();
+        let include_entities = query.include_entities.iter().collect::<HashSet<_>>();
+        let exclude_entities = query.exclude_entities.iter().collect::<HashSet<_>>();
+        let filters = DocumentFilters {
+            includes: &includes,
+            excludes: &excludes,
+            include_entities: &include_entities,
+            exclude_entities: &exclude_entities,
+        };
+        let mut hits = self
+            .collect_search_hits(query, profile, filters)?
+            .into_iter()
+            .map(|hit| hit.0)
+            .collect::<Vec<_>>();
+        hits.sort_by(|left, right| {
+            right
+                .score
+                .total_cmp(&left.score)
+                .then_with(|| left.key.cmp(&right.key))
+        });
+        Ok(hits)
+    }
+
+    fn collect_search_hits(
+        &self,
+        query: &VectorQuery,
+        profile: &EmbeddingModelProfile,
+        filters: DocumentFilters<'_>,
+    ) -> Result<BinaryHeap<HeapHit>> {
         let mut heap = BinaryHeap::with_capacity(query.top_k + 1);
         let prefix = search_prefix(query);
         for item in self
@@ -93,16 +122,23 @@ impl ExactVectorStore {
                 break;
             }
             let record = bincode::deserialize(&value).map_err(serialization)?;
-            consider_record(&mut heap, record, query, profile, &includes, &excludes)?;
+            consider_record(&mut heap, record, query, profile, filters)?;
         }
-        let mut hits = heap.into_iter().map(|hit| hit.0).collect::<Vec<_>>();
-        hits.sort_by(|left, right| {
-            right
-                .score
-                .total_cmp(&left.score)
-                .then_with(|| left.key.cmp(&right.key))
-        });
-        Ok(hits)
+        Ok(heap)
+    }
+
+    pub fn search_page(
+        &self,
+        query: &VectorQuery,
+        profile: &EmbeddingModelProfile,
+        page: IndexPageRequest,
+    ) -> Result<IndexPage<VectorHit>> {
+        page.validate()
+            .map_err(|error| ZlfError::Internal(error.to_string()))?;
+        let mut query = query.clone();
+        query.top_k = page.probe_limit();
+        let hits = self.search(&query, profile)?;
+        ranked_page(hits, page).map_err(|error| ZlfError::Internal(error.to_string()))
     }
 
     pub fn records_for_entity(
@@ -153,10 +189,9 @@ fn consider_record(
     record: VectorRecord,
     query: &VectorQuery,
     profile: &EmbeddingModelProfile,
-    includes: &HashSet<&IndexDocumentId>,
-    excludes: &HashSet<&IndexDocumentId>,
+    filters: DocumentFilters<'_>,
 ) -> Result<()> {
-    if !matches_filters(&record, includes, excludes, &query.metadata) {
+    if !matches_filters(&record, filters, &query.metadata) {
         return Ok(());
     }
     let score = similarity(&query.values, &record.values, profile.metric)?;
@@ -172,23 +207,6 @@ fn consider_record(
         heap.pop();
     }
     Ok(())
-}
-
-fn matches_filters(
-    record: &VectorRecord,
-    includes: &HashSet<&IndexDocumentId>,
-    excludes: &HashSet<&IndexDocumentId>,
-    metadata: &std::collections::BTreeMap<String, String>,
-) -> bool {
-    (includes.is_empty() || includes.contains(&record.key.document_id))
-        && !excludes.contains(&record.key.document_id)
-        && metadata
-            .iter()
-            .all(|(key, value)| record.metadata.get(key) == Some(value))
-}
-
-fn validate_query_values(values: &[f32], profile: &EmbeddingModelProfile) -> Result<()> {
-    validate_query_vector(values, profile).map_err(ZlfError::Internal)
 }
 
 fn similarity(query: &[f32], vector: &[f32], metric: VectorMetric) -> Result<f32> {

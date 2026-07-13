@@ -1,6 +1,5 @@
 use zlf_index::{
-    parse_utc_micros, BM25Index, EmbeddingModelProfile, EventTimeStore, ExactVectorStore,
-    GenerationId, ValidityStore,
+    BM25Index, EmbeddingModelProfile, EventTimeStore, ExactVectorStore, GenerationId, ValidityStore,
 };
 
 use crate::parser::Term;
@@ -15,9 +14,9 @@ use super::predicate::PredicateKey;
 pub struct IndexFactProvider<'a> {
     bm25: Option<&'a BM25Index>,
     vector: Option<ExactVectorProvider<'a>>,
-    temporal: Option<TemporalProvider<'a>>,
-    limits: IndexAnswerLimits,
-    answer_state: IndexAnswerState,
+    pub(super) temporal: Option<TemporalProvider<'a>>,
+    pub(super) limits: IndexAnswerLimits,
+    pub(super) answer_state: IndexAnswerState,
 }
 
 impl<'a> IndexFactProvider<'a> {
@@ -85,166 +84,56 @@ impl FactProvider for IndexFactProvider<'_> {
 
 impl IndexFactProvider<'_> {
     fn bm25_facts(&self, args: &[Term]) -> WamResult<Vec<Term>> {
-        let [query, _, _] = args else {
+        let [query, target, _] = args else {
             return Ok(Vec::new());
         };
         let query = constant(query)?;
         let Some(index) = self.bm25 else {
             return Ok(Vec::new());
         };
+        let entities = bound_constant(target)
+            .map(|target| vec![target.to_string()])
+            .unwrap_or_default();
         let candidates = index
-            .search_top_k(query, self.limits.candidate_limit)
+            .search_document_top_k_for_entities(
+                query,
+                self.limits.candidate_limit,
+                &[],
+                &entities,
+                &std::collections::BTreeMap::new(),
+                false,
+            )
             .map_err(provider_error)?
             .into_iter()
-            .map(|(node, score)| {
-                compound_term("bm25", vec![string(query), atom(node), number(score)])
-            })
+            .map(|hit| bm25_term(query, hit))
             .collect::<Vec<_>>();
         Ok(self.finish(candidates))
     }
 
     fn vector_facts(&self, args: &[Term]) -> WamResult<Vec<Term>> {
-        let [source, _, _] = args else {
+        let [source, target, _] = args else {
             return Ok(Vec::new());
         };
         let source = constant(source)?;
         let Some(index) = self.vector else {
             return Ok(Vec::new());
         };
-        let (candidates, exhausted) = index.source_facts(source, self.limits.candidate_limit)?;
+        let (candidates, exhausted) =
+            index.source_facts(source, bound_constant(target), self.limits.candidate_limit)?;
         Ok(self.answer_state.finish(candidates, self.limits, exhausted))
     }
 
-    fn temporal_on_facts(&self, args: &[Term]) -> WamResult<Vec<Term>> {
-        let [date, _] = args else {
-            return Ok(Vec::new());
-        };
-        let date = constant(date)?;
-        let Some(index) = self.temporal else {
-            return Ok(Vec::new());
-        };
-        let candidates = index
-            .events
-            .day(index.generation, date, self.limits.candidate_limit)
-            .map_err(provider_error)?
-            .records
-            .into_iter()
-            .map(|record| {
-                compound_term(
-                    "temporal_on",
-                    vec![string(date), atom(record.document_id.entity.id())],
-                )
-            })
-            .collect::<Vec<_>>();
-        Ok(self.finish(candidates))
-    }
-
-    fn temporal_between_facts(&self, args: &[Term]) -> WamResult<Vec<Term>> {
-        let Some((start, end, start_micros, end_micros)) = temporal_range(args)? else {
-            return Ok(Vec::new());
-        };
-        let Some(index) = self.temporal else {
-            return Ok(Vec::new());
-        };
-        let candidates = index
-            .events
-            .range(
-                index.generation,
-                start_micros,
-                end_micros,
-                self.limits.candidate_limit,
-            )
-            .map_err(provider_error)?
-            .records
-            .into_iter()
-            .map(|record| {
-                temporal_range_term(
-                    "temporal_between",
-                    start,
-                    end,
-                    record.document_id.entity.id(),
-                )
-            })
-            .collect::<Vec<_>>();
-        Ok(self.finish(candidates))
-    }
-
-    fn valid_at_facts(&self, args: &[Term]) -> WamResult<Vec<Term>> {
-        let [instant, _] = args else {
-            return Ok(Vec::new());
-        };
-        let instant = constant(instant)?;
-        let Some(index) = self.temporal else {
-            return Ok(Vec::new());
-        };
-        let micros = parse_utc_micros(instant).map_err(provider_error)?;
-        let candidates = index
-            .validities
-            .valid_at(index.generation, micros, self.limits.candidate_limit)
-            .map_err(provider_error)?
-            .records
-            .into_iter()
-            .map(|record| {
-                compound_term(
-                    "valid_at",
-                    vec![string(instant), atom(record.document_id.entity.id())],
-                )
-            })
-            .collect::<Vec<_>>();
-        Ok(self.finish(candidates))
-    }
-
-    fn valid_overlaps_facts(&self, args: &[Term]) -> WamResult<Vec<Term>> {
-        let Some((start, end, start_micros, end_micros)) = temporal_range(args)? else {
-            return Ok(Vec::new());
-        };
-        let Some(index) = self.temporal else {
-            return Ok(Vec::new());
-        };
-        let candidates = index
-            .validities
-            .overlaps(
-                index.generation,
-                start_micros,
-                end_micros,
-                self.limits.candidate_limit,
-            )
-            .map_err(provider_error)?
-            .records
-            .into_iter()
-            .map(|record| {
-                temporal_range_term("valid_overlaps", start, end, record.document_id.entity.id())
-            })
-            .collect::<Vec<_>>();
-        Ok(self.finish(candidates))
-    }
-
-    fn finish(&self, candidates: Vec<Term>) -> Vec<Term> {
+    pub(super) fn finish(&self, candidates: Vec<Term>) -> Vec<Term> {
         let exhausted = candidates.len() == self.limits.candidate_limit;
         self.answer_state.finish(candidates, self.limits, exhausted)
     }
 }
 
 #[derive(Clone, Copy)]
-struct TemporalProvider<'a> {
-    events: &'a EventTimeStore,
-    validities: &'a ValidityStore,
-    generation: &'a GenerationId,
-}
-
-fn temporal_range(args: &[Term]) -> WamResult<Option<(&str, &str, i64, i64)>> {
-    let [start, end, _] = args else {
-        return Ok(None);
-    };
-    let start = constant(start)?;
-    let end = constant(end)?;
-    let start_micros = parse_utc_micros(start).map_err(provider_error)?;
-    let end_micros = parse_utc_micros(end).map_err(provider_error)?;
-    Ok(Some((start, end, start_micros, end_micros)))
-}
-
-fn temporal_range_term(predicate: &str, start: &str, end: &str, entity_id: &str) -> Term {
-    compound_term(predicate, vec![string(start), string(end), atom(entity_id)])
+pub(super) struct TemporalProvider<'a> {
+    pub(super) events: &'a EventTimeStore,
+    pub(super) validities: &'a ValidityStore,
+    pub(super) generation: &'a GenerationId,
 }
 
 fn compound(term: &Term) -> WamResult<Option<(&str, &[Term])>> {
@@ -255,18 +144,40 @@ fn compound(term: &Term) -> WamResult<Option<(&str, &[Term])>> {
     }
 }
 
-fn constant(term: &Term) -> WamResult<&str> {
+fn bm25_term(query: &str, hit: zlf_index::BM25DocumentHit) -> Term {
+    compound_term(
+        "bm25",
+        vec![
+            string(query),
+            atom(hit.document_id.entity.id()),
+            number(hit.score),
+        ],
+    )
+}
+
+pub(super) fn bound_entity(term: &Term) -> Option<zlf_core::EntityRef> {
+    bound_constant(term).map(|id| zlf_core::EntityRef::Node(id.into()))
+}
+
+fn bound_constant(term: &Term) -> Option<&str> {
+    match term {
+        Term::Atom(value) | Term::String(value) => Some(value),
+        _ => None,
+    }
+}
+
+pub(super) fn constant(term: &Term) -> WamResult<&str> {
     match term {
         Term::Atom(value) | Term::String(value) => Ok(value),
         _ => Err(WamError::Provider("expected bound constant".to_string())),
     }
 }
 
-fn atom(value: impl Into<String>) -> Term {
+pub(super) fn atom(value: impl Into<String>) -> Term {
     Term::Atom(value.into())
 }
 
-fn string(value: impl Into<String>) -> Term {
+pub(super) fn string(value: impl Into<String>) -> Term {
     Term::String(value.into())
 }
 
@@ -274,13 +185,13 @@ fn number(value: f32) -> Term {
     Term::Float(value as f64)
 }
 
-fn compound_term(name: impl Into<String>, args: Vec<Term>) -> Term {
+pub(super) fn compound_term(name: impl Into<String>, args: Vec<Term>) -> Term {
     Term::Compound {
         name: name.into(),
         args,
     }
 }
 
-fn provider_error(error: impl std::fmt::Display) -> WamError {
+pub(super) fn provider_error(error: impl std::fmt::Display) -> WamError {
     WamError::Provider(error.to_string())
 }

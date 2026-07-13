@@ -1,7 +1,8 @@
 use zlf_core::EntityRef;
 use zlf_index::{
-    valid_at_oracle, valid_overlaps_oracle, GenerationId, IndexDocumentId, TemporalAccessPath,
-    TemporalRecordId, ValidityRecord, ValidityStore, TEMPORAL_RECORD_SCHEMA_VERSION,
+    valid_at_oracle, valid_overlaps_oracle, GenerationId, IndexDocumentId, IndexPageRequest,
+    TemporalAccessPath, TemporalRecordId, ValidityRecord, ValidityStore,
+    TEMPORAL_RECORD_SCHEMA_VERSION,
 };
 
 #[test]
@@ -37,6 +38,20 @@ fn validity_indexes_match_oracle_choose_endpoints_and_survive_updates_reopen() {
 
         let overlap = store.overlaps(&generation, 9, 21, 10).unwrap();
         assert_eq!(overlap.records, valid_overlaps_oracle(&records, 9, 21));
+        let page = store
+            .overlaps_page(
+                &generation,
+                9,
+                21,
+                IndexPageRequest {
+                    offset: 1,
+                    page_size: 1,
+                    candidate_limit: 3,
+                },
+            )
+            .unwrap();
+        assert_eq!(page.items.len(), 1);
+        assert_eq!(page.next_offset, Some(2));
         assert!(overlap.candidates_scanned <= records.len() as u64);
         assert_eq!(
             ids(&store
@@ -44,6 +59,13 @@ fn validity_indexes_match_oracle_choose_endpoints_and_survive_updates_reopen() {
                 .unwrap()
                 .records),
             ["early", "open", "middle"]
+        );
+        assert_eq!(
+            ids(&store
+                .valid_at_for_entity(&generation, &EntityRef::Node("other".into()), 25, 10,)
+                .unwrap()
+                .records),
+            ["late"]
         );
         assert!(store.overlaps(&generation, 10, 10, 10).is_err());
         assert!(store.valid_at(&generation, 10, 0).is_err());

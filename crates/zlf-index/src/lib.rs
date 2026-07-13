@@ -1,5 +1,7 @@
 pub mod bm25;
+mod bm25_paging;
 mod bm25_support;
+mod bm25_writer;
 pub mod chunking;
 pub mod generation;
 pub mod identity;
@@ -7,14 +9,19 @@ pub mod lexical;
 pub mod manifest;
 pub mod metrics;
 pub mod model;
+mod paging;
 pub mod profile;
 pub mod retrieval;
 pub mod temporal_contract;
 mod temporal_event;
+mod temporal_event_support;
+mod temporal_paging;
 mod temporal_validity;
+mod temporal_validity_entity;
 mod temporal_validity_support;
 pub mod vector_contract;
 mod vector_exact;
+mod vector_exact_support;
 
 pub use bm25::{BM25DocumentHit, BM25Index};
 pub use chunking::{
@@ -38,6 +45,7 @@ pub use model::{
     bge_m3_dense_v1, EmbeddingCapabilities, EmbeddingModelProfile, VectorMetric,
     EMBEDDING_MODEL_PROFILE_SCHEMA_VERSION,
 };
+pub use paging::{ranked_page, IndexPage, IndexPageRequest};
 pub use profile::{
     Bm25FieldOptions, ChunkingProfile, EntityMatcher, FieldIndexOptions, IndexProfileArtifact,
     TemporalRole, VectorFieldOptions, INDEX_PROFILE_SCHEMA_VERSION,

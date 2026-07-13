@@ -2,15 +2,16 @@ use std::path::Path;
 use std::sync::Arc;
 
 use rocksdb::{Direction, IteratorMode, Options, WriteBatch, DB};
-use zlf_core::{Result, ZlfError};
+use zlf_core::{EntityRef, Result, ZlfError};
 
-use crate::{
-    encode_ordered_micros, utc_day_range, validate_half_open_range, EventQueryResult, EventRecord,
-    GenerationId, IndexDocumentId,
+use crate::temporal_event_support::{
+    entity_document_prefix, entity_key, graph_entity_key, graph_entity_prefix,
+    time_generation_prefix, time_key, time_seek_key,
 };
-
-const TIME_PREFIX: &[u8] = b"temporal:v1:event:time:";
-const ENTITY_PREFIX: &[u8] = b"temporal:v1:event:entity:";
+use crate::{
+    utc_day_range, validate_half_open_range, EventQueryResult, EventRecord, GenerationId,
+    IndexDocumentId,
+};
 const SCHEMA_KEY: &[u8] = b"temporal:v1:event:schema";
 const SCHEMA_VALUE: &[u8] = b"1";
 
@@ -47,12 +48,14 @@ impl EventTimeStore {
         for record in deletes {
             batch.delete(time_key(record));
             batch.delete(entity_key(record));
+            batch.delete(graph_entity_key(record));
         }
         for record in upserts {
             record.validate().map_err(ZlfError::Internal)?;
             let value = bincode::serialize(record).map_err(serialization)?;
             batch.put(time_key(record), &value);
             batch.put(entity_key(record), &value);
+            batch.put(graph_entity_key(record), &value);
         }
         self.db.write(batch).map_err(internal)
     }
@@ -142,6 +145,68 @@ impl EventTimeStore {
         self.scan_forward(&prefix, |key| key.starts_with(&prefix), limit)
     }
 
+    pub fn for_entity(
+        &self,
+        generation: &GenerationId,
+        entity: &EntityRef,
+        limit: usize,
+    ) -> Result<EventQueryResult> {
+        validate_limit(generation, limit)?;
+        let prefix = graph_entity_prefix(generation, entity);
+        self.scan_forward(&prefix, |key| key.starts_with(&prefix), limit)
+    }
+
+    pub fn range_for_entity(
+        &self,
+        generation: &GenerationId,
+        entity: &EntityRef,
+        start: i64,
+        end: i64,
+        limit: usize,
+    ) -> Result<EventQueryResult> {
+        validate_query(generation, start, end, limit)?;
+        let prefix = graph_entity_prefix(generation, entity);
+        self.scan_matching(&prefix, limit, |record| {
+            record.at_micros >= start && record.at_micros < end
+        })
+    }
+
+    fn scan_matching(
+        &self,
+        prefix: &[u8],
+        limit: usize,
+        matches: impl Fn(&EventRecord) -> bool,
+    ) -> Result<EventQueryResult> {
+        let mut records = Vec::new();
+        let mut candidates = 0;
+        for item in self
+            .db
+            .iterator(IteratorMode::From(prefix, Direction::Forward))
+        {
+            let (key, value) = item.map_err(internal)?;
+            if !key.starts_with(prefix) {
+                break;
+            }
+            candidates += 1;
+            let record = deserialize(&value)?;
+            if matches(&record) {
+                records.push(record);
+                if records.len() == limit {
+                    break;
+                }
+            }
+        }
+        records.sort_by(|left, right| {
+            left.at_micros
+                .cmp(&right.at_micros)
+                .then_with(|| left.id.cmp(&right.id))
+        });
+        Ok(EventQueryResult {
+            records,
+            candidates_scanned: candidates,
+        })
+    }
+
     fn scan_forward(
         &self,
         start_key: &[u8],
@@ -183,43 +248,6 @@ fn validate_limit(generation: &GenerationId, limit: usize) -> Result<()> {
         ));
     }
     Ok(())
-}
-
-fn time_key(record: &EventRecord) -> Vec<u8> {
-    let prefix = time_generation_prefix(&record.generation);
-    let mut key = time_seek_key(&prefix, record.at_micros);
-    push_part(&mut key, record.id.0.as_bytes());
-    key
-}
-
-fn time_generation_prefix(generation: &GenerationId) -> Vec<u8> {
-    let mut key = TIME_PREFIX.to_vec();
-    push_part(&mut key, generation.0.as_bytes());
-    key
-}
-
-fn time_seek_key(prefix: &[u8], instant: i64) -> Vec<u8> {
-    let mut key = prefix.to_vec();
-    key.extend_from_slice(&encode_ordered_micros(instant));
-    key
-}
-
-fn entity_key(record: &EventRecord) -> Vec<u8> {
-    let mut key = entity_document_prefix(&record.generation, &record.document_id);
-    push_part(&mut key, record.id.0.as_bytes());
-    key
-}
-
-fn entity_document_prefix(generation: &GenerationId, document_id: &IndexDocumentId) -> Vec<u8> {
-    let mut key = ENTITY_PREFIX.to_vec();
-    push_part(&mut key, generation.0.as_bytes());
-    push_part(&mut key, &document_id.canonical_bytes());
-    key
-}
-
-fn push_part(target: &mut Vec<u8>, part: &[u8]) {
-    target.extend_from_slice(&(part.len() as u32).to_be_bytes());
-    target.extend_from_slice(part);
 }
 
 fn deserialize(bytes: &[u8]) -> Result<EventRecord> {
