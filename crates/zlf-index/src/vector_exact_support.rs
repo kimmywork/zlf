@@ -13,6 +13,7 @@ pub(crate) struct DocumentFilters<'a> {
 pub(crate) fn matches_filters(
     record: &VectorRecord,
     filters: DocumentFilters<'_>,
+    fields: &[String],
     metadata: &BTreeMap<String, String>,
 ) -> bool {
     (filters.includes.is_empty() || filters.includes.contains(&record.key.document_id))
@@ -24,6 +25,7 @@ pub(crate) fn matches_filters(
         && !filters
             .exclude_entities
             .contains(&record.key.document_id.entity)
+        && (fields.is_empty() || fields.contains(&record.key.document_id.field))
         && metadata
             .iter()
             .all(|(key, value)| record.metadata.get(key) == Some(value))

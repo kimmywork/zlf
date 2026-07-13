@@ -100,6 +100,7 @@ impl<'a> ExactVectorProvider<'a> {
                 .map(|target| vec![EntityRef::Node(target.into())])
                 .unwrap_or_default(),
             exclude_entities: Vec::new(),
+            fields: Vec::new(),
             metadata: BTreeMap::new(),
         };
         for hit in self

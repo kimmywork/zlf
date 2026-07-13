@@ -5,6 +5,20 @@ use zlf_prolog::wam::{
 };
 use zlf_storage::Storage;
 
+use crate::ZlfDatabase;
+
+impl ZlfDatabase {
+    pub fn get_rules(&self) -> Result<Vec<zlf_prolog::PrologRule>> {
+        Ok(self
+            .rules
+            .read()
+            .map_err(|error| ZlfError::Internal(error.to_string()))?
+            .iter()
+            .map(|artifact| artifact.source.clone())
+            .collect())
+    }
+}
+
 /// Populate a PredicateRegistry by scanning storage for labels, edge types,
 /// and property keys, and registering builtin and index predicates.
 #[allow(clippy::too_many_lines)]

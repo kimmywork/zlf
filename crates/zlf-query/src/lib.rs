@@ -33,7 +33,10 @@ mod mutation;
 mod profile_store;
 mod proof;
 mod registry;
+mod retrieval_candidates;
+mod retrieval_execution;
 mod retrieval_preparation;
+mod retrieval_provider;
 mod table;
 mod temporal_manifest_store;
 mod temporal_projection;
@@ -58,6 +61,7 @@ pub use index_wait::wait_for_indexes;
 pub use manifest_store::IndexManifestStore;
 pub use model_profile_store::EmbeddingModelProfileStore;
 pub use profile_store::IndexProfileStore;
+pub use retrieval_execution::{RetrievalExecutionMetadata, RetrievalExecutionResult};
 pub use retrieval_preparation::{
     PreparedIndexSnapshot, PreparedRetrieval, PreparedRetrievalHandle, RetrievalPreparationError,
 };
@@ -198,16 +202,6 @@ impl ZlfDatabase {
         self.refresh_registry()
     }
 
-    pub fn get_rules(&self) -> Result<Vec<PrologRule>> {
-        Ok(self
-            .rules
-            .read()
-            .map_err(|e| ZlfError::Internal(e.to_string()))?
-            .iter()
-            .map(|artifact| artifact.source.clone())
-            .collect())
-    }
-
     pub fn add_node(&self, node: Node) -> Result<Node> {
         let created = self.storage.create_node(node)?;
         self.catch_up_indexes()?;
@@ -233,6 +227,7 @@ impl ZlfDatabase {
     #[allow(clippy::too_many_lines)]
     fn execute_terms(&self, terms: &[Term]) -> Result<Vec<serde_json::Value>> {
         let storage_provider = StorageFactProvider::new(self.storage.as_ref());
+        let retrieval_provider = retrieval_provider::PreparedRetrievalProvider::new(self);
         let bm25 = self.bm25.read().map_err(lock_error)?.clone();
         let index_provider = IndexFactProvider::new()
             .with_bm25(bm25.as_ref())
@@ -254,6 +249,7 @@ impl ZlfDatabase {
         let provider = CompositeFactProvider::new()
             .with(&storage_provider)
             .with(&index_provider)
+            .with(&retrieval_provider)
             .with(&introspection)
             .with(&graph_view)
             .with(&graph_algo);

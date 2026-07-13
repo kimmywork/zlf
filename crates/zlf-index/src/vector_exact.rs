@@ -191,7 +191,7 @@ fn consider_record(
     profile: &EmbeddingModelProfile,
     filters: DocumentFilters<'_>,
 ) -> Result<()> {
-    if !matches_filters(&record, filters, &query.metadata) {
+    if !matches_filters(&record, filters, &query.fields, &query.metadata) {
         return Ok(());
     }
     let score = similarity(&query.values, &record.values, profile.metric)?;

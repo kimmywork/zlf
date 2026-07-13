@@ -77,6 +77,10 @@ pub fn graph_algorithm_predicates() -> Vec<PredicateKey> {
 pub fn index_predicates() -> Vec<PredicateKey> {
     vec![
         PredicateKey {
+            name: "retrieve".into(),
+            arity: 4,
+        },
+        PredicateKey {
             name: "bm25".into(),
             arity: 3,
         },

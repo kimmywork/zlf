@@ -18,6 +18,17 @@ fn explain_distinguishes_event_and_validity_index_paths() {
 }
 
 #[test]
+fn explain_identifies_prepared_hybrid_retrieval() {
+    let temp = tempfile::tempdir().unwrap();
+    let db = ZlfDatabase::open(temp.path()).unwrap();
+    let plan = db
+        .explain_prolog("? retrieve(\"prepared-retrieval-1\", {}, Entity, Hit).")
+        .unwrap();
+    assert_eq!(plan.goals[0].access, AccessPath::HybridRetrieval);
+    assert!(plan.goals[0].pushed_down);
+}
+
+#[test]
 fn explain_exposes_bound_storage_pushdown_across_goals() {
     let dir = tempfile::tempdir().unwrap();
     let db = ZlfDatabase::open(dir.path()).unwrap();

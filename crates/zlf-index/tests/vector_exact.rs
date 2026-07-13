@@ -142,6 +142,7 @@ fn query() -> VectorQuery {
         exclude_sources: Vec::new(),
         include_entities: Vec::new(),
         exclude_entities: Vec::new(),
+        fields: Vec::new(),
         metadata: BTreeMap::new(),
     }
 }

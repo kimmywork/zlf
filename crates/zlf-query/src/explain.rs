@@ -29,6 +29,7 @@ pub enum AccessPath {
     EdgeTypeScan,
     TemporalEventRange,
     ValidityInterval,
+    HybridRetrieval,
     ExternalIndex,
 }
 
@@ -95,6 +96,7 @@ fn access_path(
         ("edge", [_, ArgumentMode::Bound, ArgumentMode::Bound]) => AccessPath::IncomingEdges,
         ("temporal_on" | "temporal_between", _) => AccessPath::TemporalEventRange,
         ("valid_at" | "valid_overlaps", _) => AccessPath::ValidityInterval,
+        ("retrieve", _) => AccessPath::HybridRetrieval,
         _ => shortcut_access(modes, kind),
     }
 }

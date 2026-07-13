@@ -83,6 +83,7 @@ pub struct VectorQuery {
     pub exclude_sources: Vec<IndexDocumentId>,
     pub include_entities: Vec<zlf_core::EntityRef>,
     pub exclude_entities: Vec<zlf_core::EntityRef>,
+    pub fields: Vec<String>,
     pub metadata: BTreeMap<String, String>,
 }
 
