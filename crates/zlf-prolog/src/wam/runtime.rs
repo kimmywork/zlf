@@ -103,6 +103,14 @@ impl WamRuntime {
         self.query_all_with_provider_and_optional_storage(query, provider, Some(storage))
     }
 
+    pub fn query_all_with_provider_with_proof(
+        &self,
+        query: &Term,
+        provider: &dyn FactProvider,
+    ) -> WamResult<Vec<ProofAnswer>> {
+        self.query_all_with_facts_and_proof(query, self.facts.clone(), Some(provider), None)
+    }
+
     pub fn query_all_with_provider_and_storage_with_proof(
         &self,
         query: &Term,

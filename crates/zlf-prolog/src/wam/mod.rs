@@ -91,6 +91,8 @@ pub mod graph_algorithm_provider;
 mod graph_algorithm_terms;
 #[path = "providers/graph_view.rs"]
 pub mod graph_view_provider;
+#[path = "providers/index_limits.rs"]
+mod index_limits;
 #[path = "providers/index.rs"]
 pub mod index_provider;
 #[path = "providers/index_vector.rs"]
@@ -147,6 +149,7 @@ pub use fact_provider::{FactProvider, StaticFactProvider};
 pub use graph_algorithm_provider::GraphAlgorithmProvider;
 pub use graph_view_provider::GraphViewProvider;
 pub use heap::Heap;
+pub use index_limits::{IndexAnswerLimits, IndexAnswerMetrics};
 pub use index_provider::IndexFactProvider;
 pub use instruction::Instruction;
 pub use introspection_provider::IntrospectionProvider;

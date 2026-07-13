@@ -27,20 +27,28 @@ impl<'a> ExactVectorProvider<'a> {
         }
     }
 
-    pub(super) fn source_facts(&self, source: &str) -> WamResult<Vec<Term>> {
-        Ok(self
-            .source_scores(source)?
-            .into_iter()
-            .map(|(node, score)| {
-                compound_term(
-                    "vector_similar",
-                    vec![atom(source), atom(node), number(score)],
-                )
-            })
-            .collect())
+    pub(super) fn source_facts(
+        &self,
+        source: &str,
+        candidate_limit: usize,
+    ) -> WamResult<(Vec<Term>, bool)> {
+        let scores = self.source_scores(source, candidate_limit)?;
+        let exhausted = scores.len() == candidate_limit;
+        Ok((
+            scores
+                .into_iter()
+                .map(|(node, score)| {
+                    compound_term(
+                        "vector_similar",
+                        vec![atom(source), atom(node), number(score)],
+                    )
+                })
+                .collect(),
+            exhausted,
+        ))
     }
 
-    fn source_scores(&self, source: &str) -> WamResult<Vec<(String, f32)>> {
+    fn source_scores(&self, source: &str, candidate_limit: usize) -> WamResult<Vec<(String, f32)>> {
         let records = self
             .store
             .records_for_entity(
@@ -52,7 +60,8 @@ impl<'a> ExactVectorProvider<'a> {
             .map_err(provider_error)?;
         let mut scores = BTreeMap::<String, f32>::new();
         for record in records {
-            self.merge_record_scores(source, record.values, &mut scores)?;
+            self.merge_record_scores(source, record.values, candidate_limit, &mut scores)?;
+            trim_scores(&mut scores, candidate_limit);
         }
         let mut scores = scores.into_iter().collect::<Vec<_>>();
         scores.sort_by(|left, right| {
@@ -68,6 +77,7 @@ impl<'a> ExactVectorProvider<'a> {
         &self,
         source: &str,
         values: Vec<f32>,
+        candidate_limit: usize,
         scores: &mut BTreeMap<String, f32>,
     ) -> WamResult<()> {
         let query = VectorQuery {
@@ -75,7 +85,7 @@ impl<'a> ExactVectorProvider<'a> {
             model_profile: self.profile.id.clone(),
             model_version: self.profile.version,
             values,
-            top_k: 100,
+            top_k: candidate_limit,
             threshold: Some(0.0),
             include_sources: Vec::new(),
             exclude_sources: Vec::new(),
@@ -96,6 +106,28 @@ impl<'a> ExactVectorProvider<'a> {
         }
         Ok(())
     }
+}
+
+fn trim_scores(scores: &mut BTreeMap<String, f32>, limit: usize) {
+    if scores.len() <= limit {
+        return;
+    }
+    let mut ranked = scores
+        .iter()
+        .map(|(node, score)| (node.clone(), *score))
+        .collect::<Vec<_>>();
+    ranked.sort_by(|left, right| {
+        right
+            .1
+            .total_cmp(&left.1)
+            .then_with(|| left.0.cmp(&right.0))
+    });
+    let retained = ranked
+        .into_iter()
+        .take(limit)
+        .map(|(node, _)| node)
+        .collect::<std::collections::BTreeSet<_>>();
+    scores.retain(|node, _| retained.contains(node));
 }
 
 fn atom(value: impl Into<String>) -> Term {
