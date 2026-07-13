@@ -1,6 +1,7 @@
 mod backend;
 mod delta;
 mod evaluator;
+mod external_table;
 mod fixpoint;
 mod key;
 mod manager;

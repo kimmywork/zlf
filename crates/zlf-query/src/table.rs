@@ -27,6 +27,13 @@ impl ZlfDatabase {
         Ok(())
     }
 
+    pub(super) fn invalidate_retrieval_tables(&self) -> Result<()> {
+        self.invalidate_predicates(&[zlf_prolog::wam::PredicateKey {
+            name: "retrieve".into(),
+            arity: 4,
+        }])
+    }
+
     pub(super) fn invalidate_fact(&self, fact: &Term) -> Result<()> {
         if let Some(key) = zlf_prolog::wam::term_to_fact_key(fact) {
             self.table_manager

@@ -26,6 +26,11 @@ pub(crate) fn evaluate_tabled(
     if let Some(rows) = cached_rows(runtime, &key, &variables)? {
         return Ok(rows);
     }
+    if predicate_key(query).is_some_and(|key| key.name == "retrieve" && key.arity == 4) {
+        return super::external_table::evaluate_prepared_retrieval(
+            runtime, query, provider, key, variables,
+        );
+    }
     begin_table(runtime, key.clone())?;
     let mut dependencies = table_dependencies(runtime, query)?;
     let tracing_provider = DependencyProvider::new(provider);
@@ -141,7 +146,7 @@ fn nested_table_facts(
     Ok(facts)
 }
 
-fn answer_runtime(runtime: &WamRuntime, table_facts: Vec<Term>) -> WamRuntime {
+pub(super) fn answer_runtime(runtime: &WamRuntime, table_facts: Vec<Term>) -> WamRuntime {
     let mut evaluator = WamRuntime::new(runtime.register_count);
     for fact in runtime.facts.iter().cloned().chain(table_facts) {
         evaluator.add_fact(fact);
@@ -229,11 +234,11 @@ fn initial_tabled_facts(runtime: &WamRuntime, provider: &dyn FactProvider) -> Wa
     Ok(facts)
 }
 
-fn begin_table(runtime: &WamRuntime, key: TableKey) -> WamResult<()> {
+pub(super) fn begin_table(runtime: &WamRuntime, key: TableKey) -> WamResult<()> {
     runtime.table_manager.begin(key)
 }
 
-fn store_answers(
+pub(super) fn store_answers(
     runtime: &WamRuntime,
     key: &TableKey,
     variables: &[String],

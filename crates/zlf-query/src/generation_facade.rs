@@ -20,7 +20,7 @@ impl ZlfDatabase {
         detail: Option<&str>,
     ) -> Result<Option<u64>> {
         let manager = GenerationManager::new(&self.storage);
-        match action {
+        let result = match action {
             "start" => manager.start_build(target, id).map(|_| None),
             "checkpoint" => manager
                 .checkpoint(target, id, checkpoint.unwrap_or_default())
@@ -40,7 +40,11 @@ impl ZlfDatabase {
             "activate" => manager.activate(target, id).map(Some),
             "rollback" => manager.rollback(target, id).map(Some),
             _ => Err(ZlfError::Internal("unknown generation action".into())),
+        }?;
+        if matches!(action, "activate" | "rollback") {
+            self.invalidate_retrieval_tables()?;
         }
+        Ok(result)
     }
 
     pub fn index_status(&self, target: &str) -> Result<IndexStatus> {

@@ -84,7 +84,7 @@ impl ZlfDatabase {
             self.vector_generation.clone(),
             self.vector_model.clone(),
         )?;
-        DurableEmbeddingWorker::new(
+        let published = DurableEmbeddingWorker::new(
             &self.storage,
             self.vector.as_ref().clone(),
             provider,
@@ -92,7 +92,11 @@ impl ZlfDatabase {
             target.manifest_scope(),
         )?
         .run_batch(now)
-        .await
+        .await?;
+        if published > 0 {
+            self.invalidate_retrieval_tables()?;
+        }
+        Ok(published)
     }
 
     pub async fn embed_query_text<P: BatchEmbeddingProvider>(
@@ -137,7 +141,8 @@ impl ZlfDatabase {
     pub(crate) fn catch_up_indexes(&self) -> Result<()> {
         self.catch_up_bm25()?;
         self.catch_up_vector()?;
-        self.catch_up_temporal()
+        self.catch_up_temporal()?;
+        self.invalidate_retrieval_tables()
     }
 }
 

@@ -28,6 +28,7 @@ impl ZlfDatabase {
     #[allow(clippy::too_many_lines)]
     fn execute_terms_with_proof(&self, terms: &[Term]) -> Result<Vec<ProofAnswer>> {
         let storage_provider = StorageFactProvider::new(self.storage.as_ref());
+        let retrieval_provider = crate::retrieval_provider::PreparedRetrievalProvider::new(self);
         let bm25 = self.bm25.read().map_err(lock_error)?.clone();
         let index_provider = IndexFactProvider::new()
             .with_bm25(bm25.as_ref())
@@ -49,6 +50,7 @@ impl ZlfDatabase {
         let provider = CompositeFactProvider::new()
             .with(&storage_provider)
             .with(&index_provider)
+            .with(&retrieval_provider)
             .with(&introspection)
             .with(&graph_view)
             .with(&graph_algo);

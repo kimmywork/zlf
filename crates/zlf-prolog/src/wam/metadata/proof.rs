@@ -14,6 +14,7 @@ pub enum ProofKind {
     Fact,
     Rule,
     Builtin,
+    Index,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -132,12 +133,20 @@ impl ProofState {
 }
 
 pub(crate) fn fact_clause(term: &Term) -> Option<ProofClause> {
+    let predicate = predicate_key(term)?;
+    if predicate.name == "retrieve" && predicate.arity == 4 {
+        return Some(ProofClause {
+            id: stable_id("index:retrieve", term),
+            predicate,
+            kind: ProofKind::Index,
+        });
+    }
     let id = term_to_fact_key(term)
         .map(|key| stable_id("fact", &key))
         .unwrap_or_else(|| stable_id("fact", term));
     Some(ProofClause {
         id,
-        predicate: predicate_key(term)?,
+        predicate,
         kind: ProofKind::Fact,
     })
 }

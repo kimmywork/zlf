@@ -94,6 +94,18 @@ async fn incompatible_generation_and_provider_failure_are_typed_before_wam() {
     ));
     assert_eq!(provider.calls.load(Ordering::SeqCst), 0);
 
+    let mut watermark = request(RetrievalMode::Lexical);
+    watermark.minimum_watermarks.insert("bm25".into(), 999);
+    watermark.wait_timeout_ms = 10;
+    assert!(matches!(
+        db.prepare_retrieval(&provider, watermark).await,
+        Err(RetrievalPreparationError::WatermarkTimeout {
+            target,
+            minimum: 999,
+            ..
+        }) if target == "bm25"
+    ));
+
     let failure = FailingProvider;
     assert!(matches!(
         db.prepare_retrieval(&failure, request(RetrievalMode::Hybrid))
@@ -127,6 +139,8 @@ fn request(mode: RetrievalMode) -> RetrievalRequest {
             "0",
         )),
         graph_filter_goal: None,
+        minimum_watermarks: std::collections::BTreeMap::new(),
+        wait_timeout_ms: 1_000,
         aggregation: ResultAggregation::Document,
         explain: false,
     }

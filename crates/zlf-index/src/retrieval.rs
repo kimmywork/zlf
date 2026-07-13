@@ -92,6 +92,8 @@ pub struct RetrievalRequest {
     pub temporal_filter: Option<TemporalFilter>,
     pub exclude_source: Option<IndexDocumentId>,
     pub graph_filter_goal: Option<String>,
+    pub minimum_watermarks: BTreeMap<String, u64>,
+    pub wait_timeout_ms: u64,
     pub aggregation: ResultAggregation,
     pub explain: bool,
 }
@@ -102,6 +104,16 @@ impl RetrievalRequest {
             return Err("top_k must be positive".into());
         }
         self.budgets.validate(self.top_k)?;
+        if self.wait_timeout_ms == 0 || self.wait_timeout_ms > 300_000 {
+            return Err("wait_timeout_ms must be between 1 and 300000".into());
+        }
+        if self
+            .minimum_watermarks
+            .keys()
+            .any(|target| !matches!(target.as_str(), "bm25" | "vector" | "temporal"))
+        {
+            return Err("minimum watermarks contain an unknown target".into());
+        }
         if self.threshold.is_some_and(|value| !value.is_finite()) {
             return Err("threshold must be finite".into());
         }

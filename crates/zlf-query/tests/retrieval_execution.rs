@@ -61,6 +61,15 @@ async fn prepared_hybrid_execution_fuses_pages_and_applies_temporal_and_graph_fi
         .unwrap();
     assert_eq!(bound.len(), 1);
     assert_eq!(bound[0]["Hit"]["strategy"], "bound_entity");
+    let proof = db
+        .query_prolog_with_proof(&format!("? retrieve(\"{}\", {{}}, bob, Hit).", handle.0))
+        .unwrap();
+    assert!(proof[0]
+        .proof
+        .nodes
+        .iter()
+        .any(|node| node.clause.kind == zlf_prolog::wam::ProofKind::Index
+            && node.clause.id.starts_with("index:retrieve:")));
 
     for mode in [RetrievalMode::Lexical, RetrievalMode::Vector] {
         let mut single = request();
@@ -87,6 +96,24 @@ async fn prepared_hybrid_execution_fuses_pages_and_applies_temporal_and_graph_fi
             mode == RetrievalMode::Vector
         );
     }
+
+    db.query_prolog(":- table retrieve/4.").unwrap();
+    db.query_prolog(&format!("? retrieve(\"{}\", {{}}, Entity, Hit).", handle.0))
+        .unwrap();
+    let hot_hits = db.table_metrics().hot_hits;
+    db.query_prolog(&format!("? retrieve(\"{}\", {{}}, Entity, Hit).", handle.0))
+        .unwrap();
+    assert!(db.table_metrics().hot_hits > hot_hits);
+    let error = db
+        .query_prolog("? retrieve(Handle, {}, Entity, Hit).")
+        .unwrap_err();
+    assert!(error
+        .to_string()
+        .contains("bound prepared handle and options"));
+    let invalidations = db.table_metrics().stale_invalidations;
+    db.add_node(node("new", "engineering", "2026-03-01", true))
+        .unwrap();
+    assert!(db.table_metrics().stale_invalidations > invalidations);
 }
 
 fn request() -> RetrievalRequest {
@@ -113,6 +140,8 @@ fn request() -> RetrievalRequest {
         }),
         exclude_source: None,
         graph_filter_goal: Some("label(Entity, allowed)".into()),
+        minimum_watermarks: BTreeMap::new(),
+        wait_timeout_ms: 1_000,
         aggregation: ResultAggregation::Document,
         explain: true,
     }

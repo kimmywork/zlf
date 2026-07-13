@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use zlf_core::EntityRef;
 use zlf_index::{
     ranked_page, reciprocal_rank_fusion, GenerationId, IndexDocumentId, IndexPageRequest,
@@ -102,6 +104,8 @@ fn request_contract_rejects_unbounded_and_incompatible_shapes() {
         }),
         exclude_source: None,
         graph_filter_goal: Some("allowed(User, Entity)".into()),
+        minimum_watermarks: BTreeMap::new(),
+        wait_timeout_ms: 1_000,
         aggregation: ResultAggregation::Document,
         explain: true,
     };

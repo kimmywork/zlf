@@ -51,6 +51,12 @@ pub enum RetrievalPreparationError {
     Embedding(String),
     #[error("query vector is incompatible with the active model: {0}")]
     InvalidVector(String),
+    #[error("minimum watermark {minimum} was not reached for {target}; published {published}")]
+    WatermarkTimeout {
+        target: String,
+        minimum: u64,
+        published: u64,
+    },
     #[error("retrieval snapshot preparation failed: {0}")]
     Snapshot(String),
 }
@@ -112,6 +118,7 @@ impl ZlfDatabase {
         request: RetrievalRequest,
     ) -> Result<PreparedRetrievalHandle, RetrievalPreparationError> {
         request.validate()?;
+        self.wait_for_retrieval_watermarks(&request)?;
         let snapshot = self.retrieval_snapshot()?;
         validate_requested_generations(&request, &snapshot)?;
         let query_vector = self.prepare_query_vector(provider, &request).await?;
@@ -166,6 +173,34 @@ impl ZlfDatabase {
             }
             RetrievalQuery::SourceDocument { .. } | RetrievalQuery::Prepared { .. } => Ok(None),
         }
+    }
+
+    fn wait_for_retrieval_watermarks(
+        &self,
+        request: &RetrievalRequest,
+    ) -> Result<(), RetrievalPreparationError> {
+        let timeout = std::time::Duration::from_millis(request.wait_timeout_ms);
+        for (target, minimum) in &request.minimum_watermarks {
+            let result = crate::wait_for_indexes(
+                &self.storage,
+                std::slice::from_ref(target),
+                *minimum,
+                timeout,
+            )
+            .map_err(|error| RetrievalPreparationError::Snapshot(error.to_string()))?;
+            if !result.reached {
+                let published = IndexCoordinator::new(&self.storage, CoordinatorConfig::default())
+                    .progress(target)
+                    .map(|progress| progress.published_watermark)
+                    .unwrap_or_default();
+                return Err(RetrievalPreparationError::WatermarkTimeout {
+                    target: target.clone(),
+                    minimum: *minimum,
+                    published,
+                });
+            }
+        }
+        Ok(())
     }
 
     fn retrieval_snapshot(&self) -> Result<PreparedIndexSnapshot, RetrievalPreparationError> {
