@@ -57,7 +57,7 @@ pub use temporal_contract::{
 pub use temporal_event::EventTimeStore;
 pub use temporal_validity::ValidityStore;
 pub use vector_contract::{
-    EmbeddingJob, EmbeddingJobState, VectorHit, VectorKey, VectorQuery, VectorRecord,
-    EMBEDDING_JOB_SCHEMA_VERSION, VECTOR_RECORD_SCHEMA_VERSION,
+    validate_query_vector, EmbeddingJob, EmbeddingJobState, VectorHit, VectorKey, VectorQuery,
+    VectorRecord, EMBEDDING_JOB_SCHEMA_VERSION, VECTOR_RECORD_SCHEMA_VERSION,
 };
 pub use vector_exact::ExactVectorStore;

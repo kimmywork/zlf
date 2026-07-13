@@ -7,8 +7,8 @@ use rocksdb::{IteratorMode, Options, WriteBatch, DB};
 use zlf_core::{Result, ZlfError};
 
 use crate::{
-    EmbeddingModelProfile, IndexDocumentId, VectorHit, VectorKey, VectorMetric, VectorQuery,
-    VectorRecord,
+    validate_query_vector, EmbeddingModelProfile, IndexDocumentId, VectorHit, VectorKey,
+    VectorMetric, VectorQuery, VectorRecord,
 };
 
 const PREFIX: &[u8] = b"vector:exact:v1:";
@@ -188,22 +188,7 @@ fn matches_filters(
 }
 
 fn validate_query_values(values: &[f32], profile: &EmbeddingModelProfile) -> Result<()> {
-    let norm = values
-        .iter()
-        .map(|value| f64::from(*value).powi(2))
-        .sum::<f64>()
-        .sqrt();
-    if profile.metric == VectorMetric::Cosine && norm == 0.0 {
-        return Err(ZlfError::Internal(
-            "cosine query vector must be nonzero".into(),
-        ));
-    }
-    if profile.normalize && (norm - 1.0).abs() > 1e-4 {
-        return Err(ZlfError::Internal(
-            "query vector does not satisfy normalization policy".into(),
-        ));
-    }
-    Ok(())
+    validate_query_vector(values, profile).map_err(ZlfError::Internal)
 }
 
 fn similarity(query: &[f32], vector: &[f32], metric: VectorMetric) -> Result<f32> {

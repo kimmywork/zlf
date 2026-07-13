@@ -33,6 +33,7 @@ mod mutation;
 mod profile_store;
 mod proof;
 mod registry;
+mod retrieval_preparation;
 mod table;
 mod temporal_manifest_store;
 mod temporal_projection;
@@ -57,6 +58,9 @@ pub use index_wait::wait_for_indexes;
 pub use manifest_store::IndexManifestStore;
 pub use model_profile_store::EmbeddingModelProfileStore;
 pub use profile_store::IndexProfileStore;
+pub use retrieval_preparation::{
+    PreparedIndexSnapshot, PreparedRetrieval, PreparedRetrievalHandle, RetrievalPreparationError,
+};
 pub use temporal_target::TemporalIndexTarget;
 pub use vector_embedding_target::VectorEmbeddingTarget;
 
@@ -79,6 +83,7 @@ pub struct ZlfDatabase {
     registry: RwLock<PredicateRegistry>,
     tabled: RwLock<HashSet<zlf_prolog::wam::PredicateKey>>,
     table_manager: Arc<TableManager>,
+    prepared_retrievals: retrieval_preparation::PreparedRetrievalRegistry,
 }
 
 impl ZlfDatabase {
@@ -148,6 +153,7 @@ impl ZlfDatabase {
             registry: RwLock::new(pred_registry),
             tabled: RwLock::new(tabled),
             table_manager,
+            prepared_retrievals: retrieval_preparation::PreparedRetrievalRegistry::new(),
         };
         database.catch_up_indexes()?;
         Ok(database)
@@ -190,10 +196,6 @@ impl ZlfDatabase {
             .push(artifact);
         self.invalidate_predicates(&[predicate])?;
         self.refresh_registry()
-    }
-
-    pub fn table_metrics(&self) -> zlf_prolog::wam::TableMetricsSnapshot {
-        self.table_manager.metrics()
     }
 
     pub fn get_rules(&self) -> Result<Vec<PrologRule>> {

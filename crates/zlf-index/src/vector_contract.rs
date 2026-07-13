@@ -89,14 +89,33 @@ impl VectorQuery {
         if self.top_k == 0
             || self.model_profile != profile.id
             || self.model_version != profile.version
-            || self.values.len() != profile.dimension
-            || self.values.iter().any(|value| !value.is_finite())
             || self.threshold.is_some_and(|value| !value.is_finite())
         {
             return Err("invalid vector query".into());
         }
-        Ok(())
+        validate_query_vector(&self.values, profile)
     }
+}
+
+pub fn validate_query_vector(
+    values: &[f32],
+    profile: &EmbeddingModelProfile,
+) -> Result<(), String> {
+    if values.len() != profile.dimension || values.iter().any(|value| !value.is_finite()) {
+        return Err("query vector is incompatible with model profile".into());
+    }
+    let norm = values
+        .iter()
+        .map(|value| f64::from(*value).powi(2))
+        .sum::<f64>()
+        .sqrt();
+    if profile.metric == VectorMetric::Cosine && norm == 0.0 {
+        return Err("cosine query vector must be nonzero".into());
+    }
+    if profile.normalize && (norm - 1.0).abs() > 1e-4 {
+        return Err("query vector does not satisfy normalization policy".into());
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

@@ -4,6 +4,10 @@ use zlf_prolog::Term;
 use super::{lock_error, ZlfDatabase};
 
 impl ZlfDatabase {
+    pub fn table_metrics(&self) -> zlf_prolog::wam::TableMetricsSnapshot {
+        self.table_manager.metrics()
+    }
+
     pub(super) fn refresh_after_mutation(&self, terms: &[Term]) -> Result<()> {
         self.reload_rules()?;
         self.refresh_registry()?;
