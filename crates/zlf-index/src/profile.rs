@@ -102,7 +102,7 @@ impl IndexProfileArtifact {
         for (field, options) in &self.fields {
             validate_field(field, options)?;
         }
-        Ok(())
+        validate_temporal_fields(&self.fields)
     }
 
     pub fn computed_source_hash(&self) -> String {
@@ -123,6 +123,21 @@ impl IndexProfileArtifact {
     pub fn refresh_source_hash(&mut self) {
         self.source_hash = self.computed_source_hash();
     }
+}
+
+fn validate_temporal_fields(fields: &BTreeMap<String, FieldIndexOptions>) -> Result<(), String> {
+    let from_count = fields
+        .values()
+        .filter(|options| options.temporal == Some(TemporalRole::ValidFrom))
+        .count();
+    let to_count = fields
+        .values()
+        .filter(|options| options.temporal == Some(TemporalRole::ValidTo))
+        .count();
+    if from_count > 1 || to_count > 1 || (to_count == 1 && from_count == 0) {
+        return Err("validity profile requires at most one from/to pair".into());
+    }
+    Ok(())
 }
 
 fn validate_field(field: &str, options: &FieldIndexOptions) -> Result<(), String> {

@@ -92,5 +92,13 @@ pub fn index_predicates() -> Vec<PredicateKey> {
             name: "temporal_between".into(),
             arity: 3,
         },
+        PredicateKey {
+            name: "valid_at".into(),
+            arity: 2,
+        },
+        PredicateKey {
+            name: "valid_overlaps".into(),
+            arity: 3,
+        },
     ]
 }

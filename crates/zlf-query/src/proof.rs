@@ -25,6 +25,7 @@ impl ZlfDatabase {
         }
     }
 
+    #[allow(clippy::too_many_lines)]
     fn execute_terms_with_proof(&self, terms: &[Term]) -> Result<Vec<ProofAnswer>> {
         let storage_provider = StorageFactProvider::new(self.storage.as_ref());
         let bm25 = self.bm25.read().map_err(lock_error)?.clone();
@@ -35,7 +36,11 @@ impl ZlfDatabase {
                 &self.vector_model,
                 &self.vector_generation,
             )
-            .with_temporal(self.temporal.as_ref());
+            .with_temporal(
+                self.events.as_ref(),
+                self.validities.as_ref(),
+                &self.temporal_generation,
+            );
         let registry = self.registry.read().map_err(lock_error)?.clone();
         let rules = self.rules.read().map_err(lock_error)?.clone();
         let introspection = IntrospectionProvider::new(registry, &rules);

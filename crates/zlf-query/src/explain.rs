@@ -27,6 +27,8 @@ pub enum AccessPath {
     OutgoingEdges,
     IncomingEdges,
     EdgeTypeScan,
+    TemporalEventRange,
+    ValidityInterval,
     ExternalIndex,
 }
 
@@ -91,6 +93,8 @@ fn access_path(
         }
         ("edge", [ArgumentMode::Bound, ArgumentMode::Bound, _]) => AccessPath::OutgoingEdges,
         ("edge", [_, ArgumentMode::Bound, ArgumentMode::Bound]) => AccessPath::IncomingEdges,
+        ("temporal_on" | "temporal_between", _) => AccessPath::TemporalEventRange,
+        ("valid_at" | "valid_overlaps", _) => AccessPath::ValidityInterval,
         _ => shortcut_access(modes, kind),
     }
 }

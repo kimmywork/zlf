@@ -4,7 +4,7 @@ use std::sync::{Arc, RwLock};
 
 use zlf_core::{Edge, Node, Result, ZlfError};
 use zlf_index::{
-    BM25Index, EmbeddingModelProfile, ExactVectorStore, GenerationId, TemporalEntry, TemporalIndex,
+    BM25Index, EmbeddingModelProfile, EventTimeStore, ExactVectorStore, GenerationId, ValidityStore,
 };
 use zlf_prolog::wam::{
     CompiledRuleArtifact, CompositeFactProvider, GraphAlgorithmProvider, GraphViewProvider,
@@ -34,6 +34,10 @@ mod profile_store;
 mod proof;
 mod registry;
 mod table;
+mod temporal_manifest_store;
+mod temporal_projection;
+mod temporal_runtime;
+mod temporal_target;
 mod vector_embedding_target;
 mod vector_runtime;
 
@@ -53,6 +57,7 @@ pub use index_wait::wait_for_indexes;
 pub use manifest_store::IndexManifestStore;
 pub use model_profile_store::EmbeddingModelProfileStore;
 pub use profile_store::IndexProfileStore;
+pub use temporal_target::TemporalIndexTarget;
 pub use vector_embedding_target::VectorEmbeddingTarget;
 
 use helpers::lock_error;
@@ -61,7 +66,9 @@ use zlf_storage::Storage;
 
 pub struct ZlfDatabase {
     storage: Arc<Storage>,
-    temporal: Arc<TemporalIndex>,
+    events: Arc<EventTimeStore>,
+    validities: Arc<ValidityStore>,
+    temporal_generation: GenerationId,
     bm25: RwLock<Arc<BM25Index>>,
     bm25_root: PathBuf,
     bm25_generation: RwLock<GenerationId>,
@@ -81,13 +88,14 @@ impl ZlfDatabase {
         let bm25_root = path.join("bm25");
         let (bm25, generation) = bm25_runtime::open_active_generation(&storage, &bm25_root)?;
         let vector = vector_runtime::open_active_generation(&storage, &path.join("vector"))?;
+        let temporal = temporal_runtime::open_active_generation(&storage, &path.join("temporal"))?;
         Self::from_parts(
             Arc::clone(&storage),
-            TemporalIndex::open(path.join("temporal"))?,
             bm25,
             bm25_root,
             generation,
             vector,
+            temporal,
         )
     }
 
@@ -97,23 +105,24 @@ impl ZlfDatabase {
         let bm25_root = path.join("bm25");
         let (bm25, generation) = bm25_runtime::open_active_generation(&storage, &bm25_root)?;
         let vector = vector_runtime::open_active_generation(&storage, &path.join("vector"))?;
+        let temporal = temporal_runtime::open_active_generation(&storage, &path.join("temporal"))?;
         Self::from_parts(
             Arc::clone(&storage),
-            TemporalIndex::open(path.join("temporal"))?,
             bm25,
             bm25_root,
             generation,
             vector,
+            temporal,
         )
     }
 
     fn from_parts(
         storage: Arc<Storage>,
-        temporal: TemporalIndex,
         bm25: BM25Index,
         bm25_root: PathBuf,
         bm25_generation: GenerationId,
         vector: vector_runtime::VectorRuntimeParts,
+        temporal: temporal_runtime::TemporalRuntimeParts,
     ) -> Result<Self> {
         let rules = StorageRuleStore::new(storage.as_ref())
             .all_rules()
@@ -126,7 +135,9 @@ impl ZlfDatabase {
         let tabled = table::load_declarations(&storage)?;
         let database = Self {
             storage,
-            temporal: Arc::new(temporal),
+            events: Arc::new(temporal.events),
+            validities: Arc::new(temporal.validities),
+            temporal_generation: temporal.generation,
             bm25: RwLock::new(Arc::new(bm25)),
             bm25_root,
             bm25_generation: RwLock::new(bm25_generation),
@@ -197,11 +208,6 @@ impl ZlfDatabase {
 
     pub fn add_node(&self, node: Node) -> Result<Node> {
         let created = self.storage.create_node(node)?;
-        self.temporal.add_entry(TemporalEntry {
-            node_id: created.id.clone(),
-            valid_from: created.created_at,
-            valid_to: None,
-        })?;
         self.catch_up_indexes()?;
         self.invalidate_node(&created)?;
         Ok(created)
@@ -233,7 +239,11 @@ impl ZlfDatabase {
                 &self.vector_model,
                 &self.vector_generation,
             )
-            .with_temporal(self.temporal.as_ref());
+            .with_temporal(
+                self.events.as_ref(),
+                self.validities.as_ref(),
+                &self.temporal_generation,
+            );
         let reg = self.registry.read().map_err(lock_error)?.clone();
         let rules = self.rules.read().map_err(lock_error)?.clone();
         let introspection = IntrospectionProvider::new(reg, &rules);

@@ -136,7 +136,8 @@ impl ZlfDatabase {
 
     pub(crate) fn catch_up_indexes(&self) -> Result<()> {
         self.catch_up_bm25()?;
-        self.catch_up_vector()
+        self.catch_up_vector()?;
+        self.catch_up_temporal()
     }
 }
 

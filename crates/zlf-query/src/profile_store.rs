@@ -114,6 +114,7 @@ impl ZlfDatabase {
         let sequence = IndexProfileStore::new(&self.storage).activate(name, version)?;
         self.rebuild_bm25_generation()?;
         self.catch_up_vector()?;
+        self.catch_up_temporal()?;
         Ok(sequence)
     }
 

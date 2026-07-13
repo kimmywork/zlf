@@ -93,6 +93,8 @@ mod graph_algorithm_terms;
 pub mod graph_view_provider;
 #[path = "providers/index.rs"]
 pub mod index_provider;
+#[path = "providers/index_vector.rs"]
+mod index_vector_provider;
 #[path = "providers/introspection.rs"]
 pub mod introspection_provider;
 #[path = "providers/storage_goal.rs"]

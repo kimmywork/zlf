@@ -1,11 +1,11 @@
-use chrono::{DateTime, Utc};
+use chrono::DateTime;
 use std::collections::BTreeMap;
 
 use zlf_core::EntityRef;
 use zlf_index::{
-    bge_m3_dense_v1, content_fingerprint, BM25Index, ExactVectorStore, GenerationId,
-    IndexDocumentId, TemporalEntry, TemporalIndex, VectorKey, VectorRecord,
-    VECTOR_RECORD_SCHEMA_VERSION,
+    bge_m3_dense_v1, content_fingerprint, BM25Index, EventRecord, EventTimeStore, ExactVectorStore,
+    GenerationId, IndexDocumentId, TemporalRecordId, ValidityRecord, ValidityStore, VectorKey,
+    VectorRecord, TEMPORAL_RECORD_SCHEMA_VERSION, VECTOR_RECORD_SCHEMA_VERSION,
 };
 use zlf_prolog::wam::{IndexFactProvider, WamRuntime};
 use zlf_prolog::{PrologParser, Term};
@@ -56,16 +56,27 @@ fn vector_provider_exposes_similarity_to_prolog_query() {
 }
 
 #[test]
+#[allow(clippy::too_many_lines)]
 fn temporal_provider_exposes_date_queries_to_prolog() {
     let dir = tempfile::tempdir().unwrap();
-    let temporal = TemporalIndex::open(dir.path().join("temporal")).unwrap();
-    temporal
-        .add_entry(temporal_entry("alice", "2026-01-01T00:00:00Z"))
+    let events = EventTimeStore::open(dir.path().join("events")).unwrap();
+    let validities = ValidityStore::open(dir.path().join("validities")).unwrap();
+    let generation = GenerationId("g1".into());
+    events
+        .put(&event("alice", "2026-01-01T00:00:00Z", &generation))
         .unwrap();
-    temporal
-        .add_entry(temporal_entry("bob", "2026-02-01T00:00:00Z"))
+    events
+        .put(&event("bob", "2026-02-01T00:00:00Z", &generation))
         .unwrap();
-    let provider = IndexFactProvider::new().with_temporal(&temporal);
+    validities
+        .put(&validity(
+            "alice",
+            "2026-01-01T00:00:00Z",
+            None,
+            &generation,
+        ))
+        .unwrap();
+    let provider = IndexFactProvider::new().with_temporal(&events, &validities, &generation);
     let runtime = WamRuntime::new(12);
 
     let on_date = runtime
@@ -78,8 +89,12 @@ fn temporal_provider_exposes_date_queries_to_prolog() {
         )
         .unwrap();
 
+    let valid = runtime
+        .query_all_with_provider(&term("valid_at(\"2027-01-01T00:00:00Z\", Node)"), &provider)
+        .unwrap();
     assert_eq!(on_date[0].get("Node"), Some(&atom("alice")));
     assert_eq!(in_range.len(), 2);
+    assert_eq!(valid[0].get("Node"), Some(&atom("alice")));
 }
 
 fn vector_record(
@@ -105,13 +120,39 @@ fn vector_record(
     }
 }
 
-fn temporal_entry(node_id: &str, timestamp: &str) -> TemporalEntry {
-    TemporalEntry {
-        node_id: node_id.to_string(),
-        valid_from: DateTime::parse_from_rfc3339(timestamp)
+fn event(node_id: &str, timestamp: &str, generation: &GenerationId) -> EventRecord {
+    EventRecord {
+        schema_version: TEMPORAL_RECORD_SCHEMA_VERSION,
+        generation: generation.clone(),
+        id: TemporalRecordId(format!("event-{node_id}")),
+        document_id: IndexDocumentId::new(EntityRef::Node(node_id.into()), "event", "0"),
+        source_version: 1,
+        at_micros: DateTime::parse_from_rfc3339(timestamp)
             .unwrap()
-            .with_timezone(&Utc),
-        valid_to: None,
+            .timestamp_micros(),
+    }
+}
+
+fn validity(
+    node_id: &str,
+    from: &str,
+    to: Option<&str>,
+    generation: &GenerationId,
+) -> ValidityRecord {
+    ValidityRecord {
+        schema_version: TEMPORAL_RECORD_SCHEMA_VERSION,
+        generation: generation.clone(),
+        id: TemporalRecordId(format!("valid-{node_id}")),
+        document_id: IndexDocumentId::new(EntityRef::Node(node_id.into()), "valid", "0"),
+        source_version: 1,
+        valid_from_micros: DateTime::parse_from_rfc3339(from)
+            .unwrap()
+            .timestamp_micros(),
+        valid_to_micros: to.map(|value| {
+            DateTime::parse_from_rfc3339(value)
+                .unwrap()
+                .timestamp_micros()
+        }),
     }
 }
 

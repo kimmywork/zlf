@@ -9,7 +9,6 @@ pub mod metrics;
 pub mod model;
 pub mod profile;
 pub mod retrieval;
-pub mod temporal;
 pub mod temporal_contract;
 mod temporal_event;
 mod temporal_validity;
@@ -46,7 +45,6 @@ pub use profile::{
 pub use retrieval::{
     RetrievalHit, RetrievalMode, RetrievalQuery, RetrievalRequest, RetrieverScore,
 };
-pub use temporal::{TemporalEntry, TemporalIndex};
 pub use temporal_contract::{
     decode_ordered_micros, encode_ordered_micros, event_range_oracle, parse_utc_micros,
     utc_day_range, valid_at_oracle, valid_overlaps_oracle, validate_half_open_range,
