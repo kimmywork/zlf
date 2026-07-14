@@ -7,8 +7,8 @@ use std::time::Instant;
 
 use chrono::Utc;
 use serde_json::{json, Value as JsonValue};
-use support::{directory_size, latency_report, load_jsonl, peak_rss_bytes};
-use zlf_core::{EntityRef, Node, Value};
+use support::{directory_size, latency_report, load_graph_database, load_jsonl, peak_rss_bytes};
+use zlf_core::{EntityRef, Value};
 use zlf_index::{
     content_fingerprint, DocumentChanges, GenerationId, IndexDocument, IndexDocumentId,
     TemporalRecordId, ValidityRecord, ValidityStore, INDEX_DOCUMENT_SCHEMA_VERSION,
@@ -60,26 +60,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .collect::<HashMap<_, _>>();
     let directory = tempfile::tempdir()?;
     let build_started = Instant::now();
-    let database = ZlfDatabase::open(directory.path().join("graph"))?;
-    for user in &users {
-        database.add_node(Node::with_id(
-            user["_id"].as_str().unwrap().into(),
-            vec!["user".into()],
-            HashMap::from([(
-                "group".into(),
-                Value::String(user["group"].as_str().unwrap().into()),
-            )]),
-        ))?;
-    }
-    for document in &documents {
-        database.add_node(graph_node(document))?;
-    }
+    let graph_started = Instant::now();
+    let database = load_graph_database(directory.path(), &users, &documents)?;
+    let graph_build_latency = graph_started.elapsed();
     database.query_prolog("allowed(U,D) :- property(U,group,G), property(D,access_group,G).")?;
+    let bm25_started = Instant::now();
     let bm25 = zlf_index::BM25Index::open(directory.path().join("bm25"))?;
     bm25.apply_document_changes(&DocumentChanges {
         upserts: documents.iter().map(index_document).collect(),
         deletes: Vec::new(),
     })?;
+    let bm25_build_latency = bm25_started.elapsed();
+    let temporal_started = Instant::now();
     let generation = GenerationId("enterprise-kb-v1".into());
     let validity = ValidityStore::open(directory.path().join("validity"))?;
     let validity_records = documents
@@ -87,6 +79,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(|row| validity_record(row, &generation))
         .collect::<Result<Vec<_>, _>>()?;
     validity.apply(&validity_records, &[])?;
+    let temporal_build_latency = temporal_started.elapsed();
     let build_latency = build_started.elapsed();
     let oracle_started = Instant::now();
     let mut full_rankings = HashMap::new();
@@ -170,7 +163,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         serde_json::to_string_pretty(&json!({
             "schema":"zlf-enterprise-kb-h6-v1", "dataset":root, "documents":documents.len(), "queries":queries.len(),
             "candidate_limit":CANDIDATE_LIMIT, "answer_limit":ANSWER_LIMIT,
-            "build_ms":build_latency.as_secs_f64()*1000.0, "oracle_ms":oracle_latency.as_secs_f64()*1000.0,
+            "build_ms":build_latency.as_secs_f64()*1000.0,
+            "build_phases_ms":{"graph_bulk":graph_build_latency.as_secs_f64()*1000.0,
+                "bm25":bm25_build_latency.as_secs_f64()*1000.0,
+                "validity":temporal_build_latency.as_secs_f64()*1000.0},
+            "query_oracle_ms":oracle_latency.as_secs_f64()*1000.0,
             "query_latency":latency_report(&query_latencies),
             "candidate_counts":{"scanned_total":candidates_scanned,"average_per_query":candidates_scanned as f64/query_count,
                 "answers_total":answers,"peak_materialized_answers":ANSWER_LIMIT},
@@ -183,23 +180,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }))?
     );
     Ok(())
-}
-
-fn graph_node(row: &JsonValue) -> Node {
-    Node::with_id(
-        row["_id"].as_str().unwrap().into(),
-        vec!["document".into()],
-        HashMap::from([
-            (
-                "access_group".into(),
-                Value::String(row["access_group"].as_str().unwrap().into()),
-            ),
-            (
-                "active".into(),
-                Value::Bool(row["active"].as_bool().unwrap()),
-            ),
-        ]),
-    )
 }
 
 fn index_document(row: &JsonValue) -> IndexDocument {

@@ -55,7 +55,40 @@ def generate(output: Path, count: int, seed: str):
         queries.append({"_id": query_id, "text": topic, "user": user["_id"], "at": "2026-01-01T00:00:00Z"})
         relevant = [row["_id"] for row in documents if row["topic"] == topic and row["access_group"] == user["group"] and row["active"]]
         oracle.append({"query_id": query_id, "relevant": relevant})
-    files = {"documents.jsonl": documents, "users.jsonl": users, "queries.jsonl": queries, "oracle.jsonl": oracle}
+    mutations = []
+    revised_ids = {index for index in range(1, count, 100)}
+    deleted_ids = {index for index in range(2, count, 200)}
+    after_documents = []
+    for index, document in enumerate(documents):
+        if index in deleted_ids:
+            mutations.append({"kind": "delete", "_id": document["_id"], "source_version": 2})
+            continue
+        updated = dict(document)
+        if index in revised_ids:
+            updated["body"] += " revised-version-2"
+            mutations.append({"kind": "revise", "document": updated, "source_version": 2})
+        after_documents.append(updated)
+    for offset in range(max(1, count // 200)):
+        index = count + offset
+        topic = index % TOPICS
+        group = ((index // TOPICS) * 5 + topic * 3) % GROUPS
+        inserted = {
+            "_id": f"doc-{index:06d}", "topic": f"topic{topic:02d}",
+            "access_group": f"group-{group:02d}", "active": True,
+            "body": f"enterprise knowledge topic{topic:02d} policy record{index:06d} inserted-version-1",
+            "valid_from": "2025-01-01T00:00:00Z", "valid_to": "2027-01-01T00:00:00Z",
+        }
+        mutations.append({"kind": "insert", "document": inserted, "source_version": 1})
+        after_documents.append(inserted)
+    oracle_after = []
+    for query in queries:
+        group = next(user["group"] for user in users if user["_id"] == query["user"])
+        relevant = [row["_id"] for row in after_documents if row["topic"] == query["text"] and row["access_group"] == group and row["active"]]
+        oracle_after.append({"query_id": query["_id"], "relevant": relevant})
+    files = {
+        "documents.jsonl": documents, "users.jsonl": users, "queries.jsonl": queries,
+        "oracle.jsonl": oracle, "mutations.jsonl": mutations, "oracle-after.jsonl": oracle_after,
+    }
     for name, rows in files.items():
         write_jsonl(tier / name, rows)
     manifest = {
@@ -64,6 +97,10 @@ def generate(output: Path, count: int, seed: str):
         "acl_rule": "allowed(U,D) :- property(U,group,G), property(D,access_group,G)",
         "temporal_filter": "ValidityStore valid_at at 2026-01-01T00:00:00Z",
         "permission_mutation": {"user": "user-00", "from": "group-00", "to": "group-01"},
+        "mutations": {
+            "revise": len(revised_ids), "delete": len(deleted_ids),
+            "insert": max(1, count // 200),
+        },
         "files": {name: sha256(tier / name) for name in files},
     }
     (tier / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
@@ -73,7 +110,7 @@ def generate(output: Path, count: int, seed: str):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, default=Path("data/benchmarks/enterprise-kb"))
-    parser.add_argument("--documents", type=int, nargs="+", default=[1000, 10000])
+    parser.add_argument("--documents", type=int, nargs="+", default=[1000, 10000, 100000])
     parser.add_argument("--seed", default="zlf-enterprise-kb-v1")
     args = parser.parse_args()
     for count in args.documents:

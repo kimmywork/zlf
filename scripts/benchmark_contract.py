@@ -183,7 +183,7 @@ def capture_run() -> dict[str, Any]:
         "machine": {
             "os": platform.platform(),
             "architecture": platform.machine(),
-            "cpu": platform.processor() or _sysctl("machdep.cpu.brand_string"),
+            "cpu": _cpu_name(),
             "memory_bytes": _memory_bytes(),
         },
     }
@@ -205,6 +205,11 @@ def _sysctl(name: str) -> str:
         ).stdout.strip()
     except (OSError, subprocess.SubprocessError):
         return "unknown"
+
+
+def _cpu_name() -> str:
+    native = _sysctl("machdep.cpu.brand_string")
+    return native if native != "unknown" else (platform.processor() or "unknown")
 
 
 def _memory_bytes() -> int | None:

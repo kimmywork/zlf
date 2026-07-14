@@ -1,8 +1,12 @@
 use std::fs;
+use std::io::{BufWriter, Write};
 use std::path::Path;
 use std::time::Duration;
 
 use serde_json::{json, Value};
+use zlf_prolog::bulk_pack::{compile_fact_files, load_fact_pack, BulkCompileOptions};
+use zlf_query::ZlfDatabase;
+use zlf_storage::Storage;
 
 pub fn load_jsonl(path: &Path) -> Result<Vec<Value>, Box<dyn std::error::Error>> {
     Ok(fs::read_to_string(path)?
@@ -10,6 +14,41 @@ pub fn load_jsonl(path: &Path) -> Result<Vec<Value>, Box<dyn std::error::Error>>
         .filter(|line| !line.trim().is_empty())
         .map(serde_json::from_str)
         .collect::<Result<Vec<_>, _>>()?)
+}
+
+pub fn load_graph_database(
+    root: &Path,
+    users: &[Value],
+    documents: &[Value],
+) -> Result<ZlfDatabase, Box<dyn std::error::Error>> {
+    let source = root.join("enterprise-kb.pl");
+    let mut writer = BufWriter::new(fs::File::create(&source)?);
+    for user in users {
+        writeln!(
+            writer,
+            "node('{}', [user], {{group: \"{}\"}}).",
+            user["_id"].as_str().unwrap(),
+            user["group"].as_str().unwrap()
+        )?;
+    }
+    for document in documents {
+        writeln!(
+            writer,
+            "node('{}', [document], {{access_group: \"{}\", active: {}}}).",
+            document["_id"].as_str().unwrap(),
+            document["access_group"].as_str().unwrap(),
+            document["active"].as_bool().unwrap()
+        )?;
+    }
+    writer.flush()?;
+    let pack = root.join("enterprise-kb-pack");
+    compile_fact_files(&[source], &pack, &BulkCompileOptions::default())?;
+    let graph = root.join("graph");
+    let storage = Storage::open(graph.join("storage"))?;
+    load_fact_pack(&storage, &pack, 50_000)?;
+    drop(storage);
+    fs::remove_dir_all(pack)?;
+    ZlfDatabase::open_existing(graph).map_err(Into::into)
 }
 
 pub fn latency_report(values: &[Duration]) -> Value {

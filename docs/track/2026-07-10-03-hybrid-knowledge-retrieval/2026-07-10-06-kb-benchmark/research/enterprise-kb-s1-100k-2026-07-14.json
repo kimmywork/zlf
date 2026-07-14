@@ -1,0 +1,88 @@
+{
+  "claim_scope": "generated-oracle initial-build composition and scale; mutation files are prepared but not exercised by this run",
+  "configuration": {
+    "backend": "Tantivy BM25, WAM graph rule, ordered RocksDB validity",
+    "graph_rule": "allowed(U,D) :- property(U,group,G), property(D,access_group,G)",
+    "ingestion": "zlf bulk fact pack",
+    "limits": {
+      "answer_limit": 10,
+      "candidate_limit": 256,
+      "documents": 100000,
+      "max_pages": 1,
+      "page_size": 256,
+      "queries": 128,
+      "retry_limit": 0,
+      "timeout_ms": 1800000
+    },
+    "temporal": "ValidityStore valid_at at 2026-01-01T00:00:00Z"
+  },
+  "dataset": {
+    "checksums": {
+      "documents.jsonl": "6934793f240175a182e2527c4fda0de46f8038d8142d4437934d7d3f76999664",
+      "mutations.jsonl": "f18c6c353af4ad2c531a1eb9fd6a04d0496c016f6840039fc7d0a5969dce355b",
+      "oracle-after.jsonl": "7b981483f34a934c4247dcb69fb3cd847c702ecb88087fe09fb75c756ec62bad",
+      "oracle.jsonl": "51994364f3a6fb0e19959c36c40e10eb75beaaeb3616326125e4d9f74e4bea1c",
+      "queries.jsonl": "7a73eb71c28aa6efb1f8bab0974b388c35b068197400e0ed9ec12a5dc6d8cca4",
+      "users.jsonl": "1f130db560baffdd77a07ceae675cd4851760a2692f25eff715f4ae56cf11a19"
+    },
+    "judgments": "independent generated ACL/temporal oracle",
+    "license": {
+      "source": "zlf deterministic generator",
+      "status": "generated"
+    },
+    "manifest": "data/benchmarks/enterprise-kb/v1-100k/manifest.json",
+    "name": "enterprise-kb",
+    "tier": "100k",
+    "version": "v1"
+  },
+  "metrics": {
+    "candidates": {
+      "answers_total": 1280,
+      "average_per_query": 85.75,
+      "peak_materialized_answers": 10,
+      "scanned_total": 10976
+    },
+    "correctness": {
+      "exact_filtered_top_k_queries": 128,
+      "permission_mutation_invalidated_tables": true,
+      "stale_result_count": 0
+    },
+    "filter": {
+      "graph_rejected": 8488,
+      "selection_rate": 0.11661807580174927,
+      "temporal_rejected": 1208
+    },
+    "quality": {
+      "precision": 1.0,
+      "relevant_answers": 1280
+    },
+    "query_latency": {
+      "p50_us": 6554,
+      "p95_us": 7492,
+      "p99_us": 8221
+    },
+    "resources": {
+      "disk_bytes": 30039245,
+      "peak_rss_bytes": 821198848
+    }
+  },
+  "phases": {
+    "build_bm25_ms": 1266.339375,
+    "build_graph_bulk_ms": 8537.955208,
+    "build_validity_ms": 430.34825,
+    "combined_build_ms": 10234.857084,
+    "independent_oracle_ms": 99.932084
+  },
+  "run": {
+    "commit": "f15ed8c5c898453d7ece8b83bfc292461998eef4",
+    "created_at": "2026-07-14T08:46:55.697758+00:00",
+    "dirty": true,
+    "machine": {
+      "architecture": "arm64",
+      "cpu": "Apple M2 Pro",
+      "memory_bytes": 34359738368,
+      "os": "macOS-15.5-arm64-arm-64bit-Mach-O"
+    }
+  },
+  "schema": "zlf-benchmark-report-v1"
+}
