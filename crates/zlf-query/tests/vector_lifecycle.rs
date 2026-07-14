@@ -51,6 +51,10 @@ async fn lifecycle_enqueues_publishes_replaces_deletes_and_replays_vectors() {
     .unwrap();
     assert_eq!(worker.run_batch(Utc::now()).await.unwrap(), 1);
     assert_eq!(
+        EmbeddingJobStore::new(&storage).state_counts().unwrap()["completed"],
+        1
+    );
+    assert_eq!(
         exact.get(&initial_key).unwrap().unwrap().values,
         vec![1.0, 0.0]
     );

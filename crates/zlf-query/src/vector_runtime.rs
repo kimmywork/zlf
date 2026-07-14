@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::path::Path;
 
 use chrono::{DateTime, Utc};
@@ -9,8 +10,9 @@ use zlf_index::{
 use zlf_storage::Storage;
 
 use crate::{
-    BatchEmbeddingProvider, CoordinatorConfig, DurableEmbeddingWorker, EmbeddingModelProfileStore,
-    GenerationManager, IndexCoordinator, VectorEmbeddingTarget, ZlfDatabase,
+    BatchEmbeddingProvider, CoordinatorConfig, DurableEmbeddingWorker, EmbeddingJobStore,
+    EmbeddingModelProfileStore, GenerationManager, IndexCoordinator, VectorEmbeddingTarget,
+    ZlfDatabase,
 };
 
 const TARGET: &str = "vector";
@@ -74,6 +76,10 @@ fn bootstrap_generation(
 }
 
 impl ZlfDatabase {
+    pub fn embedding_job_state_counts(&self) -> Result<BTreeMap<String, usize>> {
+        EmbeddingJobStore::new(&self.storage).state_counts()
+    }
+
     pub async fn process_embedding_batch<P: BatchEmbeddingProvider>(
         &self,
         provider: &P,

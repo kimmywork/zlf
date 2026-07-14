@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use chrono::{DateTime, Duration, Utc};
 use zlf_core::{Result, ZlfError};
 use zlf_index::{EmbeddingJob, EmbeddingJobState};
@@ -117,6 +119,14 @@ impl<'a> EmbeddingJobStore<'a> {
             .collect()
     }
 
+    pub fn state_counts(&self) -> Result<BTreeMap<String, usize>> {
+        let mut counts = BTreeMap::new();
+        for job in self.list()? {
+            *counts.entry(state_name(job.state).into()).or_default() += 1;
+        }
+        Ok(counts)
+    }
+
     fn required(&self, job: &EmbeddingJob) -> Result<EmbeddingJob> {
         self.get(job)?
             .ok_or_else(|| ZlfError::Internal("embedding job not found".into()))
@@ -128,6 +138,17 @@ impl<'a> EmbeddingJobStore<'a> {
             &job_key(job),
             &bincode::serialize(job).map_err(serialization)?,
         )
+    }
+}
+
+fn state_name(state: EmbeddingJobState) -> &'static str {
+    match state {
+        EmbeddingJobState::Pending => "pending",
+        EmbeddingJobState::Leased => "leased",
+        EmbeddingJobState::Retry => "retry",
+        EmbeddingJobState::Dead => "dead",
+        EmbeddingJobState::Completed => "completed",
+        EmbeddingJobState::Stale => "stale",
     }
 }
 
