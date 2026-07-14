@@ -1,0 +1,127 @@
+{
+  "claim_scope": "bounded prepared-corpus relevance evidence; not directly comparable to full-corpus leaderboard scores",
+  "configuration": {
+    "backend": "Tantivy BM25 plus exact RocksDB vectors",
+    "dimension": 1024,
+    "limits": {
+      "answer_limit": 100,
+      "candidate_limit": 100,
+      "documents": 10000,
+      "max_pages": 1,
+      "page_size": 100,
+      "queries": 30,
+      "retry_limit": 0,
+      "timeout_ms": 7200000
+    },
+    "max_input_chars": 2048,
+    "metric": "cosine",
+    "model": "bge-m3:latest",
+    "rrf_k": 60
+  },
+  "dataset": {
+    "checksums": {
+      "corpus.jsonl": "070806504a31af934b7a88f67c39b0a822d8d1534029ea0c38eb4ace71eed32b",
+      "qrels.tsv": "f60ff6bd148c38b6b2eeb7a52619f069ed8d8dd50ff7f0e177efa75d27aef03e",
+      "queries.jsonl": "2b90b54f513cdb0cc68f79655c16029d1a76c28c003cea5edaabf6b52d8a0d0d"
+    },
+    "judgments": "preserved official qrels on a deterministic bounded corpus",
+    "language": "en",
+    "license": {
+      "corpus_origin": "Wikipedia",
+      "reported_annotations": "Apache-2.0",
+      "status": "pending_upstream_review"
+    },
+    "manifest": "data/benchmarks/public-retrieval/miracl-en-shard0-10000d-v1/manifest.json",
+    "name": "miracl-en",
+    "scope": "shard-0 judged pool",
+    "tier": "10k",
+    "version": "miracl-en-shard0-10000d-v1"
+  },
+  "metrics": {
+    "candidates": {
+      "answers": {
+        "average_per_query": 100.0,
+        "total": 3000
+      },
+      "fused_union": {
+        "average_per_query": 179.23333333333332,
+        "total": 5377
+      },
+      "lexical": {
+        "average_per_query": 100.0,
+        "total": 3000
+      },
+      "vector": {
+        "average_per_query": 100.0,
+        "total": 3000
+      }
+    },
+    "peak_materialized_answers": 100,
+    "quality": {
+      "hybrid": {
+        "mrr": 0.8308080808080808,
+        "ndcg_at_10": 0.8496658099431821,
+        "queries": 30,
+        "recall_at_10": 0.95,
+        "recall_at_100": 1.0
+      },
+      "lexical": {
+        "mrr": 0.7134863123993558,
+        "ndcg_at_10": 0.7527047021432698,
+        "queries": 30,
+        "recall_at_10": 0.9166666666666666,
+        "recall_at_100": 0.95
+      },
+      "vector": {
+        "mrr": 0.878030303030303,
+        "ndcg_at_10": 0.8952564982453306,
+        "queries": 30,
+        "recall_at_10": 0.9666666666666667,
+        "recall_at_100": 1.0
+      }
+    },
+    "resources": {
+      "disk_bytes": 51901976,
+      "peak_rss_bytes": 259522560
+    },
+    "retrieval_latency": {
+      "fusion_only": {
+        "p50_us": 96,
+        "p95_us": 152,
+        "p99_us": 156
+      },
+      "hybrid_end_to_end": {
+        "p50_us": 40600,
+        "p95_us": 43037,
+        "p99_us": 43304
+      },
+      "lexical": {
+        "p50_us": 1536,
+        "p95_us": 3576,
+        "p99_us": 4186
+      },
+      "vector": {
+        "p50_us": 38858,
+        "p95_us": 39476,
+        "p99_us": 39636
+      }
+    }
+  },
+  "phases": {
+    "document_embedding_ms": 548157.464709,
+    "index_build_ms": 449.921584,
+    "query_embedding_ms": 5579.844042
+  },
+  "run": {
+    "commit": "da39262c3c4e21e028825afe3d356bf2d2b72c29",
+    "created_at": "2026-07-14T15:26:55.697955+00:00",
+    "dirty": true,
+    "machine": {
+      "architecture": "arm64",
+      "cpu": "Apple M2 Pro",
+      "memory_bytes": 34359738368,
+      "os": "macOS-15.5-arm64-arm-64bit-Mach-O"
+    }
+  },
+  "schema": "zlf-benchmark-report-v1"
+}

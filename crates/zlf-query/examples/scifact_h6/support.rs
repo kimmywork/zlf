@@ -4,6 +4,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use serde_json::{json, Value};
+use zlf_embed::{EmbeddingConfig, OllamaProvider, ProviderType};
 
 pub struct Quality {
     reciprocal_rank: f64,
@@ -128,12 +129,31 @@ pub fn load_qrels(
     Ok(qrels)
 }
 
-pub fn document_text(row: &Value) -> String {
-    format!(
+pub fn provider() -> OllamaProvider {
+    OllamaProvider::new(EmbeddingConfig {
+        provider: ProviderType::Ollama,
+        api_endpoint: std::env::var("ZLF_EMBED_ENDPOINT")
+            .unwrap_or_else(|_| "http://localhost:11434".into()),
+        api_key: std::env::var("ZLF_EMBED_API_KEY").ok(),
+        model: std::env::var("ZLF_EMBED_MODEL").unwrap_or_else(|_| "bge-m3:latest".into()),
+        dimension: 1024,
+    })
+}
+
+pub fn max_input_chars() -> usize {
+    std::env::var("ZLF_BENCHMARK_MAX_INPUT_CHARS")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(2048)
+}
+
+pub fn document_text(row: &Value, max_chars: usize) -> String {
+    let text = format!(
         "{}\n{}",
         row["title"].as_str().unwrap_or_default(),
         row["text"].as_str().unwrap_or_default()
-    )
+    );
+    text.chars().take(max_chars).collect()
 }
 
 pub fn normalize(mut values: Vec<f32>) -> Result<Vec<f32>, String> {

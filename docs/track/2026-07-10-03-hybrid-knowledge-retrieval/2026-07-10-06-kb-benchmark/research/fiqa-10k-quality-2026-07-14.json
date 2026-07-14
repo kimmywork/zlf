@@ -1,0 +1,126 @@
+{
+  "claim_scope": "bounded prepared-corpus relevance evidence; not directly comparable to full-corpus leaderboard scores",
+  "configuration": {
+    "backend": "Tantivy BM25 plus exact RocksDB vectors",
+    "dimension": 1024,
+    "limits": {
+      "answer_limit": 100,
+      "candidate_limit": 100,
+      "documents": 10000,
+      "max_pages": 1,
+      "page_size": 100,
+      "queries": 100,
+      "retry_limit": 0,
+      "timeout_ms": 7200000
+    },
+    "max_input_chars": 2048,
+    "metric": "cosine",
+    "model": "bge-m3:latest",
+    "rrf_k": 60
+  },
+  "dataset": {
+    "checksums": {
+      "corpus.jsonl": "fc0c730a7372714f1de08977c1ff4d5db9cd606e72b66e1cdca8622d2b81396e",
+      "qrels.tsv": "e20526d67e035aae262e7914cb8037e43437f151e2858e12479cc07f6e8f923c",
+      "queries.jsonl": "bbd5eaabe01828fddd3e8dd7d4233571bdc57bdabc462b95db119d818a14b0a0"
+    },
+    "judgments": "preserved official qrels on a deterministic bounded corpus",
+    "language": "en",
+    "license": {
+      "reported": "CC-BY-SA-4.0",
+      "status": "pending_upstream_review"
+    },
+    "manifest": "data/benchmarks/public-retrieval/fiqa-10000d-100q-v1/manifest.json",
+    "name": "fiqa",
+    "scope": "relevance-preserving sampled corpus",
+    "tier": "10k",
+    "version": "fiqa-10000d-100q-v1"
+  },
+  "metrics": {
+    "candidates": {
+      "answers": {
+        "average_per_query": 100.0,
+        "total": 10000
+      },
+      "fused_union": {
+        "average_per_query": 174.99,
+        "total": 17499
+      },
+      "lexical": {
+        "average_per_query": 100.0,
+        "total": 10000
+      },
+      "vector": {
+        "average_per_query": 100.0,
+        "total": 10000
+      }
+    },
+    "peak_materialized_answers": 100,
+    "quality": {
+      "hybrid": {
+        "mrr": 0.6065662229499161,
+        "ndcg_at_10": 0.5389325064919034,
+        "queries": 100,
+        "recall_at_10": 0.6243365800865801,
+        "recall_at_100": 0.8269999999999998
+      },
+      "lexical": {
+        "mrr": 0.48352526693427395,
+        "ndcg_at_10": 0.40518151478188646,
+        "queries": 100,
+        "recall_at_10": 0.4702413419913419,
+        "recall_at_100": 0.6926547619047619
+      },
+      "vector": {
+        "mrr": 0.6708659382955159,
+        "ndcg_at_10": 0.5930811136325783,
+        "queries": 100,
+        "recall_at_10": 0.6563365800865801,
+        "recall_at_100": 0.8556666666666665
+      }
+    },
+    "resources": {
+      "disk_bytes": 53116103,
+      "peak_rss_bytes": 250232832
+    },
+    "retrieval_latency": {
+      "fusion_only": {
+        "p50_us": 85,
+        "p95_us": 423,
+        "p99_us": 1365
+      },
+      "hybrid_end_to_end": {
+        "p50_us": 45749,
+        "p95_us": 65260,
+        "p99_us": 67527
+      },
+      "lexical": {
+        "p50_us": 3524,
+        "p95_us": 9072,
+        "p99_us": 10096
+      },
+      "vector": {
+        "p50_us": 41554,
+        "p95_us": 61861,
+        "p99_us": 63412
+      }
+    }
+  },
+  "phases": {
+    "document_embedding_ms": 721333.08775,
+    "index_build_ms": 509.58583300000004,
+    "query_embedding_ms": 24563.377458000003
+  },
+  "run": {
+    "commit": "da39262c3c4e21e028825afe3d356bf2d2b72c29",
+    "created_at": "2026-07-14T15:26:54.976973+00:00",
+    "dirty": true,
+    "machine": {
+      "architecture": "arm64",
+      "cpu": "Apple M2 Pro",
+      "memory_bytes": 34359738368,
+      "os": "macOS-15.5-arm64-arm-64bit-Mach-O"
+    }
+  },
+  "schema": "zlf-benchmark-report-v1"
+}

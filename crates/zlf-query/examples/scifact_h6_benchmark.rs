@@ -7,9 +7,12 @@ use std::time::Instant;
 
 use chrono::Utc;
 use serde_json::json;
-use support::{document_text, latency_report, load_jsonl, load_qrels, normalize, Quality};
+use support::{
+    document_text, latency_report, load_jsonl, load_qrels, max_input_chars, normalize, provider,
+    Quality,
+};
 use zlf_core::EntityRef;
-use zlf_embed::{EmbeddingConfig, EmbeddingProvider, OllamaProvider, ProviderType};
+use zlf_embed::EmbeddingProvider;
 use zlf_index::{
     bge_m3_dense_v1, content_fingerprint, BM25Index, DocumentChanges, EmbeddingModelProfile,
     IndexDocument, IndexDocumentId, RankedRetrieverHit, VectorKey, VectorRecord,
@@ -24,6 +27,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .nth(1)
             .unwrap_or_else(|| "data/benchmarks/scifact/h6-1000d-100q-v1".into()),
     );
+    let dataset_name = std::env::args().nth(2).unwrap_or_else(|| "scifact".into());
+    let language = std::env::args().nth(3).unwrap_or_else(|| "en".into());
     let corpus = load_jsonl(&root.join("corpus.jsonl"))?;
     let queries = load_jsonl(&root.join("queries.jsonl"))?;
     let qrels = load_qrels(&root.join("qrels.tsv"))?;
@@ -31,13 +36,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let bm25 = BM25Index::open(directory.path().join("bm25"))?;
     let vectors = zlf_index::ExactVectorStore::open(directory.path().join("vectors"))?;
     let profile = bge_m3_dense_v1();
-    let generation = zlf_index::GenerationId("scifact-h6-v1".into());
-    let texts = corpus.iter().map(document_text).collect::<Vec<_>>();
+    let generation = zlf_index::GenerationId("public-retrieval-v1".into());
+    let max_input_chars = max_input_chars();
+    let texts = corpus
+        .iter()
+        .map(|row| document_text(row, max_input_chars))
+        .collect::<Vec<_>>();
     let build_started = Instant::now();
     let documents = corpus
         .iter()
         .zip(&texts)
-        .map(|(row, text)| index_document(row, text))
+        .map(|(row, text)| index_document(row, text, &language))
         .collect::<Vec<_>>();
     bm25.apply_document_changes(&DocumentChanges {
         upserts: documents,
@@ -50,8 +59,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let embedding_ms = embedding_started.elapsed();
     let records = corpus
         .iter()
+        .zip(&texts)
         .zip(embeddings)
-        .map(|(row, values)| vector_record(row, values, &profile, &generation))
+        .map(|((row, text), values)| vector_record(row, text, values, &profile, &generation))
         .collect::<Vec<_>>();
     vectors.apply(&records, &[], &profile)?;
     let mut query_vectors = Vec::new();
@@ -162,8 +172,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!(
         "{}",
         serde_json::to_string_pretty(&json!({
-            "schema":"zlf-scifact-h6-v1", "dataset":root, "documents":corpus.len(), "queries":queries.len(),
+            "schema":"zlf-public-retrieval-raw-v1", "dataset":root, "dataset_name":dataset_name,
+            "language":language, "documents":corpus.len(), "queries":queries.len(),
             "model":"bge-m3:latest", "dimension":profile.dimension, "metric":"cosine", "rrf_k":60,
+            "max_input_chars":max_input_chars,
             "build_ms":build_ms.as_secs_f64()*1000.0, "embedding_ms":embedding_ms.as_secs_f64()*1000.0,
             "query_embedding_ms":query_embedding_ms.as_secs_f64()*1000.0, "retrieval_quality":reports,
             "retrieval_latency":latencies.into_iter().map(|(name, values)| (name, latency_report(&values))).collect::<serde_json::Map<_,_>>(),
@@ -174,18 +186,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn provider() -> OllamaProvider {
-    OllamaProvider::new(EmbeddingConfig {
-        provider: ProviderType::Ollama,
-        api_endpoint: std::env::var("ZLF_EMBED_ENDPOINT")
-            .unwrap_or_else(|_| "http://localhost:11434".into()),
-        api_key: std::env::var("ZLF_EMBED_API_KEY").ok(),
-        model: std::env::var("ZLF_EMBED_MODEL").unwrap_or_else(|_| "bge-m3:latest".into()),
-        dimension: 1024,
-    })
-}
-
-fn index_document(row: &serde_json::Value, text: &str) -> IndexDocument {
+fn index_document(row: &serde_json::Value, text: &str, language: &str) -> IndexDocument {
     IndexDocument {
         schema_version: zlf_index::INDEX_DOCUMENT_SCHEMA_VERSION,
         id: IndexDocumentId::new(
@@ -198,13 +199,14 @@ fn index_document(row: &serde_json::Value, text: &str) -> IndexDocument {
         source_range: None,
         chunk_ordinal: 0,
         chunk_profile: "scifact-h6".into(),
-        language: Some("en".into()),
+        language: Some(language.into()),
         content: text.into(),
     }
 }
 
 fn vector_record(
     row: &serde_json::Value,
+    text: &str,
     values: Vec<f32>,
     profile: &EmbeddingModelProfile,
     generation: &zlf_index::GenerationId,
@@ -222,7 +224,7 @@ fn vector_record(
             ),
         },
         source_version: 1,
-        content_fingerprint: content_fingerprint(row["_id"].as_str().unwrap()),
+        content_fingerprint: content_fingerprint(text),
         model_revision: profile.model_revision.clone(),
         metric: profile.metric,
         normalized: profile.normalize,
