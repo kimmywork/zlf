@@ -42,6 +42,9 @@ Desktop.ini
 .env.local
 .env.*.local
 
+# Local benchmark corpora and generated indexes
+/data/benchmarks/
+
 # Runtime / Test databases
 test-*/
 *-db/
