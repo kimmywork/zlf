@@ -23,7 +23,7 @@ Stage 06 owns benchmark orchestration, but every implementation stage must deliv
 | 02 | `2026-07-10-02-bm25/` | done | corpus-normalized lexical ranking and multilingual analysis |
 | 03 | `2026-07-10-03-vector-embedding/` | done | model-safe vectors, exact oracle, ANN, embedding jobs |
 | 04 | `2026-07-10-04-temporal/` | done | event-time `temporal_*` and valid-time `valid_*` indexes |
-| 05 | `2026-07-10-05-hybrid-prolog/` | implementation ready | fusion, graph/rule/time joins, bounded provider contracts |
+| 05 | `2026-07-10-05-hybrid-prolog/` | done | fusion, graph/rule/time joins, bounded provider contracts |
 | 06 | `2026-07-10-06-kb-benchmark/` | discovery | public/synthetic datasets, tiered stress, machine-readable reports |
 
 ## Shared contracts
