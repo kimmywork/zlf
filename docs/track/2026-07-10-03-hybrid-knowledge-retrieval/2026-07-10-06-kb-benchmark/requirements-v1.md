@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: in_progress
 scope_type: stage
 parent_id: 2026-07-10-03-hybrid-knowledge-retrieval
 created: 2026-07-10
