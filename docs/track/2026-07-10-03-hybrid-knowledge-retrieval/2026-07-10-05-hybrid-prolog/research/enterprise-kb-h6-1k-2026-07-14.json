@@ -1,0 +1,60 @@
+{
+  "answer_limit": 10,
+  "build_ms": 4286.123042,
+  "candidate_counts": {
+    "answers_total": 228,
+    "average_per_query": 15.625,
+    "peak_materialized_answers": 10,
+    "scanned_total": 2000
+  },
+  "candidate_limit": 256,
+  "commit": "434bbc8",
+  "correctness": {
+    "exact_filtered_top_k_queries": 128,
+    "permission_mutation_invalidated_tables": true,
+    "stale_result_count": 0
+  },
+  "created_at": "2026-07-14T06:26:26.459986Z",
+  "dataset": "data/benchmarks/enterprise-kb/v1-1k",
+  "dataset_files": {
+    "documents.jsonl": "a0bcbc2f9d3d1c82ec4d6e3aa3e0e78b8ea673321cc2eac3d7e7fa8002dc314c",
+    "oracle.jsonl": "7a061ea6869f7135f798955b42c3157592bd7b15a460c2ff9095881615e276bd",
+    "queries.jsonl": "7a73eb71c28aa6efb1f8bab0974b388c35b068197400e0ed9ec12a5dc6d8cca4",
+    "users.jsonl": "1f130db560baffdd77a07ceae675cd4851760a2692f25eff715f4ae56cf11a19"
+  },
+  "dataset_manifest": "data/benchmarks/enterprise-kb/v1-1k/manifest.json",
+  "dataset_manifest_sha256": "772675cc2cc14f1d48a33d14a54607f17fe67fd021e9368d90bc2b84d7acd4fb",
+  "disk_bytes": 4305119,
+  "documents": 1000,
+  "filter": {
+    "graph_rejected": 1572,
+    "selection_rate": 0.114,
+    "temporal_rejected": 200
+  },
+  "graph_rule": "allowed(U,D) :- property(U,group,G), property(D,access_group,G)",
+  "limits": {
+    "answer_limit": 10,
+    "candidate_limit": 256
+  },
+  "machine": {
+    "cpu": "Apple M2 Pro",
+    "memory_bytes": 34359738368,
+    "os": "macOS Darwin arm64"
+  },
+  "oracle": "independent generated ACL/temporal oracle",
+  "oracle_ms": 0.9927079999999999,
+  "peak_rss_bytes": 165888000,
+  "quality": {
+    "precision": 1.0,
+    "relevant_answers": 228
+  },
+  "queries": 128,
+  "query_latency": {
+    "p50_us": 812,
+    "p95_us": 971,
+    "p99_us": 1048
+  },
+  "schema": "zlf-enterprise-kb-h6-v1",
+  "temporal": "ValidityStore valid_at at 2026-01-01T00:00:00Z",
+  "working_tree_dirty": true
+}

@@ -103,6 +103,8 @@ mod index_vector_provider;
 pub mod introspection_provider;
 #[path = "providers/storage_goal.rs"]
 mod storage_goal;
+#[path = "providers/storage_property.rs"]
+mod storage_property;
 #[path = "providers/storage.rs"]
 pub mod storage_provider;
 #[path = "providers/view_helpers.rs"]

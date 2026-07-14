@@ -1,7 +1,7 @@
 use crate::parser::Term;
 
 use super::error::{WamError, WamResult};
-use super::storage_provider::{value_term, StorageFactProvider};
+use super::storage_provider::StorageFactProvider;
 use zlf_core::{Edge, Node};
 
 impl StorageFactProvider<'_> {
@@ -39,6 +39,9 @@ impl StorageFactProvider<'_> {
     }
 
     fn special_bound_goal(&self, name: &str, args: &[Term]) -> WamResult<Option<Vec<Term>>> {
+        if let Some(facts) = self.bound_canonical_property_goal(name, args)? {
+            return Ok(Some(facts));
+        }
         match self.bound_property_goal(name, args)? {
             Some(facts) => Ok(Some(facts)),
             None => self.bound_edge_id_goal(name, args),
@@ -93,22 +96,6 @@ impl StorageFactProvider<'_> {
             })
             .map(edge_id_fact)
             .collect())
-    }
-
-    fn bound_property_goal(&self, name: &str, args: &[Term]) -> WamResult<Option<Vec<Term>>> {
-        let [id, value] = args else {
-            return Ok(None);
-        };
-        if !name.starts_with("prop_") || (atom(id).is_none() && storage_value(value).is_none()) {
-            return Ok(None);
-        }
-        let key = name.trim_start_matches("prop_");
-        match atom(id) {
-            Some(id) => self.bound_property(key, id).map(Some),
-            None => self
-                .bound_property_value(name, key, storage_value(value).unwrap())
-                .map(Some),
-        }
     }
 
     fn bound_node(&self, id: &str) -> WamResult<Vec<Term>> {
@@ -168,70 +155,6 @@ impl StorageFactProvider<'_> {
                     .collect()
             })
             .map_err(provider_error)
-    }
-
-    fn bound_property_value(
-        &self,
-        predicate: &str,
-        key: &str,
-        value: zlf_core::Value,
-    ) -> WamResult<Vec<Term>> {
-        let mut facts = self
-            .storage
-            .get_nodes_by_property(key, &value)
-            .map_err(provider_error)?
-            .into_iter()
-            .map(|node| {
-                compound(
-                    predicate,
-                    vec![Term::Atom(node.id), value_term(value.clone())],
-                )
-            })
-            .collect::<Vec<_>>();
-        facts.extend(
-            self.storage
-                .get_all_edges()
-                .map_err(provider_error)?
-                .into_iter()
-                .filter(|edge| edge.properties.get(key) == Some(&value))
-                .map(|edge| {
-                    compound(
-                        predicate,
-                        vec![Term::Atom(edge.id), value_term(value.clone())],
-                    )
-                }),
-        );
-        Ok(facts)
-    }
-
-    fn bound_property(&self, key: &str, id: &str) -> WamResult<Vec<Term>> {
-        let mut facts = Vec::new();
-        if let Some(node) = self.storage.get_node(id).map_err(provider_error)? {
-            if let Some(value) = node.properties.get(key).cloned() {
-                facts.push(compound(
-                    format!("prop_{key}"),
-                    vec![Term::Atom(node.id), value_term(value)],
-                ));
-            }
-        }
-        if let Some(edge) = self.storage.get_edge(id).map_err(provider_error)? {
-            if let Some(value) = edge.properties.get(key).cloned() {
-                facts.push(compound(
-                    format!("prop_{key}"),
-                    vec![Term::Atom(edge.id), value_term(value)],
-                ));
-            }
-        }
-        Ok(facts)
-    }
-}
-
-fn storage_value(term: &Term) -> Option<zlf_core::Value> {
-    match term {
-        Term::Atom(value) | Term::String(value) => Some(zlf_core::Value::String(value.clone())),
-        Term::Integer(value) => Some(zlf_core::Value::Number(*value as f64)),
-        Term::Float(value) => Some(zlf_core::Value::Number(*value)),
-        _ => None,
     }
 }
 
