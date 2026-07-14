@@ -78,6 +78,45 @@ async fn worker_batches_transforms_normalizes_publishes_and_suppresses_stale_job
 
 #[tokio::test]
 #[allow(clippy::too_many_lines)]
+async fn stale_only_batch_does_not_hide_later_ready_work() {
+    let temp = tempfile::tempdir().unwrap();
+    let storage = Storage::open(temp.path().join("db")).unwrap();
+    storage
+        .create_node(Node::with_id(
+            "zz-current".into(),
+            vec![],
+            HashMap::from([("body".into(), Value::String("hello".into()))]),
+        ))
+        .unwrap();
+    let version = storage
+        .get_entity_state(&EntityRef::Node("zz-current".into()))
+        .unwrap()
+        .unwrap()
+        .source_version;
+    let jobs = EmbeddingJobStore::new(&storage);
+    for index in 0..96 {
+        jobs.enqueue(job(&document(&format!("stale-{index:03}"), 1, "old")))
+            .unwrap();
+    }
+    let current = document("zz-current", version, "hello");
+    IndexManifestStore::new(&storage, "vector:g1")
+        .save(&manifest(current.clone()))
+        .unwrap();
+    jobs.enqueue(job(&current)).unwrap();
+    let mut profile = bge_m3_dense_v1();
+    profile.dimension = 2;
+    let exact = ExactVectorStore::open(temp.path().join("vectors")).unwrap();
+    let provider = FakeProvider::default();
+    let worker =
+        DurableEmbeddingWorker::new(&storage, exact, &provider, profile, "vector:g1").unwrap();
+
+    assert_eq!(worker.run_batch(Utc::now()).await.unwrap(), 1);
+    assert_eq!(jobs.state_counts().unwrap()["stale"], 96);
+    assert_eq!(jobs.state_counts().unwrap()["completed"], 1);
+}
+
+#[tokio::test]
+#[allow(clippy::too_many_lines)]
 async fn provider_failures_retry_then_dead_letter_without_storing_source_text() {
     let temp = tempfile::tempdir().unwrap();
     let storage = Storage::open(temp.path().join("db")).unwrap();

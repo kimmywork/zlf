@@ -48,8 +48,8 @@
       }
     },
     "generation": {
-      "initial": "g-1784026646536640000",
-      "rebuilt": "g-1784026798629698000",
+      "initial": "g-1784034676583262000",
+      "rebuilt": "g-1784034679133027000",
       "rollback_active": true
     },
     "mutations": {
@@ -58,8 +58,8 @@
       "revised": 10
     },
     "resources": {
-      "disk_bytes": 7095937,
-      "peak_rss_bytes": 275005440
+      "disk_bytes": 7061461,
+      "peak_rss_bytes": 247611392
     },
     "watermark": {
       "minimum": 29,
@@ -72,14 +72,14 @@
     }
   },
   "phases": {
-    "initial_build": 150413.269459,
-    "initial_embedding": 77.81016699999999,
-    "mutations_and_embedding": 2015.9267500000003,
-    "reopen": 478.273417
+    "initial_build": 1015.0323750000001,
+    "initial_embedding": 84.693459,
+    "mutations_and_embedding": 1859.27275,
+    "reopen": 369.508125
   },
   "run": {
-    "commit": "44fa39fac8a865dd2e7376e1356d48d044ffe9be",
-    "created_at": "2026-07-14T11:02:57.322973+00:00",
+    "commit": "f845d78b10185fc248a2ef7599b240151b87fc59",
+    "created_at": "2026-07-14T13:13:44.366328+00:00",
     "dirty": true,
     "machine": {
       "architecture": "arm64",

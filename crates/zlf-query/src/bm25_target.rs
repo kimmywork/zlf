@@ -1,5 +1,9 @@
+use std::collections::{BTreeMap, BTreeSet};
+
 use zlf_core::{EntityRef, Result};
-use zlf_index::{BM25Index, DocumentChanges, DocumentManifest};
+use zlf_index::{
+    BM25Index, DocumentChanges, DocumentManifest, IndexDocumentId, IndexProfileArtifact,
+};
 use zlf_storage::{MutationEvent, MutationKind, Storage};
 
 use crate::coordinator::{IndexTarget, TargetApplyError};
@@ -122,25 +126,117 @@ impl<'a> Bm25IndexTarget<'a> {
     }
 
     pub(crate) fn rebuild(&self, storage: &Storage) -> Result<()> {
+        let profiles = active_profiles(storage)?;
+        let store = IndexManifestStore::new(storage, &self.target);
+        let mut manifests = Vec::new();
         for node in storage.get_all_nodes()? {
             let entity = EntityRef::Node(node.id);
             let version = storage
                 .get_entity_state(&entity)?
                 .map_or(0, |state| state.source_version);
-            self.apply_entity(storage, &entity, version, false)?;
+            manifests.extend(self.rebuild_manifests(storage, &store, &entity, version, &profiles)?);
         }
         for edge in storage.get_all_edges()? {
             let entity = EntityRef::Edge(edge.id);
             let version = storage
                 .get_entity_state(&entity)?
                 .map_or(0, |state| state.source_version);
-            self.apply_entity(storage, &entity, version, false)?;
+            manifests.extend(self.rebuild_manifests(storage, &store, &entity, version, &profiles)?);
+        }
+        let changes = merge_changes(
+            manifests
+                .iter()
+                .map(|manifest| store.changes(manifest))
+                .collect::<Result<Vec<_>>>()?,
+        );
+        self.apply_changes(changes)?;
+        for manifest in manifests {
+            store.save(&manifest)?;
         }
         Ok(())
     }
 
+    fn rebuild_manifests(
+        &self,
+        storage: &Storage,
+        store: &IndexManifestStore<'_>,
+        entity: &EntityRef,
+        source_version: u64,
+        profiles: &[IndexProfileArtifact],
+    ) -> Result<Vec<DocumentManifest>> {
+        let mut desired = Vec::new();
+        for profile in profiles {
+            if let Some(manifest) =
+                self.rebuild_profile_manifest(storage, entity, source_version, profile)?
+            {
+                desired.push(manifest);
+            }
+        }
+        let desired_keys = desired
+            .iter()
+            .map(|manifest| (manifest.profile_name.clone(), manifest.profile_version))
+            .collect::<BTreeSet<_>>();
+        for previous in store.list_for_entity(entity)? {
+            if !desired_keys.contains(&(previous.profile_name.clone(), previous.profile_version)) {
+                desired.push(DocumentManifest {
+                    entity: entity.clone(),
+                    profile_name: previous.profile_name,
+                    profile_version: previous.profile_version,
+                    source_version,
+                    documents: Vec::new(),
+                });
+            }
+        }
+        Ok(desired)
+    }
+
+    fn rebuild_profile_manifest(
+        &self,
+        storage: &Storage,
+        entity: &EntityRef,
+        source_version: u64,
+        profile: &IndexProfileArtifact,
+    ) -> Result<Option<DocumentManifest>> {
+        let Some(fields) = matching_fields(storage, entity, profile)? else {
+            return Ok(None);
+        };
+        let mut documents = profile_documents(entity, source_version, profile, &fields)?;
+        documents.retain(|document| {
+            profile
+                .fields
+                .get(&document.id.field)
+                .is_some_and(|options| options.bm25.is_some())
+        });
+        Ok(Some(DocumentManifest {
+            entity: entity.clone(),
+            profile_name: profile.name.clone(),
+            profile_version: profile.version,
+            source_version,
+            documents,
+        }))
+    }
+
     fn apply_changes(&self, changes: DocumentChanges) -> Result<()> {
         self.index.apply_document_changes(&changes)
+    }
+}
+
+fn merge_changes(changes: Vec<DocumentChanges>) -> DocumentChanges {
+    let mut upserts = BTreeMap::new();
+    let mut deletes = BTreeSet::<IndexDocumentId>::new();
+    for change in changes {
+        for id in change.deletes {
+            upserts.remove(&id);
+            deletes.insert(id);
+        }
+        for document in change.upserts {
+            deletes.remove(&document.id);
+            upserts.insert(document.id.clone(), document);
+        }
+    }
+    DocumentChanges {
+        upserts: upserts.into_values().collect(),
+        deletes: deletes.into_iter().collect(),
     }
 }
 
