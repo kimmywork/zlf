@@ -1,8 +1,9 @@
 use serde::{Deserialize, Serialize};
-use zlf_core::{Edge, Node, Result, Value, ZlfError};
+use zlf_core::{Edge, EntityRef, Node, Result, Value, ZlfError};
 
 use crate::canonical::{serialize_edge, serialize_node, serialize_version};
-use crate::{NodeVersion, Storage};
+use crate::outbox::entity_state_key;
+use crate::{EntityState, NodeVersion, Storage};
 
 pub const STORAGE_KEY_VERSION: u32 = 2;
 
@@ -39,6 +40,7 @@ impl Storage {
             format!("ver:{}:{}", node.id, node.current_version),
             serialize_version(&version)?,
         ));
+        records.push(node_entity_state_record(node)?);
         records.extend(node.labels.iter().flat_map(|label| {
             [
                 index_record(format!("idx:label:{label}:{}", node.id), &[]),
@@ -137,6 +139,23 @@ fn index_record(key: String, value: &[u8]) -> StorageRecord {
         key: key.into_bytes(),
         value: value.to_vec(),
     }
+}
+
+fn node_entity_state_record(node: &Node) -> Result<StorageRecord> {
+    let entity = EntityRef::Node(node.id.clone());
+    Ok(StorageRecord {
+        key: entity_state_key(&entity),
+        value: bincode::serialize(&EntityState {
+            entity,
+            source_version: node.current_version,
+            deleted: false,
+        })
+        .map_err(serialization)?,
+    })
+}
+
+fn serialization(error: impl std::fmt::Display) -> ZlfError {
+    ZlfError::Serialization(error.to_string())
 }
 
 pub(crate) fn hex(bytes: impl AsRef<[u8]>) -> String {

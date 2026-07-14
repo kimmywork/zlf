@@ -1,0 +1,92 @@
+{
+  "claim_scope": "generated lifecycle correctness; deterministic embeddings are not semantic quality evidence",
+  "configuration": {
+    "backend": "canonical storage, lifecycle targets, exact vectors, Tantivy BM25, temporal RocksDB",
+    "embedding_provider": "deterministic 1024-dimensional fixture",
+    "limits": {
+      "answer_limit": 20,
+      "candidate_limit": 32,
+      "documents": 1000,
+      "max_pages": 1,
+      "page_size": 32,
+      "queries": 20,
+      "retry_limit": 8,
+      "timeout_ms": 1800000
+    }
+  },
+  "dataset": {
+    "checksums": {
+      "documents.jsonl": "a0bcbc2f9d3d1c82ec4d6e3aa3e0e78b8ea673321cc2eac3d7e7fa8002dc314c",
+      "mutations.jsonl": "16235d4294d10e3ff12632f95a247b0eb09e85ace58322ba1d17fdea37820a5b",
+      "oracle-after.jsonl": "53327611208433ef63843fa22761cb39813d33f562a0004b6e953b905b65870a",
+      "oracle.jsonl": "7a061ea6869f7135f798955b42c3157592bd7b15a460c2ff9095881615e276bd",
+      "queries.jsonl": "7a73eb71c28aa6efb1f8bab0974b388c35b068197400e0ed9ec12a5dc6d8cca4",
+      "users.jsonl": "1f130db560baffdd77a07ceae675cd4851760a2692f25eff715f4ae56cf11a19"
+    },
+    "judgments": "generated mutation and lifecycle oracle",
+    "license": {
+      "source": "zlf deterministic generator",
+      "status": "generated"
+    },
+    "manifest": "data/benchmarks/enterprise-kb/v1-1k/manifest.json",
+    "name": "enterprise-kb",
+    "tier": "1k",
+    "version": "v1"
+  },
+  "metrics": {
+    "correctness": {
+      "after_reopen": 20,
+      "before_reopen": 20,
+      "bm25_sample_count": 10
+    },
+    "embedding": {
+      "initial_published": 1000,
+      "injected_retry_jobs": 32,
+      "mutation_published": 15,
+      "states": {
+        "completed": 1015
+      }
+    },
+    "generation": {
+      "initial": "g-1784026646536640000",
+      "rebuilt": "g-1784026798629698000",
+      "rollback_active": true
+    },
+    "mutations": {
+      "deleted": 5,
+      "inserted": 5,
+      "revised": 10
+    },
+    "resources": {
+      "disk_bytes": 7095937,
+      "peak_rss_bytes": 275005440
+    },
+    "watermark": {
+      "minimum": 29,
+      "pending": [],
+      "reached": true,
+      "timeout_pending": [
+        "missing-target"
+      ],
+      "timeout_reached": false
+    }
+  },
+  "phases": {
+    "initial_build": 150413.269459,
+    "initial_embedding": 77.81016699999999,
+    "mutations_and_embedding": 2015.9267500000003,
+    "reopen": 478.273417
+  },
+  "run": {
+    "commit": "44fa39fac8a865dd2e7376e1356d48d044ffe9be",
+    "created_at": "2026-07-14T11:02:57.322973+00:00",
+    "dirty": true,
+    "machine": {
+      "architecture": "arm64",
+      "cpu": "Apple M2 Pro",
+      "memory_bytes": 34359738368,
+      "os": "macOS-15.5-arm64-arm-64bit-Mach-O"
+    }
+  },
+  "schema": "zlf-benchmark-report-v1"
+}

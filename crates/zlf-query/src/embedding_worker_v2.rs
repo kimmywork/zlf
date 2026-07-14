@@ -87,10 +87,15 @@ impl<'a, P: BatchEmbeddingProvider> DurableEmbeddingWorker<'a, P> {
     }
 
     pub async fn run_batch(&self, now: DateTime<Utc>) -> Result<usize> {
-        let current = self.current_jobs(now)?;
-        if current.is_empty() {
-            return Ok(0);
-        }
+        let current = loop {
+            let (current, claimed) = self.current_jobs(now)?;
+            if !current.is_empty() {
+                break current;
+            }
+            if claimed == 0 {
+                return Ok(0);
+            }
+        };
         let transformed = current
             .iter()
             .map(|(_, text)| {
@@ -124,12 +129,13 @@ impl<'a, P: BatchEmbeddingProvider> DurableEmbeddingWorker<'a, P> {
         normalize_and_validate(values, &self.profile)
     }
 
-    fn current_jobs(&self, now: DateTime<Utc>) -> Result<Vec<(EmbeddingJob, String)>> {
+    fn current_jobs(&self, now: DateTime<Utc>) -> Result<(Vec<(EmbeddingJob, String)>, usize)> {
         let jobs = EmbeddingJobStore::new(self.storage).claim_ready(
             now,
             self.profile.batch_limit,
             self.lease,
         )?;
+        let claimed = jobs.len();
         let mut current = Vec::new();
         for job in jobs {
             if self.is_stale(&job)? {
@@ -138,7 +144,7 @@ impl<'a, P: BatchEmbeddingProvider> DurableEmbeddingWorker<'a, P> {
                 current.push((job.clone(), self.document_text(&job)?));
             }
         }
-        Ok(current)
+        Ok((current, claimed))
     }
 
     fn publish_batch(

@@ -127,7 +127,14 @@ fn validate_records(pack: &Path, manifest: &BulkPackManifest) -> Result<()> {
 }
 
 fn validate_record_key(key: &[u8]) -> Result<()> {
-    const PREFIXES: &[&[u8]] = &[b"node:", b"edge:", b"ver:", b"idx:", b"meta:predicate:"];
+    const PREFIXES: &[&[u8]] = &[
+        b"node:",
+        b"edge:",
+        b"ver:",
+        b"idx:",
+        b"meta:predicate:",
+        b"entity-state:",
+    ];
     if PREFIXES.iter().any(|prefix| key.starts_with(prefix)) {
         Ok(())
     } else {

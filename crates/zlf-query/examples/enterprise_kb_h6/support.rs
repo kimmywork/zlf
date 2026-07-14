@@ -16,11 +16,13 @@ pub fn load_jsonl(path: &Path) -> Result<Vec<Value>, Box<dyn std::error::Error>>
         .collect::<Result<Vec<_>, _>>()?)
 }
 
+#[allow(clippy::too_many_lines)]
 pub fn load_graph_database(
     root: &Path,
     users: &[Value],
     documents: &[Value],
 ) -> Result<ZlfDatabase, Box<dyn std::error::Error>> {
+    fs::create_dir_all(root)?;
     let source = root.join("enterprise-kb.pl");
     let mut writer = BufWriter::new(fs::File::create(&source)?);
     for user in users {
@@ -34,10 +36,13 @@ pub fn load_graph_database(
     for document in documents {
         writeln!(
             writer,
-            "node('{}', [document], {{access_group: \"{}\", active: {}}}).",
+            "node('{}', [document], {{access_group: \"{}\", active: {}, body: {}, valid_from: \"{}\", valid_to: \"{}\"}}).",
             document["_id"].as_str().unwrap(),
             document["access_group"].as_str().unwrap(),
-            document["active"].as_bool().unwrap()
+            document["active"].as_bool().unwrap(),
+            serde_json::to_string(document["body"].as_str().unwrap())?,
+            document["valid_from"].as_str().unwrap(),
+            document["valid_to"].as_str().unwrap()
         )?;
     }
     writer.flush()?;
@@ -51,6 +56,7 @@ pub fn load_graph_database(
     ZlfDatabase::open_existing(graph).map_err(Into::into)
 }
 
+#[allow(dead_code)]
 pub fn latency_report(values: &[Duration]) -> Value {
     let mut micros = values.iter().map(Duration::as_micros).collect::<Vec<_>>();
     micros.sort_unstable();
@@ -61,6 +67,7 @@ pub fn latency_report(values: &[Duration]) -> Value {
     })
 }
 
+#[allow(dead_code)]
 fn percentile(values: &[u128], percentile: usize) -> u128 {
     values[(values.len() - 1) * percentile / 100]
 }

@@ -33,6 +33,14 @@ fn ground_facts_compile_and_bulk_load_with_indexes() {
             .id,
         "tax_2"
     );
+    assert_eq!(
+        storage
+            .get_entity_state(&zlf_core::EntityRef::Node("tax_2".into()))
+            .unwrap()
+            .unwrap()
+            .source_version,
+        1
+    );
     let events = storage.mutation_events_after(0, 10).unwrap();
     assert_eq!(events.len(), 1);
     assert!(matches!(
