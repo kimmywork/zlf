@@ -1,0 +1,147 @@
+{
+  "claim_scope": "retrieval-only single-process sequential exact-vector baseline; no Ollama or HTTP",
+  "configuration": {
+    "backend": "exact-rocksdb-v1",
+    "dimension": 1024,
+    "filters": [
+      "none",
+      "group_10",
+      "group_100"
+    ],
+    "limits": {
+      "answer_limit": 100,
+      "candidate_limit": 100000,
+      "documents": 100000,
+      "max_pages": 1,
+      "page_size": 100000,
+      "queries": 100,
+      "retry_limit": 0,
+      "timeout_ms": 3600000
+    },
+    "metric": "cosine",
+    "normalized": true,
+    "top_k": [
+      10,
+      100
+    ]
+  },
+  "dataset": {
+    "checksums": {
+      "document-groups.u16le": "7d5c8ec357b6f5ffb593aaff26dcdf7d5ab8532ca86120da7642be755da22be1",
+      "documents.f32le": "e7ea455193781509c80ec55b1164cb600132ba802d8ce90f487133242650c53a",
+      "queries.f32le": "2211eae939dd9d7a50a90eeb2763997e4d17e915259c79e329c86d8768f3c2a1",
+      "self-query-document-ids.u32le": "12f91d105ee44236f7919c5a308e0baf81542f21b639bbfdd46ddc6486638bf5"
+    },
+    "judgments": "100 byte-identical self-query document IDs",
+    "license": {
+      "source": "splitmix64-high24-uniform-l2-v1",
+      "status": "generated"
+    },
+    "manifest": "data/benchmarks/vector-search-100k-1024-v1/manifest.json",
+    "name": "frozen-vector-search",
+    "tier": "100k",
+    "version": "zlf-vector-search-dataset-v1"
+  },
+  "metrics": {
+    "correctness": {
+      "self_queries": 100,
+      "top1_correct": 100
+    },
+    "fresh_reader_top10": {
+      "mean_us": 674088.1,
+      "p50_us": 674043,
+      "p95_us": 680756,
+      "p99_us": 680756,
+      "qps": 1.4834843688919965,
+      "queries": 10
+    },
+    "resources": {
+      "index_bytes": 451322126,
+      "peak_rss_bytes": 293076992
+    },
+    "workloads": {
+      "filter10_top10": {
+        "latency": {
+          "mean_us": 392664.63,
+          "p50_us": 387775,
+          "p95_us": 425297,
+          "p99_us": 483990,
+          "qps": 2.5466996352686637,
+          "queries": 100
+        },
+        "returned_total": 1000
+      },
+      "filter10_top100": {
+        "latency": {
+          "mean_us": 393979.26,
+          "p50_us": 388594,
+          "p95_us": 420980,
+          "p99_us": 530727,
+          "qps": 2.5382012483992376,
+          "queries": 100
+        },
+        "returned_total": 10000
+      },
+      "filter1_top10": {
+        "latency": {
+          "mean_us": 364072.98,
+          "p50_us": 362319,
+          "p95_us": 377385,
+          "p99_us": 402696,
+          "qps": 2.746698040868253,
+          "queries": 100
+        },
+        "returned_total": 1000
+      },
+      "filter1_top100": {
+        "latency": {
+          "mean_us": 364770.63,
+          "p50_us": 363375,
+          "p95_us": 381649,
+          "p99_us": 398809,
+          "qps": 2.7414455802102062,
+          "queries": 100
+        },
+        "returned_total": 10000
+      },
+      "unfiltered_top10": {
+        "latency": {
+          "mean_us": 641565.9,
+          "p50_us": 637686,
+          "p95_us": 717979,
+          "p99_us": 742937,
+          "qps": 1.5586852112716894,
+          "queries": 100
+        },
+        "returned_total": 1000
+      },
+      "unfiltered_top100": {
+        "latency": {
+          "mean_us": 664009.66,
+          "p50_us": 650798,
+          "p95_us": 733768,
+          "p99_us": 795357,
+          "qps": 1.5060011273734684,
+          "queries": 100
+        },
+        "returned_total": 10000
+      }
+    }
+  },
+  "phases": {
+    "backend_build_ms": 942.2166669999999,
+    "reopen_ms": 60.358917
+  },
+  "run": {
+    "commit": "dc9afb45c79597f5edd9fbb5d6bb1f86e909dc55",
+    "created_at": "2026-07-14T16:23:29.064881+00:00",
+    "dirty": true,
+    "machine": {
+      "architecture": "arm64",
+      "cpu": "Apple M2 Pro",
+      "memory_bytes": 34359738368,
+      "os": "macOS-15.5-arm64-arm-64bit-Mach-O"
+    }
+  },
+  "schema": "zlf-benchmark-report-v1"
+}
