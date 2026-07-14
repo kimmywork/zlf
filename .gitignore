@@ -44,6 +44,10 @@ Desktop.ini
 
 # Local benchmark corpora and generated indexes
 /data/benchmarks/
+/data/fiqa/
+/data/fiqa-qrels/
+/data/miracl/
+/data/miracl-corpus/
 
 # Runtime / Test databases
 test-*/
