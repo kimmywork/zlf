@@ -1,47 +1,26 @@
 name: Build and release zlf
 
 on:
-  schedule:
-    - cron: '0 0 * * *'
   push:
     tags:
       - 'v*'
 
 permissions:
-  actions: read
   contents: write
 
 jobs:
   prepare:
     runs-on: ubuntu-latest
     outputs:
-      is_release: ${{ steps.decision.outputs.is_release }}
-      should_build: ${{ steps.decision.outputs.should_build }}
+      is_release: ${{ steps.tag.outputs.is_release }}
     steps:
-      - id: decision
+      - id: tag
         shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
-          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref_name }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
+          if [[ "${{ github.ref_name }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
             echo "is_release=true" >> "$GITHUB_OUTPUT"
-            echo "should_build=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          echo "is_release=false" >> "$GITHUB_OUTPUT"
-          if [[ "${{ github.event_name }}" != "schedule" ]]; then
-            echo "should_build=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          completed_runs=$(gh run list --workflow release.yml --event schedule \
-            --commit "$GITHUB_SHA" --status success --limit 1 \
-            --json databaseId --jq 'length')
-          if [[ "$completed_runs" == "0" ]]; then
-            echo "should_build=true" >> "$GITHUB_OUTPUT"
           else
-            echo "should_build=false" >> "$GITHUB_OUTPUT"
+            echo "is_release=false" >> "$GITHUB_OUTPUT"
           fi
 
   create-release:
@@ -63,7 +42,7 @@ jobs:
 
   build:
     needs: [prepare, create-release]
-    if: always() && needs.prepare.outputs.should_build == 'true'
+    if: needs.prepare.outputs.is_release == 'true' && needs.create-release.result == 'success'
     name: ${{ matrix.platform }}
     strategy:
       fail-fast: false
@@ -101,14 +80,9 @@ jobs:
           cargo build --locked --release --package zlf-cli --bin zlf
           --target ${{ matrix.target }}
       - id: label
-        name: Select build label
+        name: Set release label
         shell: bash
-        run: |
-          if [[ "${{ github.event_name }}" == "schedule" ]]; then
-            echo "value=nightly-$(date -u +%Y%m%d)" >> "$GITHUB_OUTPUT"
-          else
-            echo "value=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
-          fi
+        run: echo "value=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
       - id: package-unix
         if: matrix.archive == 'tar.gz'
         name: Package archive
@@ -131,14 +105,6 @@ jobs:
           Copy-Item "target/${{ matrix.target }}/release/zlf.exe" "dist/$directory/zlf.exe"
           Compress-Archive -Path "dist/$directory" -DestinationPath $archive
           "path=$archive" >> $env:GITHUB_OUTPUT
-      - name: Upload nightly build artifact
-        if: github.event_name == 'schedule'
-        uses: actions/upload-artifact@v4
-        with:
-          name: zlf-${{ steps.label.outputs.value }}-${{ matrix.platform }}
-          path: ${{ steps.package-unix.outputs.path || steps.package-windows.outputs.path }}
-          if-no-files-found: error
-          retention-days: 14
       - name: Upload release asset
         if: needs.prepare.outputs.is_release == 'true'
         shell: bash
