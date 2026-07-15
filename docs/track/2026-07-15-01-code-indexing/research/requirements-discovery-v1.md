@@ -33,9 +33,9 @@
 - Add incremental file ownership, delete convergence, repository ACL/visibility, secret-safe snippets, schema/extractor versioning, and rebuild equivalence.
 - Add target-scale benchmark tiers culminating in 100K files / 1M symbols / 3M relationships, with mutation, reopen, traversal, RSS, disk, and stale-edge evidence.
 
-## Recommended identity model
+## Confirmed identity model
 
-Use one node per concrete symbol definition, never one node per simple name.
+Confirmed by the user on 2026-07-15: use one node per concrete symbol definition, never one node per simple name.
 
 ```text
 SymbolDefinitionId =
@@ -53,7 +53,7 @@ This permits multiple `ServiceDispatcher` definitions while still supporting sim
 
 ## Open decision queue
 
-1. Confirm concrete-definition identity versus one merged simple-name node.
+1. **Confirmed:** concrete definitions are separate nodes; simple names never merge definitions.
 2. Define code-symbol analyzer behavior: subtoken boundaries, character/edge ngram sizes, typo/substring expectations, and index-size budget.
 3. Choose initial languages and semantic evidence sources beyond Tree-sitter.
 4. Define cross-repo resolution scope and manual mapping/contract ingestion.

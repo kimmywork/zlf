@@ -10,6 +10,10 @@ version: 1
 
 Define and persist language-neutral repository, file, module, type, function/method, variable, and import entities plus containment, definition/reference, call, inheritance/implementation, and dependency edges with source provenance and confidence.
 
+## Confirmed symbol identity
+
+Every concrete symbol definition is a separate node. Definitions with the same simple name are never merged. Stable identity is derived from repository identity, language, module/package/namespace, enclosing symbol path, symbol kind, and normalized signature/overload discriminator. `simple_name` and `qualified_name` remain indexed attributes. Repository revision, source fingerprint, and index generation version the definition without normally changing its logical ID. Cross-language implementations connect through separate contract/external-symbol nodes.
+
 ## Acceptance
 
 - IDs remain stable across unchanged re-imports and distinguish repositories/languages/scopes/overloads.
