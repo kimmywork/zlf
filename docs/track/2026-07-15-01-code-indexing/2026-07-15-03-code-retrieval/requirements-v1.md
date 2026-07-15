@@ -22,9 +22,14 @@ Reachable caller/callee symbol sets and concrete call paths are separate operati
 
 zlf-Prolog is the only textual DSL. Dedicated `code_symbol`, `code_callers`, `code_callees`, `code_path`, and `code_cycle` predicates compile into a typed bounded `CodeQuery` AST and specialized adjacency/traversal executor. JSON/HTTP reuse the same AST. The WAM composes bounded results with ordinary facts/rules/proof/tabling but does not perform million-symbol traversal through ordinary recursive Prolog evaluation. Bound modes, finite budgets, generation/watermark identity, provenance, and exhaustion metadata are mandatory.
 
+## Confirmed visualization scope
+
+Visualization is static-analysis based. A shared bounded visualization IR feeds Mermaid and PlantUML renderers for call graphs, class/type relationships, static sequence diagrams along selected paths, and language-adapter CFG flowcharts. Sequence and CFG outputs are labeled static/approximate. Every view preserves symbol/location and relation certainty/provenance, enforces finite node/edge/depth/path/timeout budgets, and reports truncation. Runtime trace enrichment is not required.
+
 ## Acceptance
 
 - APIs support explicit repository/language/path/kind filters and finite top-k/candidate/depth budgets.
+- Equivalent visualization IR produces deterministic Mermaid and PlantUML call/class/static-sequence/CFG fixtures with approximation and truncation metadata.
 - Prolog predicates and JSON requests compile to the same `CodeQuery` AST and produce equivalent ordered results and exhaustion metadata.
 - Caller/callee sets, shortest simple paths, Top-N deterministic path ordering, cycle reporting, contract-edge opt-in, and exhausted/truncated metadata are independently tested.
 - Exact symbol lookup, boundary-subtoken symbol lookup, BM25 ranking, caller/callee/import/containment expansion, and explanation provenance are tested.

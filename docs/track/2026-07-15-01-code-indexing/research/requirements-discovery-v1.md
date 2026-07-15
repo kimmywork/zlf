@@ -73,6 +73,12 @@ Confirmed by the user on 2026-07-15: zlf-Prolog remains the only textual query D
 
 The WAM composes code-query results with ordinary facts, graph predicates, properties, rules, proof, and tabling; it does not execute million-symbol traversal through ordinary Prolog recursion, and no second general evaluator is introduced. Deep traversal requires bound source/target modes and finite options. Results carry graph generation, watermark, provenance, and explicit exhaustion/truncation metadata.
 
+## Confirmed static visualization scope
+
+Confirmed by the user on 2026-07-15: visualization is static-analysis based. A language-neutral bounded visualization IR is the source for Mermaid and PlantUML renderers. Initial views include call graphs, class/type relationships, static sequence diagrams along selected call paths, and language-adapter CFG flowcharts. Sequence and CFG views are explicitly labeled static/approximate; runtime trace ingestion and observed sequence semantics are not required.
+
+Visualization retains symbol IDs, repository/path/source ranges, edge certainty, and provenance. Requests have finite node, edge, depth, path, and timeout budgets and report truncation. Renderers do not own independent query semantics.
+
 ## Recommended requirement additions
 
 - Separate syntax extraction from semantic resolution. Tree-sitter provides syntax; language adapters, compiler metadata, build manifests, IDLs, OpenAPI/gRPC/protobuf schemas, and explicit mappings may provide stronger cross-repo/cross-language evidence.
@@ -113,5 +119,5 @@ This permits multiple `ServiceDispatcher` definitions while still supporting sim
 5. **Confirmed:** use first-class contract/external-symbol nodes, automatic evidence, and optional versioned mapping manifests for cross-repo/cross-language linkage.
 6. **Confirmed:** separate reachable sets from paths; paths are bounded Top-N shortest simple paths, cycles are separate, and exhaustion is explicit.
 7. **Confirmed:** zlf-Prolog is the only textual DSL; dedicated code predicates compile to a shared bounded `CodeQuery` AST/executor also used by JSON/HTTP.
-8. Define static versus runtime-backed visualization claims.
+8. **Confirmed:** initial visualization is static; bounded visualization IR feeds Mermaid/PlantUML, with sequence/CFG views labeled approximate.
 9. Define repository tenancy/ACL and revision retention.
