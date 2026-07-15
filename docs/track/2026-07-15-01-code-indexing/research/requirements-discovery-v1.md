@@ -63,6 +63,10 @@ Confirmed by the user on 2026-07-15: cross-repository and cross-language resolut
 
 Contract identities may represent OpenAPI operations, HTTP method/normalized routes, protobuf package/service/RPC, GraphQL fields, message topics, package/artifact coordinates, exported external symbols, or shared headers. Client and implementation symbols connect to the contract node rather than being merged or linked by an unqualified-name guess. Resolution precedence is compiler/LSP evidence, shared schema/build dependency, explicit mapping, then syntax/name/string heuristics. Explicit operator mappings are `specified`, not compiler-`resolved`, and retain manifest/version provenance.
 
+## Confirmed traversal semantics
+
+Confirmed by the user on 2026-07-15: reachable symbol sets and concrete call paths are distinct operations. Caller/callee reachability returns deduplicated symbols. Path retrieval returns bounded Top-N shortest simple paths; a path does not repeat nodes, cycles/SCCs are represented separately, and every traversal has finite depth, visited-symbol, traversed-edge, path-count, and timeout budgets. Results report exhaustion/truncation. Contract edges participate only when explicitly requested.
+
 ## Recommended requirement additions
 
 - Separate syntax extraction from semantic resolution. Tree-sitter provides syntax; language adapters, compiler metadata, build manifests, IDLs, OpenAPI/gRPC/protobuf schemas, and explicit mappings may provide stronger cross-repo/cross-language evidence.
@@ -101,6 +105,7 @@ This permits multiple `ServiceDispatcher` definitions while still supporting sim
 3. **Confirmed:** Java, C, C++, Python, Rust, JavaScript, TypeScript, Kotlin, Go, and Swift are in the initial language scope.
 4. **Confirmed:** build systems, dependency metadata, compiler/language tooling, and LSP implementations may optionally enrich Tree-sitter syntax facts.
 5. **Confirmed:** use first-class contract/external-symbol nodes, automatic evidence, and optional versioned mapping manifests for cross-repo/cross-language linkage.
-6. Define DSL path semantics: reachable sets, simple paths, shortest/top-N paths, cycles, ranking, and required bounds.
-7. Define static versus runtime-backed visualization claims.
-8. Define repository tenancy/ACL and revision retention.
+6. **Confirmed:** separate reachable sets from paths; paths are bounded Top-N shortest simple paths, cycles are separate, and exhaustion is explicit.
+7. Confirm zlf-Prolog predicate/term surface for compiling code traversal requests into the specialized bounded executor.
+8. Define static versus runtime-backed visualization claims.
+9. Define repository tenancy/ACL and revision retention.
