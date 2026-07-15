@@ -40,7 +40,6 @@ Use one node per concrete symbol definition, never one node per simple name.
 ```text
 SymbolDefinitionId =
   repository identity
-  + revision/index generation
   + language
   + module/package/namespace
   + enclosing symbol path
@@ -48,7 +47,7 @@ SymbolDefinitionId =
   + normalized signature/overload discriminator
 ```
 
-Keep `simple_name` and `qualified_name` as indexed attributes. Optionally add separate logical/external contract nodes for identities shared across implementations, such as an HTTP route, protobuf RPC, OpenAPI operation, JVM symbol, Cargo item, or manually declared service contract. Definition nodes connect to those contract nodes with provenance-bearing edges.
+Keep `simple_name` and `qualified_name` as indexed attributes. The repository revision, source fingerprint, and index generation version the node; they should not normally create a new logical symbol ID. If historical snapshots must coexist, add snapshot-qualified `SymbolVersion` records rather than changing the current-definition identity. Optionally add separate logical/external contract nodes for identities shared across implementations, such as an HTTP route, protobuf RPC, OpenAPI operation, JVM symbol, Cargo item, or manually declared service contract. Definition nodes connect to those contract nodes with provenance-bearing edges.
 
 This permits multiple `ServiceDispatcher` definitions while still supporting simple-name retrieval and cross-language server/client linkage.
 
