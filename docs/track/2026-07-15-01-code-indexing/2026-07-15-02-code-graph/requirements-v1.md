@@ -20,6 +20,10 @@ Repositories, files, modules/packages, concrete symbols, external contracts, and
 
 Each repository has one active revision. Revision changes incrementally replace file-owned nodes/edges while stable logical symbol IDs remain unchanged where identity is unchanged. Historical revisions require future explicitly selected immutable snapshots.
 
+## Relation occurrence and adjacency model
+
+Canonical relationship evidence is occurrence-level: each call/reference/import/etc. edge has independent identity and may carry source line/column/range, metadata, provenance, and certainty. Multiple occurrences may share `(source, kind, target)`. A rebuildable traversal projection deduplicates that tuple, records occurrence count/evidence summary, and provides typed incoming/outgoing adjacency. Ordinary source-location queries retain occurrence edges; specialized reachability/path queries use the deduplicated projection.
+
 ## Relation evidence
 
 Relations may originate from Tree-sitter, build/dependency metadata, compiler/language tooling, LSP, shared contracts, or manual mappings. Every relation records provider, provider version, certainty (`resolved`, `specified`, `declared`, `inferred`, or `unresolved`), source revision, and source range/configuration provenance.
@@ -32,6 +36,7 @@ Cross-repository and cross-language links use first-class contract/external-symb
 - Optional build/LSP evidence can upgrade an unresolved or inferred relation without deleting its provenance history.
 - Automatic contract resolution and versioned manual mapping fixtures link client/implementation definitions across repositories and languages without merging concrete symbol nodes.
 - Every inferred edge names its extraction rule, source range, and confidence/certainty class.
+- Multiple source occurrences between the same symbol pair remain independently traceable while traversal visits the deduplicated adjacency once.
 - File update/delete atomically supersedes all owned symbols and edges.
 - Active revision replacement leaves no stale definitions, relationships, adjacency projections, or lexical documents and converges to a full rebuild.
 - Graph/Prolog fixtures independently verify canonical facts and bounded traversal.

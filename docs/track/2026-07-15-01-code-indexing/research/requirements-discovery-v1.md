@@ -85,6 +85,18 @@ Visualization retains symbol IDs, repository/path/source ranges, edge certainty,
 
 Confirmed by the user on 2026-07-15: each repository has one active indexed revision. Switching revision incrementally replaces the active file/symbol/relation graph. Stable logical symbol IDs do not include commit identity; revision, source fingerprint, and extractor generation version the current definition. Historical commits are not all queryable by default. Future history support may publish explicitly selected immutable snapshots such as release tags or audit baselines.
 
+## Sanitized reference-schema evidence
+
+The user supplied schema-only evidence from an existing SQLite code knowledge base; no instance data was requested or recorded.
+
+**Asserted node contract:** textual ID, kind, simple/qualified name, file path, language, start/end line and column, optional docstring/signature/visibility, exported/async/static/abstract flags, decorators, type parameters, return type, and update timestamp. Observed kinds are class, component, constant, enum/member, field, file, function, import, interface, method, module, namespace, property, protocol, route, struct, trait, type alias, and variable.
+
+**Asserted edge contract:** independent edge ID, source, target, kind, optional metadata, line/column, and provenance. Observed kinds are calls, contains, decorates, extends, implements, imports, instantiates, and references.
+
+**Inferred relation granularity:** the independent edge ID plus call-site line/column strongly suggests an edge row represents a source occurrence/evidence item rather than only a deduplicated symbol pair. The zlf design should preserve occurrence-level canonical edges and derive a deduplicated `(source, kind, target)` adjacency projection for traversal. The projection records occurrence count and strongest/available certainty while source-location queries retain all canonical occurrences. This inference does not require confidential instance rows.
+
+**Required schema additions for zlf:** repository/codebase identity, active revision, source fingerprint, extractor/provider version, certainty class, full edge source range where available, build/LSP configuration identity, and first-class contract/external-symbol identity. Structured decorators/type parameters/metadata should use typed values rather than opaque JSON text where practical.
+
 ## Recommended requirement additions
 
 - Separate syntax extraction from semantic resolution. Tree-sitter provides syntax; language adapters, compiler metadata, build manifests, IDLs, OpenAPI/gRPC/protobuf schemas, and explicit mappings may provide stronger cross-repo/cross-language evidence.
