@@ -1,0 +1,15 @@
+theme: jekyll-theme-primer
+
+github:
+  private: false
+  source:
+    branch: "master"
+    path: "/"
+  repository_url: "https://github.com/kimmywork/zlf"
+
+title: "Zenith Logic Foundry"
+description: "Forge answers from everything. 解答世间万物"
+exclude:
+  - "crates/"
+  - "data/"
+  - "scripts/"
