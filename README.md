@@ -2,7 +2,7 @@
 
 **Zenith Logic Foundry**
 
-> *Forge answers from everything.*
+> *Forge Grounded Wisdom, Mapped To You.*
 >
 > 解答世间万物
 
