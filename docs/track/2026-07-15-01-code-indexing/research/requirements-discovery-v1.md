@@ -57,6 +57,12 @@ The baseline remains Tree-sitter syntax extraction. Semantic enrichers are optio
 
 Candidate evidence sources include Cargo metadata/rust-analyzer, Gradle/Maven/JDT/Kotlin tooling, `compile_commands.json`/clangd/libclang, `go list`/gopls, `package.json`/`tsconfig`/TypeScript language service, SwiftPM/SourceKit, and Python project/import metadata or Pyright.
 
+## Confirmed cross-repository contract model
+
+Confirmed by the user on 2026-07-15: cross-repository and cross-language resolution uses first-class contract/external-symbol nodes, automatic evidence, and optional versioned mapping manifests.
+
+Contract identities may represent OpenAPI operations, HTTP method/normalized routes, protobuf package/service/RPC, GraphQL fields, message topics, package/artifact coordinates, exported external symbols, or shared headers. Client and implementation symbols connect to the contract node rather than being merged or linked by an unqualified-name guess. Resolution precedence is compiler/LSP evidence, shared schema/build dependency, explicit mapping, then syntax/name/string heuristics. Explicit operator mappings are `specified`, not compiler-`resolved`, and retain manifest/version provenance.
+
 ## Recommended requirement additions
 
 - Separate syntax extraction from semantic resolution. Tree-sitter provides syntax; language adapters, compiler metadata, build manifests, IDLs, OpenAPI/gRPC/protobuf schemas, and explicit mappings may provide stronger cross-repo/cross-language evidence.
@@ -94,7 +100,7 @@ This permits multiple `ServiceDispatcher` definitions while still supporting sim
 2. **Confirmed:** split identifier boundaries and index full normalized identifiers plus subtokens; no full character ngram, arbitrary suffix matching, or typo tolerance.
 3. **Confirmed:** Java, C, C++, Python, Rust, JavaScript, TypeScript, Kotlin, Go, and Swift are in the initial language scope.
 4. **Confirmed:** build systems, dependency metadata, compiler/language tooling, and LSP implementations may optionally enrich Tree-sitter syntax facts.
-5. Define cross-repo resolution scope and manual mapping/contract ingestion.
+5. **Confirmed:** use first-class contract/external-symbol nodes, automatic evidence, and optional versioned mapping manifests for cross-repo/cross-language linkage.
 6. Define DSL path semantics: reachable sets, simple paths, shortest/top-N paths, cycles, ranking, and required bounds.
 7. Define static versus runtime-backed visualization claims.
 8. Define repository tenancy/ACL and revision retention.

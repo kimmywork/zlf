@@ -18,10 +18,13 @@ Every concrete symbol definition is a separate node. Definitions with the same s
 
 Relations may originate from Tree-sitter, build/dependency metadata, compiler/language tooling, LSP, shared contracts, or manual mappings. Every relation records provider, provider version, certainty (`resolved`, `specified`, `declared`, `inferred`, or `unresolved`), source revision, and source range/configuration provenance.
 
+Cross-repository and cross-language links use first-class contract/external-symbol nodes. Supported identities include OpenAPI/HTTP operations, protobuf RPCs, GraphQL fields, message topics, package/artifact coordinates, exported symbols, and shared headers. Client and implementation definitions connect to contract nodes. Versioned optional mapping manifests may provide `specified` links and must retain mapping provenance.
+
 ## Acceptance
 
 - IDs remain stable across unchanged re-imports and distinguish repositories/languages/scopes/overloads.
 - Optional build/LSP evidence can upgrade an unresolved or inferred relation without deleting its provenance history.
+- Automatic contract resolution and versioned manual mapping fixtures link client/implementation definitions across repositories and languages without merging concrete symbol nodes.
 - Every inferred edge names its extraction rule, source range, and confidence/certainty class.
 - File update/delete atomically supersedes all owned symbols and edges.
 - Graph/Prolog fixtures independently verify canonical facts and bounded traversal.
