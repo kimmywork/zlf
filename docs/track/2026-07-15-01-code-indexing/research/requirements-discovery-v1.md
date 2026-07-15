@@ -49,6 +49,14 @@ Confirmed by the user on 2026-07-15. The initial code-indexing language set is:
 
 Each language uses an explicitly pinned Tree-sitter grammar and a versioned language adapter. JavaScript and TypeScript, and C and C++, remain distinct adapters where their syntax and symbol rules differ.
 
+## Confirmed semantic enrichment policy
+
+Confirmed by the user on 2026-07-15: build-system metadata, dependency metadata, compiler/language tooling, and Language Server Protocol implementations may be used as additional semantic evidence.
+
+The baseline remains Tree-sitter syntax extraction. Semantic enrichers are optional and capability-declared; indexing must still produce bounded `declared`/`inferred`/`unresolved` results when a toolchain is unavailable. Every enriched symbol or edge records the provider/tool, version, repository revision, configuration/classpath/compile database identity, certainty, and source provenance. External tools must not silently replace syntax facts, and failures must degrade to the baseline rather than publish a partially complete semantic generation as complete.
+
+Candidate evidence sources include Cargo metadata/rust-analyzer, Gradle/Maven/JDT/Kotlin tooling, `compile_commands.json`/clangd/libclang, `go list`/gopls, `package.json`/`tsconfig`/TypeScript language service, SwiftPM/SourceKit, and Python project/import metadata or Pyright.
+
 ## Recommended requirement additions
 
 - Separate syntax extraction from semantic resolution. Tree-sitter provides syntax; language adapters, compiler metadata, build manifests, IDLs, OpenAPI/gRPC/protobuf schemas, and explicit mappings may provide stronger cross-repo/cross-language evidence.
@@ -84,8 +92,9 @@ This permits multiple `ServiceDispatcher` definitions while still supporting sim
 
 1. **Confirmed:** concrete definitions are separate nodes; simple names never merge definitions.
 2. **Confirmed:** split identifier boundaries and index full normalized identifiers plus subtokens; no full character ngram, arbitrary suffix matching, or typo tolerance.
-3. **Confirmed:** Java, C, C++, Python, Rust, JavaScript, TypeScript, Kotlin, Go, and Swift are in the initial language scope. Semantic evidence sources beyond Tree-sitter remain open.
-4. Define cross-repo resolution scope and manual mapping/contract ingestion.
-5. Define DSL path semantics: reachable sets, simple paths, shortest/top-N paths, cycles, ranking, and required bounds.
-6. Define static versus runtime-backed visualization claims.
-7. Define repository tenancy/ACL and revision retention.
+3. **Confirmed:** Java, C, C++, Python, Rust, JavaScript, TypeScript, Kotlin, Go, and Swift are in the initial language scope.
+4. **Confirmed:** build systems, dependency metadata, compiler/language tooling, and LSP implementations may optionally enrich Tree-sitter syntax facts.
+5. Define cross-repo resolution scope and manual mapping/contract ingestion.
+6. Define DSL path semantics: reachable sets, simple paths, shortest/top-N paths, cycles, ranking, and required bounds.
+7. Define static versus runtime-backed visualization claims.
+8. Define repository tenancy/ACL and revision retention.
