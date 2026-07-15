@@ -14,6 +14,12 @@ Define and persist language-neutral repository, file, module, type, function/met
 
 Every concrete symbol definition is a separate node. Definitions with the same simple name are never merged. Stable identity is derived from repository identity, language, module/package/namespace, enclosing symbol path, symbol kind, and normalized signature/overload discriminator. `simple_name` and `qualified_name` remain indexed attributes. Repository revision, source fingerprint, and index generation version the definition without normally changing its logical ID. Cross-language implementations connect through separate contract/external-symbol nodes.
 
+## Canonical graph persistence
+
+Repositories, files, modules/packages, concrete symbols, external contracts, and unresolved external symbols are canonical graph nodes. Containment, definition/reference, call, import, inheritance/implementation, dependency, and contract linkage are canonical typed edges with properties/provenance. They are directly queryable through ordinary zlf-Prolog label/property/edge shortcuts and rules. Specialized traversal indexes are rebuildable derivatives, not a separate source of truth.
+
+Each repository has one active revision. Revision changes incrementally replace file-owned nodes/edges while stable logical symbol IDs remain unchanged where identity is unchanged. Historical revisions require future explicitly selected immutable snapshots.
+
 ## Relation evidence
 
 Relations may originate from Tree-sitter, build/dependency metadata, compiler/language tooling, LSP, shared contracts, or manual mappings. Every relation records provider, provider version, certainty (`resolved`, `specified`, `declared`, `inferred`, or `unresolved`), source revision, and source range/configuration provenance.
@@ -27,6 +33,7 @@ Cross-repository and cross-language links use first-class contract/external-symb
 - Automatic contract resolution and versioned manual mapping fixtures link client/implementation definitions across repositories and languages without merging concrete symbol nodes.
 - Every inferred edge names its extraction rule, source range, and confidence/certainty class.
 - File update/delete atomically supersedes all owned symbols and edges.
+- Active revision replacement leaves no stale definitions, relationships, adjacency projections, or lexical documents and converges to a full rebuild.
 - Graph/Prolog fixtures independently verify canonical facts and bounded traversal.
 
 ## Non-goals

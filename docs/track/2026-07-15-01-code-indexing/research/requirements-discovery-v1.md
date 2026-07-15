@@ -69,15 +69,21 @@ Confirmed by the user on 2026-07-15: reachable symbol sets and concrete call pat
 
 ## Confirmed zlf-Prolog query surface
 
-Confirmed by the user on 2026-07-15: zlf-Prolog remains the only textual query DSL. Code-specific predicates such as `code_symbol`, `code_callers`, `code_callees`, `code_path`, and `code_cycle` compile into a typed bounded `CodeQuery` AST and specialized adjacency/traversal executor. JSON/HTTP APIs reuse the same AST rather than defining different semantics.
+Confirmed by the user on 2026-07-15: zlf-Prolog remains the only textual query DSL. Concrete repositories, files, symbols, contracts, and source-derived relationships are persisted as ordinary canonical graph nodes/edges and are directly queryable through normal Prolog label, property, edge-type shortcut, rule, and join syntax.
 
-The WAM composes code-query results with ordinary facts, graph predicates, properties, rules, proof, and tabling; it does not execute million-symbol traversal through ordinary Prolog recursion, and no second general evaluator is introduced. Deep traversal requires bound source/target modes and finite options. Results carry graph generation, watermark, provenance, and explicit exhaustion/truncation metadata.
+Specialized predicates are derived execution paths, not a second storage model or language. Ranked symbol search and expensive transitive/path/cycle/visualization operations such as `code_callers`, `code_callees`, `code_path`, and `code_cycle` compile into a typed bounded `CodeQuery` AST and specialized adjacency/traversal executor. JSON/HTTP APIs reuse the same AST rather than defining different semantics.
+
+The WAM composes these bounded derived results with ordinary facts, graph predicates, properties, rules, proof, and tabling; it does not execute million-symbol traversal through ordinary Prolog recursion, and no second general evaluator is introduced. Deep traversal requires bound source/target modes and finite options. Results carry graph generation, watermark, provenance, and explicit exhaustion/truncation metadata.
 
 ## Confirmed static visualization scope
 
 Confirmed by the user on 2026-07-15: visualization is static-analysis based. A language-neutral bounded visualization IR is the source for Mermaid and PlantUML renderers. Initial views include call graphs, class/type relationships, static sequence diagrams along selected call paths, and language-adapter CFG flowcharts. Sequence and CFG views are explicitly labeled static/approximate; runtime trace ingestion and observed sequence semantics are not required.
 
 Visualization retains symbol IDs, repository/path/source ranges, edge certainty, and provenance. Requests have finite node, edge, depth, path, and timeout budgets and report truncation. Renderers do not own independent query semantics.
+
+## Confirmed active-revision model
+
+Confirmed by the user on 2026-07-15: each repository has one active indexed revision. Switching revision incrementally replaces the active file/symbol/relation graph. Stable logical symbol IDs do not include commit identity; revision, source fingerprint, and extractor generation version the current definition. Historical commits are not all queryable by default. Future history support may publish explicitly selected immutable snapshots such as release tags or audit baselines.
 
 ## Recommended requirement additions
 
@@ -120,4 +126,5 @@ This permits multiple `ServiceDispatcher` definitions while still supporting sim
 6. **Confirmed:** separate reachable sets from paths; paths are bounded Top-N shortest simple paths, cycles are separate, and exhaustion is explicit.
 7. **Confirmed:** zlf-Prolog is the only textual DSL; dedicated code predicates compile to a shared bounded `CodeQuery` AST/executor also used by JSON/HTTP.
 8. **Confirmed:** initial visualization is static; bounded visualization IR feeds Mermaid/PlantUML, with sequence/CFG views labeled approximate.
-9. Define repository tenancy/ACL and revision retention.
+9. **Confirmed:** one active revision per repository; historical revisions require future explicit immutable snapshots.
+10. Define repository tenancy/ACL.

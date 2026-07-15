@@ -20,7 +20,9 @@ Reachable caller/callee symbol sets and concrete call paths are separate operati
 
 ## Confirmed query-language architecture
 
-zlf-Prolog is the only textual DSL. Dedicated `code_symbol`, `code_callers`, `code_callees`, `code_path`, and `code_cycle` predicates compile into a typed bounded `CodeQuery` AST and specialized adjacency/traversal executor. JSON/HTTP reuse the same AST. The WAM composes bounded results with ordinary facts/rules/proof/tabling but does not perform million-symbol traversal through ordinary recursive Prolog evaluation. Bound modes, finite budgets, generation/watermark identity, provenance, and exhaustion metadata are mandatory.
+zlf-Prolog is the only textual DSL. Persisted repository/file/symbol/contract nodes and typed source relationships are ordinary graph facts, so direct lookups, one-hop edges, bounded joins, and application rules use normal label/property/edge shortcut predicates.
+
+Dedicated `code_callers`, `code_callees`, `code_path`, and `code_cycle` predicates are derived optimized execution paths for transitive reachability, Top-N paths, cycles, ranking, and visualization. They compile into a typed bounded `CodeQuery` AST and specialized adjacency/traversal executor; they do not introduce separate facts or a second language. Ranked symbol search may also use a code-specific BM25 predicate over the same persisted symbols. JSON/HTTP reuse the same AST. The WAM composes bounded results with ordinary facts/rules/proof/tabling but does not perform million-symbol traversal through ordinary recursive Prolog evaluation. Bound modes, finite budgets, generation/watermark identity, provenance, and exhaustion metadata are mandatory.
 
 ## Confirmed visualization scope
 
@@ -30,7 +32,8 @@ Visualization is static-analysis based. A shared bounded visualization IR feeds 
 
 - APIs support explicit repository/language/path/kind filters and finite top-k/candidate/depth budgets.
 - Equivalent visualization IR produces deterministic Mermaid and PlantUML call/class/static-sequence/CFG fixtures with approximation and truncation metadata.
-- Prolog predicates and JSON requests compile to the same `CodeQuery` AST and produce equivalent ordered results and exhaustion metadata.
+- Ordinary Prolog queries answer direct symbol/property/relationship joins from canonical graph facts.
+- Specialized Prolog predicates and JSON requests compile to the same `CodeQuery` AST and produce equivalent ordered results and exhaustion metadata.
 - Caller/callee sets, shortest simple paths, Top-N deterministic path ordering, cycle reporting, contract-edge opt-in, and exhausted/truncated metadata are independently tested.
 - Exact symbol lookup, boundary-subtoken symbol lookup, BM25 ranking, caller/callee/import/containment expansion, and explanation provenance are tested.
 - Default operation requires no embedding model or vector index.
