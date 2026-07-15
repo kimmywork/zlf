@@ -1,6 +1,12 @@
 {
   "version": 1,
   "skills": {
+    "challenge": {
+      "source": "git@github.com:kimmywork/skills",
+      "sourceType": "git",
+      "skillPath": "drafting/skills/challenge/SKILL.md",
+      "computedHash": "7571cde2342116a6c35e508f4df9292c81133118048dab27a8cac81213a5a50e"
+    },
     "delivery-acceptance": {
       "source": "kimmywork/skills",
       "sourceType": "github",
@@ -12,6 +18,12 @@
       "sourceType": "github",
       "skillPath": "delivery/skills/implementation-execution/SKILL.md",
       "computedHash": "929979cd20f5161562a924eec341455181cff86027e54d25c9d316a8baf34a00"
+    },
+    "probing": {
+      "source": "git@github.com:kimmywork/skills",
+      "sourceType": "git",
+      "skillPath": "drafting/skills/probing/SKILL.md",
+      "computedHash": "37ee7f289ccaade98838fa11ba940cf75dcd468286e1d78def1e741434d9ba1d"
     },
     "process-distillation": {
       "source": "kimmywork/skills",
