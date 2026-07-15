@@ -89,10 +89,6 @@ jobs:
             runner: macos-14
             target: aarch64-apple-darwin
             archive: tar.gz
-          - platform: apple-darwin-x64
-            runner: macos-13
-            target: x86_64-apple-darwin
-            archive: tar.gz
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4

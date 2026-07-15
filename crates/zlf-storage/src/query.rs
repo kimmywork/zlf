@@ -79,7 +79,7 @@ impl Storage {
             versions.push(version);
         }
 
-        versions.sort_by(|a, b| a.version_id.cmp(&b.version_id));
+        versions.sort_by_key(|version| version.version_id);
 
         Ok(versions)
     }

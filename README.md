@@ -1,233 +1,55 @@
 # zlf
 
-WAM-backed Prolog graph database for AI-native knowledge bases.
+**Zenith Logic Foundry**
 
-## Overview
+> *Forge answers from everything.*
+>
+> 解答世间万物
 
-zlf stores graph data in RocksDB and exposes that data directly as Prolog facts. Queries are executed by the formal WAM runtime in `zlf-prolog`, not by the legacy AST interpreter.
+zlf is a WAM-backed Prolog graph database for building AI-native knowledge bases. It stores graph facts persistently, evaluates queries and rules through a single Prolog runtime, and supports retrieval over the resulting knowledge graph.
 
-The main user interfaces are:
+## What it provides
 
-- JSON-over-STDIO CLI
-- HTTP JSON/SSE streaming server
-- Naive Prolog REPL for local inspection
+- Persistent property-graph storage backed by RocksDB
+- Prolog facts, rules, and queries executed by a WAM runtime
+- BM25 retrieval, optional vector similarity, and temporal queries
+- JSON-over-STDIO CLI, HTTP/SSE server, and interactive Prolog REPL
+- Compiled-rule persistence and storage-backed fact writes
 
-`zlf-api` has been removed; the maintained runtime path is CLI/server over `zlf-query::ZlfDatabase` and `zlf-prolog::wam`.
+## Quick start
 
-## Features
-
-- RocksDB-backed property graph storage
-- WAM-backed Prolog query execution
-- Storage-backed Prolog facts:
-  - `node(Id)`
-  - `label(Id, Label)`
-  - `property(Id, Key, Value)`
-  - `edge(Source, Type, Target)`
-  - label shortcut: `Person(Node)`
-  - edge shortcut: `knows(Source, Target)`
-  - property shortcut: `prop_name(Node, Value)`
-- Prolog fact write-back to storage:
-  - `node(alice).`
-  - `node(alice, [person], { name: "Alice" }).`
-  - `person(alice).`
-  - `knows(alice, bob).`
-  - `property(alice, title, "Engineer").`
-- Compiled rule persistence via `StorageRuleStore`
-- BM25 search with jieba tokenization
-- Optional vector similarity search with exact RocksDB or durable `hnsw_rs`
-- Temporal predicates
-- Opt-in Ollama embedding support using `bge-m3:latest`
-- Persistent embedding queue and asynchronous HNSW generation rebuild
-- Markdown/wiki import pipeline tests
-
-## Build
+Build the CLI:
 
 ```bash
 cargo build --release
 ```
 
-The binary is:
-
-```bash
-target/release/zlf
-```
-
-## JSON-over-STDIO
-
-Initialize a database:
-
-```bash
-echo '{"command":"init","path":"./zlf-db"}' | target/release/zlf
-```
-
-Add nodes and edges:
-
-```bash
-echo '{"command":"add_node","path":"./zlf-db","labels":["person"],"properties":{"name":"Alice"}}' \
-  | target/release/zlf
-
-echo '{"command":"add_edge","path":"./zlf-db","edge_type":"knows","source":"alice","target":"bob","properties":{}}' \
-  | target/release/zlf
-```
-
-Query with Prolog:
-
-```bash
-echo '{"command":"query","path":"./zlf-db","query":"?property(X, name, \"Alice\")."}' \
-  | target/release/zlf
-```
-
-Embedding is disabled by default. Enable it in `zlf.json`, import/index a knowledge batch, complete its embedding jobs, then request one asynchronous ANN rebuild:
-
-```bash
-echo '{"command":"rebuild_vector_index","path":"./zlf-db"}' | target/release/zlf
-echo '{"command":"vector_index_status","path":"./zlf-db"}' | target/release/zlf
-```
-
-Use `index_engine: "exact"` when ANN build/RSS cost is not justified. In HNSW mode exact RocksDB is still maintained and automatically serves queries while ANN is missing, stale, rebuilding, or corrupt.
-
-## Prolog REPL
-
-Start a local REPL:
+Open a database in the Prolog REPL:
 
 ```bash
 target/release/zlf repl ./zlf-db
 ```
 
-Examples:
+## Usage
 
-```prolog
-node(alice, [person, jk], { name: "Alice" }).
-node(bob).
-person(bob).
-knows(alice, bob).
-friend(X, Y) :- person(X), person(Y), knows(X, Y).
-?person(X).
-?friend(alice, bob).
-?bm25("软件", Node, Score).
-?vector_similar(alice, Node, Score).
-```
+See the [usage guide](docs/usage-guide.md) for installation, configuration, REPL and Prolog examples, JSON-over-STDIO commands, HTTP endpoints, index profiles, embeddings, and operational guidance.
 
-A successful ground query returns `[{}]` because there are no variables to bind.
+## Architecture
 
-## HTTP Server
-
-Start HTTP mode:
-
-```bash
-target/release/zlf serve 8520
-```
-
-Endpoints:
-
-- `POST /api` — JSON command request/response
-- `POST /api/sse` — SSE streaming response for query commands
-- `GET /health` — health check
-
-## Configuration
-
-Default config:
-
-```json
-{
-  "db_path": "./zlf-db",
-  "embedding": {
-    "enabled": false,
-    "index_engine": "exact",
-    "provider": "ollama",
-    "api_endpoint": "http://localhost:11434",
-    "model": "bge-m3:latest",
-    "dimension": 1024
-  }
-}
-```
-
-Config load order:
-
-1. `./zlf.json`
-2. `~/.zlf/config.json`
-3. defaults
-4. environment variable overrides
-
-Useful environment variables:
-
-```bash
-ZLF_DB_PATH=./zlf-db
-ZLF_EMBED_ENABLED=true
-ZLF_VECTOR_INDEX_ENGINE=hnsw
-ZLF_EMBED_PROVIDER=ollama
-ZLF_EMBED_ENDPOINT=http://localhost:11434
-OLLAMA_ENDPOINT=http://localhost:11434
-ZLF_EMBED_MODEL=bge-m3:latest
-ZLF_EMBED_DIMENSION=1024
-ZLF_EMBED_API_KEY=...
-```
-
-For Ollama:
-
-```bash
-ollama pull bge-m3:latest
-```
-
-For symbol-heavy code repositories, leave embedding disabled and use BM25 plus graph relationships. This avoids remote inference, vector storage, and ANN rebuild costs. For semantic knowledge bases, batch imports before embedding/HNSW rebuilds instead of rebuilding after each document.
-
-## Prolog Predicates
-
-Storage predicates:
-
-```prolog
-node(Id).
-label(Id, Label).
-property(Id, Key, Value).
-edge(Source, Type, Target).
-```
-
-Shortcuts:
-
-```prolog
-person(alice).              % label shortcut
-knows(alice, bob).          % edge shortcut
-prop_name(alice, Name).     % property shortcut
-```
-
-Index predicates:
-
-```prolog
-bm25(Query, Node, Score).
-vector_similar(SourceNode, Node, Score).
-temporal_on(Date, Node).
-temporal_between(StartDate, EndDate, Node).
+```text
+CLI / HTTP server / REPL
+  -> WAM Prolog runtime
+  -> storage-backed facts, compiled rules, and indexes
+  -> RocksDB
 ```
 
 ## Development
-
-Run quality checks:
 
 ```bash
 cargo fmt --all
 python3 scripts/check-rust-size.py
 cargo clippy --workspace --all-targets -- -D warnings -W clippy::too_many_lines
 cargo test --workspace
-```
-
-Focused checks used during development:
-
-```bash
-cargo test -p zlf-prolog
-cargo test -p zlf-cli
-cargo test -p zlf-storage
-```
-
-Run local Ollama verification:
-
-```bash
-cargo test -p zlf-prolog --test ollama_embedding_provider -- --ignored --nocapture
-```
-
-Run wiki pipeline verification:
-
-```bash
-cargo test -p zlf-prolog --test wiki_full_pipeline -- --ignored --nocapture
 ```
 
 ## License
