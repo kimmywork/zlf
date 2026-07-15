@@ -5,7 +5,7 @@
 
 ## User-stated needs
 
-1. Symbol-aware full-text retrieval for CamelCase, snake_case, kebab-case, and long concatenated identifiers, backed by BM25/ngram behavior.
+1. Symbol-aware BM25 retrieval for CamelCase, snake_case, kebab-case, and long concatenated identifiers. The requirement is identifier-boundary subtokenization, not full character ngram, arbitrary suffix matching, typo tolerance, or fuzzy search.
 2. Cross-module, cross-repository, and potentially cross-language symbol relationships, including server/client relationships.
 3. Target scale: approximately 100,000 files, 1,000,000 symbols, and 3,000,000 symbol relationships.
 4. A canonical identity decision for same-simple-name definitions in different packages.
@@ -19,6 +19,18 @@
 - Current BM25 analysis is pinned to `unicode_jieba_v1`; no code-symbol analyzer/ngram contract exists (`crates/zlf-index/src/profile.rs`).
 - Project architecture requires one WAM runtime and forbids a second general Prolog evaluator (`AGENTS.md`). A code-query DSL should therefore compile to a bounded query-plan/graph-traversal IR and expose results to WAM rather than create another logic runtime.
 - Existing graph storage already supports distinct node IDs, so duplicate simple symbol names are structurally possible. The unresolved question is canonical identity and resolution semantics, not whether RocksDB can store multiple nodes.
+
+## Confirmed symbol analyzer semantics
+
+Confirmed by the user on 2026-07-15: the intended behavior is identifier-boundary subtokenization, not full character ngram.
+
+```text
+ServiceDispatcher  -> service, dispatcher
+service_dispatcher -> service, dispatcher
+service-dispatcher -> service, dispatcher
+```
+
+A query for `Dispatcher` must retrieve `ServiceDispatcher`. Arbitrary suffix/middle-fragment matching and misspelled queries are not required. The index should retain the normalized complete identifier plus boundary-derived subtokens; adjacent subtoken shingles may improve ranking but must not change the matching contract.
 
 ## Recommended requirement additions
 
@@ -54,7 +66,7 @@ This permits multiple `ServiceDispatcher` definitions while still supporting sim
 ## Open decision queue
 
 1. **Confirmed:** concrete definitions are separate nodes; simple names never merge definitions.
-2. Define code-symbol analyzer behavior: subtoken boundaries, character/edge ngram sizes, typo/substring expectations, and index-size budget.
+2. **Confirmed:** split identifier boundaries and index full normalized identifiers plus subtokens; no full character ngram, arbitrary suffix matching, or typo tolerance.
 3. Choose initial languages and semantic evidence sources beyond Tree-sitter.
 4. Define cross-repo resolution scope and manual mapping/contract ingestion.
 5. Define DSL path semantics: reachable sets, simple paths, shortest/top-N paths, cycles, ranking, and required bounds.
