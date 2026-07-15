@@ -6,6 +6,8 @@ use zlf_config::ZlfConfig;
 use zlf_prolog::PrologParser;
 use zlf_query::ZlfDatabase;
 
+use crate::state::database_options;
+
 pub(crate) fn run_repl(path: Option<&str>) -> Result<()> {
     let db = open_repl_database(path)?;
     let mut editor = Reedline::create();
@@ -30,10 +32,11 @@ fn open_repl_database(path: Option<&str>) -> Result<ZlfDatabase> {
         std::fs::create_dir_all(db_path)?;
     }
     println!("zlf Prolog REPL ({})", db_path.display());
+    let options = database_options(&config);
     if db_path.join("storage").exists() {
-        Ok(ZlfDatabase::open_existing(db_path)?)
+        Ok(ZlfDatabase::open_existing_with_options(db_path, options)?)
     } else {
-        Ok(ZlfDatabase::open(db_path)?)
+        Ok(ZlfDatabase::open_with_options(db_path, options)?)
     }
 }
 

@@ -1,17 +1,23 @@
 # zlf Usage Guide
 
-## Table of Contents
+zlf is a RocksDB-backed graph database with a single WAM Prolog runtime. Its primary interfaces are:
 
-1. [Installation](#installation)
-2. [Quick Start](#quick-start)
-3. [CLI Reference](#cli-reference)
-4. [TypeScript SDK](#typescript-sdk)
-5. [Query Language](#query-language)
-6. [Examples](#examples)
+- JSON-over-STDIO: `zlf`
+- HTTP: `zlf serve [port]`
+- interactive Prolog: `zlf repl [db_path]`
 
-## Installation
 
-### From Source
+## Table of contents
+
+1. [Build and configuration](#build-and-configuration)
+2. [Quick start with the Prolog REPL](#quick-start-with-the-prolog-repl)
+3. [Using Prolog in the REPL](#using-prolog-in-the-repl)
+4. [IndexProfile](#indexprofile)
+5. [JSON-over-STDIO](#json-over-stdio)
+6. [HTTP server](#http-server)
+7. [Errors and operational guidance](#errors-and-operational-guidance)
+
+## Build and configuration
 
 ```bash
 git clone <repository-url>
@@ -19,350 +25,372 @@ cd zlf
 cargo build --release
 ```
 
-The binary will be at `target/release/zlf`.
+The executable is `target/release/zlf`.
 
-### Using npm (TypeScript SDK)
-
-```bash
-npm install zlf
-```
-
-## Quick Start
-
-### 1. Initialize a Database
-
-```bash
-echo '{"command":"init","path":"./my-graph.db"}' | ./target/release/zlf
-```
-
-### 2. Add Nodes
-
-```bash
-# Add a person
-echo '{"command":"add_node","path":"./my-graph.db","labels":["person"],"properties":{"name":"Alice","age":30,"city":"Beijing"}}' | ./target/release/zlf
-
-# Add a company
-echo '{"command":"add_node","path":"./my-graph.db","labels":["company"],"properties":{"name":"ACME","industry":"Tech"}}' | ./target/release/zlf
-```
-
-### 3. Add Edges
-
-```bash
-# First, get the node IDs from the add_node responses
-# Then add an edge
-echo '{"command":"add_edge","path":"./my-graph.db","edge_type":"works_at","source":"<alice-id>","target":"<acme-id>","properties":{"since":2020}}' | ./target/release/zlf
-```
-
-### 4. Query Data
-
-```bash
-# Query all persons
-echo '{"command":"query","path":"./my-graph.db","query":"node(person, X, Props)."}' | ./target/release/zlf
-
-# Query edges
-echo '{"command":"query","path":"./my-graph.db","query":"edge(works_at, X, Y, Props)."}' | ./target/release/zlf
-```
-
-### 5. Search
-
-```bash
-# BM25 text search
-echo '{"command":"search","path":"./my-graph.db","query":"software engineer"}' | ./target/release/zlf
-
-# Vector predicates require embedding.enabled=true; disabled use returns INDEX_UNAVAILABLE.
-# Choose index_engine "exact" or "hnsw" in zlf.json. For HNSW, rebuild once per batch.
-echo '{"command":"rebuild_vector_index","path":"./my-graph.db"}' | ./target/release/zlf
-echo '{"command":"vector_index_status","path":"./my-graph.db"}' | ./target/release/zlf
-```
-
-## CLI Reference
-
-### Request Format
+The configuration is loaded from `./zlf.json`, then `~/.zlf/config.json`, with environment overrides applied last. The default is:
 
 ```json
 {
-  "command": "<command>",
-  "path": "<database-path>",
-  ...additional-params
+  "db_path": "./zlf-db",
+  "embedding": {
+    "enabled": false,
+    "index_engine": "exact",
+    "provider": "ollama",
+    "api_endpoint": "http://localhost:11434",
+    "api_key": null,
+    "model": "bge-m3:latest",
+    "dimension": 1024
+  }
 }
 ```
 
-### Response Format
-
-```json
-// Success
-{"type": "success", "data": {...}}
-
-// Error
-{"type": "error", "code": "ERROR_CODE", "message": "description"}
-```
-
-### Commands
-
-#### init
-
-Initialize a new database.
-
-```json
-{"command": "init", "path": "./my-db"}
-```
-
-#### add_node
-
-Add a node with labels and properties.
+Embedding is deliberately disabled by default. Enable it only for workloads that benefit from semantic retrieval:
 
 ```json
 {
-  "command": "add_node",
-  "path": "./my-db",
-  "labels": ["person", "employee"],
-  "properties": {"name": "Alice", "age": 30}
+  "db_path": "./zlf-db",
+  "embedding": {
+    "enabled": true,
+    "index_engine": "hnsw",
+    "provider": "ollama",
+    "api_endpoint": "http://localhost:11434",
+    "model": "bge-m3:latest",
+    "dimension": 1024
+  }
 }
 ```
 
-#### get_node
+`index_engine` is `exact` or `hnsw`. HNSW always retains exact RocksDB as source of truth and fallback.
 
-Get a node by ID.
-
-```json
-{"command": "get_node", "path": "./my-db", "id": "<node-id>"}
-```
-
-#### add_edge
-
-Add an edge between two nodes.
-
-```json
-{
-  "command": "add_edge",
-  "path": "./my-db",
-  "edge_type": "knows",
-  "source": "<source-node-id>",
-  "target": "<target-node-id>",
-  "properties": {"since": 2020}
-}
-```
-
-#### get_edge
-
-Get an edge by ID.
-
-```json
-{"command": "get_edge", "path": "./my-db", "id": "<edge-id>"}
-```
-
-#### query
-
-Execute a zlf-log query.
-
-```json
-{"command": "query", "path": "./my-db", "query": "node(person, X, Props)."}
-```
-
-#### search
-
-BM25 full-text search.
-
-```json
-{"command": "search", "path": "./my-db", "query": "software engineer"}
-```
-
-#### similar
-
-Semantic similarity search.
-
-```json
-{
-  "command": "similar",
-  "path": "./my-db",
-  "node_id": "<node-id>",
-  "threshold": 0.8,
-  "limit": 10
-}
-```
-
-#### import
-
-Import data from a JSON file.
-
-```json
-{"command": "import", "path": "./my-db", "file": "./data.json"}
-```
-
-Import file format:
-```json
-{
-  "nodes": [
-    {"labels": ["person"], "properties": {"name": "Alice"}},
-    {"labels": ["person"], "properties": {"name": "Bob"}}
-  ],
-  "edges": [
-    {"edge_type": "knows", "source": "<alice-id>", "target": "<bob-id>", "properties": {}}
-  ]
-}
-```
-
-#### export
-
-Export data to JSON.
-
-```json
-{"command": "export", "path": "./my-db", "file": "./output.json"}
-```
-
-## TypeScript SDK
-
-### Installation
+Environment overrides:
 
 ```bash
-npm install zlf
+ZLF_DB_PATH=./zlf-db
+ZLF_EMBED_ENABLED=true
+ZLF_VECTOR_INDEX_ENGINE=hnsw
+ZLF_EMBED_PROVIDER=ollama
+ZLF_EMBED_ENDPOINT=http://localhost:11434
+OLLAMA_ENDPOINT=http://localhost:11434
+ZLF_EMBED_MODEL=bge-m3:latest
+ZLF_EMBED_DIMENSION=1024
+ZLF_EMBED_API_KEY=...
 ```
 
-### Usage
+## Quick start with the Prolog REPL
 
-```typescript
-import { ZLF } from 'zlf';
+Start or reopen a database:
 
-// Initialize
-const db = new ZLF('./my-db');
-
-// Add node
-const node = await db.addNode(['person'], { name: 'Alice', age: 30 });
-console.log(node.id); // UUID
-
-// Get node
-const retrieved = await db.getNode(node.id);
-
-// Add edge
-const bob = await db.addNode(['person'], { name: 'Bob' });
-const edge = await db.addEdge('knows', node.id, bob.id, { since: 2020 });
-
-// Query
-const results = await db.query('node(person, X, Props).');
-
-// Search
-const searchResults = await db.search('software engineer');
-
-// Similarity search
-const similar = await db.similar(node.id, 0.8, 10);
-
-// Memory operations
-await db.storeMemory('conv123', {
-  type: 'conversation',
-  content: { message: 'Hello World' },
-  entities: ['alice', 'bob'],
-  importance: 0.9
-});
-
-const memory = await db.getMemory('conv123');
+```bash
+target/release/zlf repl ./example-db
 ```
 
-## Query Language
-
-zlf-log is a Prolog-style query language.
-
-### Facts
+The REPL accepts facts, rules, directives, and queries:
 
 ```prolog
-% Query nodes by label
-node(person, X, Props).
+node(alice, [person], { name: "Alice", title: "Engineer" }).
+node(bob, [person], { name: "Bob", title: "Engineer" }).
+knows(alice, bob).
 
-% Query edges by type
-edge(knows, X, Y, Props).
+friend(X, Y) :- person(X), person(Y), knows(X, Y).
+
+? person(X).
+? property(alice, name, Name).
+? friend(alice, Who).
 ```
 
-### Rules
+Exit with `:quit`, `:exit`, or Ctrl-D. Use `:help` for examples. A successful ground query has no variable bindings and is printed as `[{}]`.
+
+## Using Prolog in the REPL
+
+### Input forms
+
+Facts are persisted through the canonical storage writer:
 
 ```prolog
-% Define a rule
+node(alice).
+node(alice, [person, employee], { name: "Alice", age: 30 }).
+person(alice).
+knows(alice, bob).
+property(alice, title, "Staff Engineer").
+```
+
+Rules are compiled and persisted through `StorageRuleStore`:
+
+```prolog
 colleague(X, Y) :- works_at(X, C), works_at(Y, C), X \= Y.
-
-% Use the rule
-?colleague(alice, Who).
+reachable(X, Y) :- knows(X, Y).
+reachable(X, Y) :- knows(X, Z), reachable(Z, Y).
 ```
 
-### Built-in Predicates
+Queries start with `?`:
 
-- `node(Label, Id, Props)` - Query nodes
-- `edge(Type, Source, Target, Props)` - Query edges
-- `search(Query)` - BM25 search
-- `similar_to(NodeId, Threshold, Results)` - Semantic search
-
-## Examples
-
-### Knowledge Graph
-
-```bash
-# Initialize
-echo '{"command":"init","path":"./knowledge"}' | zlf
-
-# Add concepts
-echo '{"command":"add_node","path":"./knowledge","labels":["concept"],"properties":{"name":"Machine Learning"}}' | zlf
-echo '{"command":"add_node","path":"./knowledge","labels":["concept"],"properties":{"name":"Deep Learning"}}' | zlf
-
-# Add relationship
-echo '{"command":"add_edge","path":"./knowledge","edge_type":"is_subset_of","source":"<dl-id>","target":"<ml-id>","properties":{}}' | zlf
+```prolog
+? node(Id).
+? person(Id).
+? property(Id, name, Name).
+? edge(Source, Type, Target).
+? knows(alice, Who).
+? prop_name(Id, Name).
 ```
 
-### Agent Memory
+A line can contain multiple facts:
 
-```typescript
-import { ZLF } from 'zlf';
-
-const db = new ZLF('./agent-memory');
-
-// Store conversation memory
-await db.storeMemory('conv-001', {
-  type: 'conversation',
-  content: { 
-    user: "What's the weather?",
-    assistant: "It's sunny today."
-  },
-  entities: ['weather'],
-  topics: ['weather', 'daily'],
-  importance: 0.3
-});
-
-// Store knowledge memory
-await db.storeMemory('know-001', {
-  type: 'knowledge',
-  content: {
-    fact: "Python is a programming language",
-    source: "documentation"
-  },
-  entities: ['python'],
-  topics: ['programming', 'languages'],
-  importance: 0.8
-});
-
-// Query memories
-const weatherMemories = await db.queryMemories({ type: 'conversation' });
+```prolog
+node(a). node(b). follows(a, b).
 ```
 
-## Error Handling
+### Current storage predicates
 
-All errors return a structured response:
+```prolog
+node(Id).
+label(Id, Label).
+property(Id, Key, Value).
+edge(Source, Type, Target).
+```
+
+Shortcuts are derived from labels, edge types, and properties:
+
+```prolog
+person(alice).             % label shortcut
+knows(alice, bob).         % edge-type shortcut
+prop_name(alice, Name).    % property shortcut
+```
+
+### Mutation and retraction
+
+```prolog
+? retract(person(alice)).
+? retract(edge(alice, knows, bob)).
+? retract(prop_title(alice, _)).
+```
+
+Writing `Label(Id)` to an existing node merges the label and preserves existing properties.
+
+### Index predicates
+
+```prolog
+? bm25("software engineer", Node, Score).
+? vector_similar(alice, Node, Score).
+? temporal_on("2026-07-15", Node).
+? temporal_between("2026-07-01", "2026-08-01", Node).
+? valid_at("2026-07-15T00:00:00Z", Node).
+? valid_overlaps("2026-07-01T00:00:00Z", "2026-08-01T00:00:00Z", Node).
+```
+
+`vector_similar/3` returns an explicit index-unavailable error when embedding is disabled. BM25, vector, and temporal indexes only contain fields selected by an active IndexProfile.
+
+### IndexProfile directives in Prolog
+
+A BM25 profile can be created and activated directly in the REPL:
+
+```prolog
+:- index_profile(knowledge, 1, {
+  matcher: { node_labels: { labels: [document] } },
+  fields: {
+    body: {
+      bm25: {
+        analyzer_id: "unicode_jieba_v1",
+        analyzer_version: 1,
+        weight: 1.0,
+        k1: 1.2,
+        b: 0.75
+      }
+    }
+  }
+}).
+
+:- activate_index_profile(knowledge, 1).
+```
+
+Profiles are immutable by `(name, version)`. Change the version instead of modifying an existing artifact.
+
+## IndexProfile
+
+An `IndexProfileArtifact` selects entities and fields and declares which derivative indexes each field feeds.
+
+### Artifact fields
+
+| Field | Meaning |
+|---|---|
+| `schema_version` | Currently `1` |
+| `name` / `version` | Immutable profile identity |
+| `source_hash` | Canonical profile hash; the CLI accepts `""` and computes it |
+| `matcher` | `node_labels` or `edge_types` |
+| `fields` | Map from property name to BM25/vector/temporal options |
+| `created_at` | RFC 3339 timestamp |
+
+Matcher forms:
+
+```json
+{"node_labels": {"labels": ["document"]}}
+```
+
+```json
+{"edge_types": {"edge_types": ["mentions"]}}
+```
+
+### BM25 options
+
+The current Tantivy contract pins `k1=1.2`, `b=0.75`, analyzer ID `unicode_jieba_v1`, and analyzer version `1`. `weight` must be positive.
 
 ```json
 {
-  "type": "error",
-  "code": "NODE_NOT_FOUND",
-  "message": "Node with ID 'abc123' not found"
+  "bm25": {
+    "analyzer_id": "unicode_jieba_v1",
+    "language": "en",
+    "analyzer_version": 1,
+    "weight": 1.0,
+    "k1": 1.2,
+    "b": 0.75
+  }
 }
 ```
 
-### Error Codes
+### Vector options
 
-| Code | Description |
-|------|-------------|
-| `INIT_FAILED` | Failed to initialize database |
-| `DB_OPEN_FAILED` | Database not found or cannot be opened |
-| `ADD_NODE_FAILED` | Failed to add node |
-| `NODE_NOT_FOUND` | Node with given ID not found |
-| `ADD_EDGE_FAILED` | Failed to add edge |
-| `EDGE_NOT_FOUND` | Edge with given ID not found |
-| `QUERY_FAILED` | Query execution failed |
-| `SEARCH_FAILED` | Search failed |
-| `IMPORT_FAILED` | Import failed |
-| `EXPORT_FAILED` | Export failed |
-| `INVALID_REQUEST` | Invalid JSON request |
+Vector fields require `embedding.enabled=true`:
+
+```json
+{
+  "vector": {
+    "model_profile": "bge_m3_dense_v1",
+    "chunking": {"whole_field": {"version": 1}}
+  }
+}
+```
+
+Supported chunking forms:
+
+```json
+{"explicit": {"version": 1}}
+{"whole_field": {"version": 1}}
+{"paragraph_heading": {"version": 1}}
+{"fixed_token_window": {"version": 1, "size": 128, "overlap": 16}}
+```
+
+### Temporal options
+
+A field may be an event instant, validity start, or validity end:
+
+```json
+{"temporal": "event"}
+{"temporal": "valid_from"}
+{"temporal": "valid_to"}
+```
+
+At most one `valid_from` and one `valid_to` field are allowed; `valid_to` requires `valid_from`.
+
+### Complete JSON profile
+
+```json
+{
+  "schema_version": 1,
+  "name": "knowledge",
+  "version": 1,
+  "source_hash": "",
+  "matcher": {"node_labels": {"labels": ["document"]}},
+  "fields": {
+    "title": {
+      "bm25": {
+        "analyzer_id": "unicode_jieba_v1",
+        "analyzer_version": 1,
+        "weight": 2.0,
+        "k1": 1.2,
+        "b": 0.75
+      }
+    },
+    "body": {
+      "bm25": {
+        "analyzer_id": "unicode_jieba_v1",
+        "analyzer_version": 1,
+        "weight": 1.0,
+        "k1": 1.2,
+        "b": 0.75
+      }
+    },
+    "published_at": {"temporal": "event"}
+  },
+  "created_at": "2026-07-15T00:00:00Z"
+}
+```
+
+Install, activate, list, and inspect lifecycle status through JSON-over-STDIO:
+
+```json
+{"command":"put_index_profile","path":"./zlf-db","profile":{...}}
+{"command":"activate_index_profile","path":"./zlf-db","name":"knowledge","version":1}
+{"command":"list_index_profiles","path":"./zlf-db"}
+{"command":"index_status","path":"./zlf-db","target":"bm25"}
+{"command":"wait_indexes","path":"./zlf-db","targets":["bm25"],"minimum_sequence":1,"timeout_ms":1000}
+```
+
+Activation rebuilds and publishes the relevant generation. A profile containing vector fields is rejected while embedding is disabled.
+
+## JSON-over-STDIO
+
+Send one JSON request per line to `target/release/zlf`. Responses are also one JSON object per line.
+
+```bash
+echo '{"command":"init","path":"./zlf-db"}' | target/release/zlf
+```
+
+Current commands:
+
+| Command | Purpose |
+|---|---|
+| `init` | Initialize a database |
+| `add_node`, `get_node` | Create/read nodes |
+| `add_edge`, `get_edge`, `edge_ids` | Create/read/resolve edges |
+| `patch_node_properties`, `set_node_property`, `remove_node_property` | Mutate node properties |
+| `patch_edge_properties`, `set_edge_property`, `remove_edge_property` | Mutate edge properties |
+| `query` | Execute a Prolog query/directive/rule |
+| `search` | BM25 text search |
+| `put_index_profile`, `activate_index_profile`, `list_index_profiles` | Manage profiles |
+| `index_status`, `wait_indexes` | Observe index lifecycle |
+| `vector_index_status`, `rebuild_vector_index` | Observe/request optional HNSW publication |
+| `import`, `export` | JSON graph import/export |
+| `embed` | Generate an embedding when enabled |
+| `config` | Read/write `zlf.json` configuration |
+
+Examples:
+
+```bash
+echo '{"command":"add_node","path":"./zlf-db","labels":["person"],"properties":{"name":"Alice"}}' | target/release/zlf
+
+echo '{"command":"query","path":"./zlf-db","query":"? property(Id, name, Name)."}' | target/release/zlf
+
+echo '{"command":"search","path":"./zlf-db","query":"software engineer"}' | target/release/zlf
+```
+
+Success and error envelopes:
+
+```json
+{"type":"success","data":{}}
+```
+
+```json
+{"type":"error","code":"QUERY_FAILED","message":"..."}
+```
+
+## HTTP server
+
+```bash
+target/release/zlf serve 8520
+```
+
+- `POST /api` — the same JSON command protocol
+- `POST /api/sse` — SSE query responses
+- `GET /health` — health check
+
+## Errors and operational guidance
+
+- `INDEX_UNAVAILABLE` or an `Index 'vector_embedding' ...` message means embedding/vector indexing is disabled for the requested operation.
+- HNSW is optional. Missing, stale, rebuilding, incompatible, or corrupt ANN state automatically falls back to exact vectors.
+- For large semantic knowledge imports, finish a batch and its embeddings before requesting one HNSW rebuild:
+
+```bash
+echo '{"command":"rebuild_vector_index","path":"./zlf-db"}' | target/release/zlf
+echo '{"command":"vector_index_status","path":"./zlf-db"}' | target/release/zlf
+```
+
+- For symbol-heavy code repositories, prefer BM25 and graph relationships and leave embedding disabled unless measurements show a clear benefit.
