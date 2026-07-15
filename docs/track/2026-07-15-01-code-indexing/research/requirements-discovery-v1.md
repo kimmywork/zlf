@@ -32,6 +32,23 @@ service-dispatcher -> service, dispatcher
 
 A query for `Dispatcher` must retrieve `ServiceDispatcher`. Arbitrary suffix/middle-fragment matching and misspelled queries are not required. The index should retain the normalized complete identifier plus boundary-derived subtokens; adjacent subtoken shingles may improve ranking but must not change the matching contract.
 
+## Confirmed language scope
+
+Confirmed by the user on 2026-07-15. The initial code-indexing language set is:
+
+- Java
+- C
+- C++
+- Python
+- Rust
+- JavaScript
+- TypeScript
+- Kotlin
+- Go
+- Swift
+
+Each language uses an explicitly pinned Tree-sitter grammar and a versioned language adapter. JavaScript and TypeScript, and C and C++, remain distinct adapters where their syntax and symbol rules differ.
+
 ## Recommended requirement additions
 
 - Separate syntax extraction from semantic resolution. Tree-sitter provides syntax; language adapters, compiler metadata, build manifests, IDLs, OpenAPI/gRPC/protobuf schemas, and explicit mappings may provide stronger cross-repo/cross-language evidence.
@@ -67,7 +84,7 @@ This permits multiple `ServiceDispatcher` definitions while still supporting sim
 
 1. **Confirmed:** concrete definitions are separate nodes; simple names never merge definitions.
 2. **Confirmed:** split identifier boundaries and index full normalized identifiers plus subtokens; no full character ngram, arbitrary suffix matching, or typo tolerance.
-3. Choose initial languages and semantic evidence sources beyond Tree-sitter.
+3. **Confirmed:** Java, C, C++, Python, Rust, JavaScript, TypeScript, Kotlin, Go, and Swift are in the initial language scope. Semantic evidence sources beyond Tree-sitter remain open.
 4. Define cross-repo resolution scope and manual mapping/contract ingestion.
 5. Define DSL path semantics: reachable sets, simple paths, shortest/top-N paths, cycles, ranking, and required bounds.
 6. Define static versus runtime-backed visualization claims.

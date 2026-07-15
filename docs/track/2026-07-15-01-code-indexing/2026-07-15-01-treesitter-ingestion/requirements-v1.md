@@ -8,11 +8,11 @@ version: 1
 
 # Tree-sitter ingestion stage
 
-Deliver a versioned parser registry, safe repository/file discovery, language detection, stable file identities, source fingerprints, and incremental extraction of syntax-backed symbols and source ranges.
+Deliver a versioned parser registry, safe repository/file discovery, language detection, stable file identities, source fingerprints, and incremental extraction of syntax-backed symbols and source ranges for Java, C, C++, Python, Rust, JavaScript, TypeScript, Kotlin, Go, and Swift.
 
 ## Acceptance
 
-- At least one statically typed and one dynamic language have pinned grammars and golden parse fixtures.
+- Java, C, C++, Python, Rust, JavaScript, TypeScript, Kotlin, Go, and Swift have pinned grammars, versioned adapters, and golden parse fixtures.
 - Ignore, symlink, binary, generated/vendor, encoding, and file-size policies are explicit and bounded.
 - Repeated imports are idempotent; changed/deleted files converge without stale extracted records.
 - Parse errors retain bounded diagnostics and do not publish partial file generations as complete.

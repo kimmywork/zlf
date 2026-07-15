@@ -36,6 +36,7 @@ Integrate Tree-sitter so zlf can turn repositories into queryable code symbols, 
 
 ## Parent requirements
 
+- Initial language scope is Java, C, C++, Python, Rust, JavaScript, TypeScript, Kotlin, Go, and Swift.
 - Tree-sitter grammars are explicit, versioned dependencies; unsupported languages fail clearly.
 - Repository path, file identity, language, symbol kind/name, byte/line ranges, signatures, and source fingerprints are canonical and durable.
 - Parsing is bounded and excludes generated/vendor/binary/oversized content through explicit policy.
@@ -55,7 +56,7 @@ Integrate Tree-sitter so zlf can turn repositories into queryable code symbols, 
 
 ## Parent acceptance
 
-- At least one statically typed and one dynamic language are supported end-to-end.
+- Java, C, C++, Python, Rust, JavaScript, TypeScript, Kotlin, Go, and Swift are supported end-to-end at the syntax/symbol contract level; any language-specific semantic-resolution limitations are explicit.
 - Definition/reference/import/call fixtures match independent source-range oracles.
 - Name/signature/doc/code BM25 plus graph composition answers bounded repository questions.
 - Changed/deleted files leave no stale symbols, documents, or relationships after convergence and reopen.
