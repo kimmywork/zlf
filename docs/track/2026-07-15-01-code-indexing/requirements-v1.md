@@ -53,6 +53,7 @@ Integrate Tree-sitter so zlf can turn repositories into queryable code symbols, 
 - Semantic vector search as a required code retrieval path.
 - Executing untrusted repository code or build scripts.
 - Whole-program dynamic call-graph precision.
+- Fine-grained repository/user ACL, permission-aware traversal, and internal source isolation; the initial deployment assumes all repositories in one knowledge base are mutually visible.
 
 ## Parent acceptance
 

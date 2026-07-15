@@ -139,4 +139,4 @@ This permits multiple `ServiceDispatcher` definitions while still supporting sim
 7. **Confirmed:** zlf-Prolog is the only textual DSL; dedicated code predicates compile to a shared bounded `CodeQuery` AST/executor also used by JSON/HTTP.
 8. **Confirmed:** initial visualization is static; bounded visualization IR feeds Mermaid/PlantUML, with sequence/CFG views labeled approximate.
 9. **Confirmed:** one active revision per repository; historical revisions require future explicit immutable snapshots.
-10. Define repository tenancy/ACL.
+10. **Deferred:** repository-level ACL/visibility and permission-aware traversal are out of scope. The target deployment assumes repositories inside one knowledge base are mutually visible; organizations requiring strong internal source isolation are not the initial product scenario.
