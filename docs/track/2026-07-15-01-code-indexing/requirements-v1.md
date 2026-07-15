@@ -19,7 +19,7 @@ Integrate Tree-sitter so zlf can turn repositories into queryable code symbols, 
 
 ## Product scenarios
 
-1. Parse a supported repository incrementally and persist files, symbols, source ranges, and relationships with stable identities.
+1. Bootstrap from a scan root with no required manifest, follow Git ignore semantics, discover repository/worktree boundaries and supported build/language/contract sources, then incrementally persist files, symbols, source ranges, and relationships with stable identities.
 2. Search exact/lexical symbol names, kinds, signatures/type metadata, and lower-weight documentation metadata with BM25; use source ranges/blobs for returned snippets, not general raw-source search.
 3. Traverse containment, import, definition/reference, call, inheritance/implementation, and dependency edges through existing graph/Prolog queries.
 4. Combine lexical candidates with graph filters/expansion and return source paths/ranges suitable for downstream tools.
@@ -40,7 +40,8 @@ Integrate Tree-sitter so zlf can turn repositories into queryable code symbols, 
 - Tree-sitter grammars are explicit, versioned dependencies; unsupported languages fail clearly.
 - Repository path, file identity, language, symbol kind/name, byte/line ranges, signatures, and source fingerprints are canonical and durable.
 - Indexed source bytes are retained in a dedicated content-addressed compressed blob store; file nodes reference immutable blob identities, and graph export does not include source unless explicitly requested.
-- Parsing is bounded and excludes generated/vendor/binary/oversized content through explicit policy.
+- Bootstrap is zero-configuration: scanning follows nested `.gitignore` and standard Git excludes; repository/worktree, language, build, dependency, module/package, and contract discovery is automatic and inspectable.
+- Parsing is bounded; binary and hard oversized-file safety limits are explicit and reported. Generated/vendor content is excluded when Git ignore rules exclude it.
 - Graph storage remains source of truth; BM25 is a derivative index.
 - Embedding is disabled by default and is not required for any code-index acceptance criterion.
 - Queries expose explicit top-k/candidate/expansion/depth limits and deterministic ordering.

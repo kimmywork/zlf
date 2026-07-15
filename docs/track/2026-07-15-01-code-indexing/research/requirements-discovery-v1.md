@@ -111,6 +111,12 @@ A file node records repository, active revision, path, content fingerprint, enco
 
 Compression is not encryption. The initial trusted-knowledge-base boundary still requires operational safeguards: restrictive database/temp-file permissions, encrypted volumes/backups where required, no source text in logs/error classes/metrics, explicit source-inclusive export instead of implicit graph export, and bounded snippet APIs. Generated/vendor/binary/oversized exclusions and secret-aware indexing policy reduce unnecessary retention, but canonical stored bytes must not be silently modified by redaction.
 
+## Confirmed zero-configuration bootstrap
+
+Confirmed by the user on 2026-07-15: initial ingestion requires no CodebaseManifest. The user supplies a scan root; zlf discovers Git repository/worktree boundaries, submodules/nested repositories, languages, modules/packages, build roots, dependencies, and supported contract files. File inclusion follows Git ignore semantics, including nested `.gitignore` and standard Git excludes. Binary and hard oversized-file safety limits still apply and are reported rather than silently parsed.
+
+Discovery output is persisted as an inspectable bootstrap inventory before publication so operators can see repository boundaries, ignored/error files, detected languages/build systems, and enricher capabilities without authoring configuration. Optional overrides may be added later for ambiguity, but they are not required for bootstrap.
+
 ## Recommended requirement additions
 
 - Separate syntax extraction from semantic resolution. Tree-sitter provides syntax; language adapters, compiler metadata, build manifests, IDLs, OpenAPI/gRPC/protobuf schemas, and explicit mappings may provide stronger cross-repo/cross-language evidence.

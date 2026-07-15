@@ -8,7 +8,7 @@ version: 1
 
 # Tree-sitter ingestion stage
 
-Deliver a versioned parser registry, safe repository/file discovery, language detection, stable file identities, source fingerprints, and incremental extraction of syntax-backed symbols and source ranges for Java, C, C++, Python, Rust, JavaScript, TypeScript, Kotlin, Go, and Swift.
+Deliver zero-configuration scan-root bootstrap, a versioned parser registry, safe repository/worktree/file discovery, language detection, stable file identities, source fingerprints, and incremental extraction of syntax-backed symbols and source ranges for Java, C, C++, Python, Rust, JavaScript, TypeScript, Kotlin, Go, and Swift.
 
 ## Source blob persistence
 
@@ -20,6 +20,8 @@ Tree-sitter is the always-available syntax baseline. Versioned optional enricher
 
 ## Acceptance
 
+- Bootstrap requires no manifest and produces an inspectable discovery inventory.
+- Nested `.gitignore` and standard Git exclude behavior match independent Git fixtures across worktrees, nested repositories, and submodules.
 - Java, C, C++, Python, Rust, JavaScript, TypeScript, Kotlin, Go, and Swift have pinned grammars, versioned adapters, and golden parse fixtures.
 - Build/LSP enrichers are optional, bounded, provenance-bearing, and have syntax-only fallback tests.
 - Ignore, symlink, binary, generated/vendor, encoding, and file-size policies are explicit and bounded.
