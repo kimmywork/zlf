@@ -18,9 +18,14 @@ The code-symbol analyzer stores the normalized complete identifier and identifie
 
 Reachable caller/callee symbol sets and concrete call paths are separate operations. Reachability deduplicates symbols. Path retrieval returns bounded Top-N shortest simple paths, with cycles/SCCs represented separately. Every request has finite depth, visited-symbol, traversed-edge, path-count, and timeout budgets; budget exhaustion is explicit. Cross-repository contract edges are opt-in per query.
 
+## Confirmed query-language architecture
+
+zlf-Prolog is the only textual DSL. Dedicated `code_symbol`, `code_callers`, `code_callees`, `code_path`, and `code_cycle` predicates compile into a typed bounded `CodeQuery` AST and specialized adjacency/traversal executor. JSON/HTTP reuse the same AST. The WAM composes bounded results with ordinary facts/rules/proof/tabling but does not perform million-symbol traversal through ordinary recursive Prolog evaluation. Bound modes, finite budgets, generation/watermark identity, provenance, and exhaustion metadata are mandatory.
+
 ## Acceptance
 
 - APIs support explicit repository/language/path/kind filters and finite top-k/candidate/depth budgets.
+- Prolog predicates and JSON requests compile to the same `CodeQuery` AST and produce equivalent ordered results and exhaustion metadata.
 - Caller/callee sets, shortest simple paths, Top-N deterministic path ordering, cycle reporting, contract-edge opt-in, and exhausted/truncated metadata are independently tested.
 - Exact symbol lookup, boundary-subtoken symbol lookup, BM25 ranking, caller/callee/import/containment expansion, and explanation provenance are tested.
 - Default operation requires no embedding model or vector index.

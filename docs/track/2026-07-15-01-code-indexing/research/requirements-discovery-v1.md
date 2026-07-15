@@ -67,6 +67,12 @@ Contract identities may represent OpenAPI operations, HTTP method/normalized rou
 
 Confirmed by the user on 2026-07-15: reachable symbol sets and concrete call paths are distinct operations. Caller/callee reachability returns deduplicated symbols. Path retrieval returns bounded Top-N shortest simple paths; a path does not repeat nodes, cycles/SCCs are represented separately, and every traversal has finite depth, visited-symbol, traversed-edge, path-count, and timeout budgets. Results report exhaustion/truncation. Contract edges participate only when explicitly requested.
 
+## Confirmed zlf-Prolog query surface
+
+Confirmed by the user on 2026-07-15: zlf-Prolog remains the only textual query DSL. Code-specific predicates such as `code_symbol`, `code_callers`, `code_callees`, `code_path`, and `code_cycle` compile into a typed bounded `CodeQuery` AST and specialized adjacency/traversal executor. JSON/HTTP APIs reuse the same AST rather than defining different semantics.
+
+The WAM composes code-query results with ordinary facts, graph predicates, properties, rules, proof, and tabling; it does not execute million-symbol traversal through ordinary Prolog recursion, and no second general evaluator is introduced. Deep traversal requires bound source/target modes and finite options. Results carry graph generation, watermark, provenance, and explicit exhaustion/truncation metadata.
+
 ## Recommended requirement additions
 
 - Separate syntax extraction from semantic resolution. Tree-sitter provides syntax; language adapters, compiler metadata, build manifests, IDLs, OpenAPI/gRPC/protobuf schemas, and explicit mappings may provide stronger cross-repo/cross-language evidence.
@@ -106,6 +112,6 @@ This permits multiple `ServiceDispatcher` definitions while still supporting sim
 4. **Confirmed:** build systems, dependency metadata, compiler/language tooling, and LSP implementations may optionally enrich Tree-sitter syntax facts.
 5. **Confirmed:** use first-class contract/external-symbol nodes, automatic evidence, and optional versioned mapping manifests for cross-repo/cross-language linkage.
 6. **Confirmed:** separate reachable sets from paths; paths are bounded Top-N shortest simple paths, cycles are separate, and exhaustion is explicit.
-7. Confirm zlf-Prolog predicate/term surface for compiling code traversal requests into the specialized bounded executor.
+7. **Confirmed:** zlf-Prolog is the only textual DSL; dedicated code predicates compile to a shared bounded `CodeQuery` AST/executor also used by JSON/HTTP.
 8. Define static versus runtime-backed visualization claims.
 9. Define repository tenancy/ACL and revision retention.
