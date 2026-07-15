@@ -8,7 +8,7 @@ version: 1
 
 # Code retrieval stage
 
-Index symbol names, qualified names, signatures, documentation, and bounded code snippets with BM25 and compose lexical candidates with code graph/Prolog filters and expansion.
+Index symbol names, qualified names, kinds, signatures/type metadata, and lower-weight documentation metadata with BM25 and compose lexical candidates with code graph/Prolog filters and expansion. General file/raw-source full-text search is intentionally left to ripgrep; zlf does not index complete file bodies, arbitrary source tokens, or string literals for that purpose.
 
 ## Confirmed symbol analysis
 
@@ -35,7 +35,8 @@ Visualization is static-analysis based. A shared bounded visualization IR feeds 
 - Ordinary Prolog queries answer direct symbol/property/relationship joins from canonical graph facts.
 - Specialized Prolog predicates and JSON requests compile to the same `CodeQuery` AST and produce equivalent ordered results and exhaustion metadata.
 - Caller/callee sets, shortest simple paths, Top-N deterministic path ordering, cycle reporting, contract-edge opt-in, and exhausted/truncated metadata are independently tested.
-- Exact symbol lookup, boundary-subtoken symbol lookup, BM25 ranking, caller/callee/import/containment expansion, and explanation provenance are tested.
+- Exact symbol lookup, boundary-subtoken symbol lookup, symbol-metadata BM25 ranking, caller/callee/import/containment expansion, and explanation provenance are tested.
+- `code_search` returns symbol hits only; no file-scope BM25 result or raw-source search claim is made.
 - Default operation requires no embedding model or vector index.
 - Disabled vector requests return the shared typed index-unavailable error rather than changing retrieval mode silently.
 

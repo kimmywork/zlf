@@ -5,7 +5,7 @@
 
 ## User-stated needs
 
-1. Symbol-aware BM25 retrieval for CamelCase, snake_case, kebab-case, and long concatenated identifiers. The requirement is identifier-boundary subtokenization, not full character ngram, arbitrary suffix matching, typo tolerance, or fuzzy search.
+1. Symbol-aware BM25 retrieval for CamelCase, snake_case, kebab-case, and long concatenated identifiers. The requirement is identifier-boundary subtokenization, not full character ngram, arbitrary suffix matching, typo tolerance, fuzzy search, or general raw-source full-text search.
 2. Cross-module, cross-repository, and potentially cross-language symbol relationships, including server/client relationships.
 3. Target scale: approximately 100,000 files, 1,000,000 symbols, and 3,000,000 symbol relationships.
 4. A canonical identity decision for same-simple-name definitions in different packages.
@@ -96,6 +96,12 @@ The user supplied schema-only evidence from an existing SQLite code knowledge ba
 **Inferred relation granularity:** the independent edge ID plus call-site line/column strongly suggests an edge row represents a source occurrence/evidence item rather than only a deduplicated symbol pair. The zlf design should preserve occurrence-level canonical edges and derive a deduplicated `(source, kind, target)` adjacency projection for traversal. The projection records occurrence count and strongest/available certainty while source-location queries retain all canonical occurrences. This inference does not require confidential instance rows.
 
 **Required schema additions for zlf:** repository/codebase identity, active revision, source fingerprint, extractor/provider version, certainty class, full edge source range where available, build/LSP configuration identity, and first-class contract/external-symbol identity. Structured decorators/type parameters/metadata should use typed values rather than opaque JSON text where practical.
+
+## Confirmed symbol-only lexical scope
+
+Confirmed by the user on 2026-07-15: zlf does not provide general file/raw-source full-text search because ripgrep is the preferred tool for that workload. BM25 indexes symbol metadata only: normalized complete/simple/qualified names, boundary subtokens, kind, signature/type information, and lower-weight docstring/comment metadata where useful. It does not index complete file bodies, arbitrary source tokens, or string literals for general search. `code_search` returns symbol hits; there is no file-scope BM25 aggregation requirement.
+
+Persisted source blobs remain required for reproducible parsing, source ranges/snippets, semantic enrichment, CFG, and visualization, not as a replacement for ripgrep.
 
 ## Confirmed source-content persistence
 

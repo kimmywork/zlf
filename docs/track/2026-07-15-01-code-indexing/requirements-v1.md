@@ -20,7 +20,7 @@ Integrate Tree-sitter so zlf can turn repositories into queryable code symbols, 
 ## Product scenarios
 
 1. Parse a supported repository incrementally and persist files, symbols, source ranges, and relationships with stable identities.
-2. Search exact/lexical symbol names, signatures, documentation, and code snippets with BM25.
+2. Search exact/lexical symbol names, kinds, signatures/type metadata, and lower-weight documentation metadata with BM25; use source ranges/blobs for returned snippets, not general raw-source search.
 3. Traverse containment, import, definition/reference, call, inheritance/implementation, and dependency edges through existing graph/Prolog queries.
 4. Combine lexical candidates with graph filters/expansion and return source paths/ranges suitable for downstream tools.
 5. Re-index changed/deleted files without leaving stale symbols or edges.
@@ -60,7 +60,7 @@ Integrate Tree-sitter so zlf can turn repositories into queryable code symbols, 
 
 - Java, C, C++, Python, Rust, JavaScript, TypeScript, Kotlin, Go, and Swift are supported end-to-end at the syntax/symbol contract level; any language-specific semantic-resolution limitations are explicit.
 - Definition/reference/import/call fixtures match independent source-range oracles.
-- Name/signature/doc/code BM25 plus graph composition answers bounded repository questions.
+- Name/kind/signature/type/lower-weight-doc symbol BM25 plus graph composition answers bounded repository questions; raw-source search remains a ripgrep concern.
 - Changed/deleted files leave no stale symbols, documents, or relationships after convergence and reopen.
 - A reproducible repository benchmark reports parse/index/query time, correctness, RSS, and disk.
 
