@@ -97,6 +97,14 @@ The user supplied schema-only evidence from an existing SQLite code knowledge ba
 
 **Required schema additions for zlf:** repository/codebase identity, active revision, source fingerprint, extractor/provider version, certainty class, full edge source range where available, build/LSP configuration identity, and first-class contract/external-symbol identity. Structured decorators/type parameters/metadata should use typed values rather than opaque JSON text where practical.
 
+## Confirmed source-content persistence
+
+Confirmed by the user on 2026-07-15: indexed source content may be persisted because the symbol/relation graph is already highly sensitive and can reconstruct substantial implementation detail. zlf therefore uses a dedicated content-addressed compressed source blob store rather than placing complete source text in every symbol node.
+
+A file node records repository, active revision, path, content fingerprint, encoding/language, and blob identity. Symbol ranges, BM25 chunks, snippets, CFG extraction, and visualization read the same immutable blob bytes. Blob publication is generation-safe, duplicate content is deduplicated, and unreferenced blobs are garbage-collected only after no retained generation/snapshot references them.
+
+Compression is not encryption. The initial trusted-knowledge-base boundary still requires operational safeguards: restrictive database/temp-file permissions, encrypted volumes/backups where required, no source text in logs/error classes/metrics, explicit source-inclusive export instead of implicit graph export, and bounded snippet APIs. Generated/vendor/binary/oversized exclusions and secret-aware indexing policy reduce unnecessary retention, but canonical stored bytes must not be silently modified by redaction.
+
 ## Recommended requirement additions
 
 - Separate syntax extraction from semantic resolution. Tree-sitter provides syntax; language adapters, compiler metadata, build manifests, IDLs, OpenAPI/gRPC/protobuf schemas, and explicit mappings may provide stronger cross-repo/cross-language evidence.

@@ -39,6 +39,7 @@ Integrate Tree-sitter so zlf can turn repositories into queryable code symbols, 
 - Initial language scope is Java, C, C++, Python, Rust, JavaScript, TypeScript, Kotlin, Go, and Swift.
 - Tree-sitter grammars are explicit, versioned dependencies; unsupported languages fail clearly.
 - Repository path, file identity, language, symbol kind/name, byte/line ranges, signatures, and source fingerprints are canonical and durable.
+- Indexed source bytes are retained in a dedicated content-addressed compressed blob store; file nodes reference immutable blob identities, and graph export does not include source unless explicitly requested.
 - Parsing is bounded and excludes generated/vendor/binary/oversized content through explicit policy.
 - Graph storage remains source of truth; BM25 is a derivative index.
 - Embedding is disabled by default and is not required for any code-index acceptance criterion.
