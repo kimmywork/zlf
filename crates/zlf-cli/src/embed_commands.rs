@@ -8,6 +8,12 @@ pub(crate) async fn handle_embed(
     embed_config: Option<EmbeddingConfig>,
     config: &ZlfConfig,
 ) -> Response {
+    if !config.embedding.enabled {
+        return Response::Error {
+            code: "INDEX_UNAVAILABLE".to_string(),
+            message: "vector embedding is disabled; set embedding.enabled=true".to_string(),
+        };
+    }
     let embed_config = embed_config.unwrap_or_else(|| config.to_embed_config());
     let provider = create_provider(embed_config);
     match provider.embed(&text).await {

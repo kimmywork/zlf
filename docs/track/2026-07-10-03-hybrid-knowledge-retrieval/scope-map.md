@@ -11,6 +11,8 @@
 02 + 03 + 04 + graph/WAM baseline
  └──> 05 hybrid Prolog retrieval
        └──> 06 general-KB benchmark and stress
+03 + 06 ANN evidence
+ └──> 07 optional vector strategy
 ```
 
 Stage 06 owns benchmark orchestration, but every implementation stage must deliver focused correctness and performance evidence rather than postponing all verification.
@@ -25,6 +27,7 @@ Stage 06 owns benchmark orchestration, but every implementation stage must deliv
 | 04 | `2026-07-10-04-temporal/` | done | event-time `temporal_*` and valid-time `valid_*` indexes |
 | 05 | `2026-07-10-05-hybrid-prolog/` | done | fusion, graph/rule/time joins, bounded provider contracts |
 | 06 | `2026-07-10-06-kb-benchmark/` | in progress | public/synthetic datasets, tiered stress, machine-readable reports |
+| 07 | `2026-07-15-01-optional-vector-index/` | done | opt-in embedding, exact/HNSW strategy, async rebuild, exact fallback |
 
 ## Shared contracts
 

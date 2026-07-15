@@ -10,8 +10,22 @@ pub struct ZlfConfig {
     pub embedding: EmbeddingConfig,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum VectorIndexEngine {
+    #[default]
+    Exact,
+    Hnsw,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EmbeddingConfig {
+    #[serde(default)]
+    pub enabled: bool,
+
+    #[serde(default)]
+    pub index_engine: VectorIndexEngine,
+
     #[serde(default = "default_provider")]
     pub provider: String,
 
@@ -51,6 +65,8 @@ fn default_dimension() -> usize {
 impl Default for EmbeddingConfig {
     fn default() -> Self {
         Self {
+            enabled: false,
+            index_engine: VectorIndexEngine::Exact,
             provider: default_provider(),
             api_endpoint: default_api_endpoint(),
             api_key: None,
@@ -101,9 +117,21 @@ impl ZlfConfig {
         with_env_overrides(Self::default())
     }
 
+    #[allow(clippy::too_many_lines)]
     fn apply_env_overrides(&mut self) {
         if let Ok(value) = std::env::var("ZLF_DB_PATH") {
             self.db_path = value;
+        }
+        if let Ok(value) = std::env::var("ZLF_EMBED_ENABLED") {
+            if let Ok(enabled) = value.parse() {
+                self.embedding.enabled = enabled;
+            }
+        }
+        if let Ok(value) = std::env::var("ZLF_VECTOR_INDEX_ENGINE") {
+            self.embedding.index_engine = match value.as_str() {
+                "hnsw" => VectorIndexEngine::Hnsw,
+                _ => VectorIndexEngine::Exact,
+            };
         }
         if let Ok(value) = std::env::var("ZLF_EMBED_PROVIDER") {
             self.embedding.provider = value;
@@ -155,5 +183,27 @@ impl ZlfConfig {
             model: self.embedding.model.clone(),
             dimension: self.embedding.dimension,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn embedding_is_disabled_with_exact_as_dormant_default() {
+        let config = ZlfConfig::default();
+        assert!(!config.embedding.enabled);
+        assert_eq!(config.embedding.index_engine, VectorIndexEngine::Exact);
+    }
+
+    #[test]
+    fn hnsw_requires_explicit_enablement_and_engine_selection() {
+        let config: ZlfConfig =
+            serde_json::from_str(r#"{"embedding":{"enabled":true,"index_engine":"hnsw"}}"#)
+                .unwrap();
+        assert!(config.embedding.enabled);
+        assert_eq!(config.embedding.index_engine, VectorIndexEngine::Hnsw);
+        assert_eq!(config.embedding.dimension, 1024);
     }
 }

@@ -1,5 +1,6 @@
 use zlf_index::{
-    BM25Index, EmbeddingModelProfile, EventTimeStore, ExactVectorStore, GenerationId, ValidityStore,
+    BM25Index, EmbeddingModelProfile, EventTimeStore, ExactVectorStore, GenerationId,
+    ValidityStore, VectorSearchBackend,
 };
 
 use crate::parser::Term;
@@ -40,8 +41,17 @@ impl<'a> IndexFactProvider<'a> {
     }
 
     pub fn with_exact_vector(
-        mut self,
+        self,
         store: &'a ExactVectorStore,
+        profile: &'a EmbeddingModelProfile,
+        generation: &'a GenerationId,
+    ) -> Self {
+        self.with_vector_backend(store, profile, generation)
+    }
+
+    pub fn with_vector_backend(
+        mut self,
+        store: &'a dyn VectorSearchBackend,
         profile: &'a EmbeddingModelProfile,
         generation: &'a GenerationId,
     ) -> Self {

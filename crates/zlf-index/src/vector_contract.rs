@@ -121,6 +121,22 @@ pub fn validate_query_vector(
     Ok(())
 }
 
+pub trait VectorSearchBackend: Send + Sync {
+    fn search(
+        &self,
+        query: &VectorQuery,
+        profile: &EmbeddingModelProfile,
+    ) -> zlf_core::Result<Vec<VectorHit>>;
+
+    fn records_for_entity(
+        &self,
+        generation: &str,
+        model_profile: &str,
+        model_version: u32,
+        entity: &zlf_core::EntityRef,
+    ) -> zlf_core::Result<Vec<VectorRecord>>;
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct VectorHit {
     pub key: VectorKey,

@@ -7,7 +7,7 @@ use zlf_prolog::wam::{
 };
 use zlf_prolog::{PrologParser, Query, Term};
 
-use super::{helpers, lock_error, ZlfDatabase};
+use super::{contains_vector_predicate, helpers, lock_error, ZlfDatabase};
 
 impl ZlfDatabase {
     pub fn query_prolog_with_proof(&self, source: &str) -> Result<Vec<ProofAnswer>> {
@@ -27,21 +27,25 @@ impl ZlfDatabase {
 
     #[allow(clippy::too_many_lines)]
     fn execute_terms_with_proof(&self, terms: &[Term]) -> Result<Vec<ProofAnswer>> {
+        if self.vector.is_none() && terms.iter().any(contains_vector_predicate) {
+            return Err(ZlfError::IndexUnavailable {
+                index: "vector_embedding".into(),
+                operation: "prolog_vector_query_with_proof".into(),
+            });
+        }
         let storage_provider = StorageFactProvider::new(self.storage.as_ref());
         let retrieval_provider = crate::retrieval_provider::PreparedRetrievalProvider::new(self);
         let bm25 = self.bm25.read().map_err(lock_error)?.clone();
-        let index_provider = IndexFactProvider::new()
-            .with_bm25(bm25.as_ref())
-            .with_exact_vector(
-                self.vector.as_ref(),
-                &self.vector_model,
-                &self.vector_generation,
-            )
-            .with_temporal(
-                self.events.as_ref(),
-                self.validities.as_ref(),
-                &self.temporal_generation,
-            );
+        let mut index_provider = IndexFactProvider::new().with_bm25(bm25.as_ref());
+        if let Some(vector) = self.vector.as_ref() {
+            index_provider =
+                index_provider.with_vector_backend(vector, &vector.model, &vector.generation);
+        }
+        let index_provider = index_provider.with_temporal(
+            self.events.as_ref(),
+            self.validities.as_ref(),
+            &self.temporal_generation,
+        );
         let registry = self.registry.read().map_err(lock_error)?.clone();
         let rules = self.rules.read().map_err(lock_error)?.clone();
         let introspection = IntrospectionProvider::new(registry, &rules);

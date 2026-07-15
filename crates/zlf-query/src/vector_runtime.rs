@@ -1,19 +1,18 @@
-use std::collections::BTreeMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, RwLock};
 
-use chrono::{DateTime, Utc};
-use zlf_core::Result;
+use chrono::Utc;
+use serde::{Deserialize, Serialize};
+use zlf_core::{Result, ZlfError};
 use zlf_index::{
-    bge_m3_dense_v1, EmbeddingModelProfile, ExactVectorStore, GenerationId, GenerationMetadata,
-    GenerationState, GENERATION_SCHEMA_VERSION,
+    bge_m3_dense_v1, ranked_page, EmbeddingModelProfile, ExactVectorStore, GenerationId,
+    GenerationMetadata, GenerationState, HnswVectorIndex, IndexPage, IndexPageRequest, VectorHit,
+    VectorQuery, VectorRecord, VectorSearchBackend, GENERATION_SCHEMA_VERSION,
 };
 use zlf_storage::Storage;
 
-use crate::{
-    BatchEmbeddingProvider, CoordinatorConfig, DurableEmbeddingWorker, EmbeddingJobStore,
-    EmbeddingModelProfileStore, GenerationManager, IndexCoordinator, VectorEmbeddingTarget,
-    ZlfDatabase,
-};
+use crate::{EmbeddingModelProfileStore, GenerationManager, VectorIndexStrategy};
 
 const TARGET: &str = "vector";
 const BACKEND_SCHEMA: &str = "rocksdb-exact-vector-v1";
@@ -22,6 +21,176 @@ pub(crate) struct VectorRuntimeParts {
     pub store: ExactVectorStore,
     pub generation: GenerationId,
     pub model: EmbeddingModelProfile,
+}
+
+pub(crate) struct VectorRuntime {
+    pub store: Arc<ExactVectorStore>,
+    pub generation: GenerationId,
+    pub model: EmbeddingModelProfile,
+    strategy: VectorIndexStrategy,
+    hnsw_root: PathBuf,
+    hnsw: Arc<RwLock<Option<Arc<HnswVectorIndex>>>>,
+    rebuilding: Arc<AtomicBool>,
+    rebuild_pending: Arc<AtomicBool>,
+    stale: Arc<AtomicBool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VectorIndexStatus {
+    pub enabled: bool,
+    pub strategy: String,
+    pub ann_ready: bool,
+    pub ann_rebuilding: bool,
+    pub ann_stale: bool,
+    pub exact_fallback: bool,
+}
+
+impl VectorRuntime {
+    pub fn new(parts: VectorRuntimeParts, root: &Path, strategy: VectorIndexStrategy) -> Self {
+        let hnsw_root = root.join("hnsw").join(&parts.generation.0);
+        let hnsw = match strategy {
+            VectorIndexStrategy::Hnsw(_) => HnswVectorIndex::open(&hnsw_root)
+                .ok()
+                .filter(|index| {
+                    parts
+                        .store
+                        .records(&parts.generation.0, &parts.model.id, parts.model.version)
+                        .is_ok_and(|records| index.matches_records(&records, &parts.model))
+                })
+                .map(Arc::new),
+            _ => None,
+        };
+        Self {
+            store: Arc::new(parts.store),
+            generation: parts.generation,
+            model: parts.model,
+            strategy,
+            hnsw_root,
+            hnsw: Arc::new(RwLock::new(hnsw)),
+            rebuilding: Arc::new(AtomicBool::new(false)),
+            rebuild_pending: Arc::new(AtomicBool::new(false)),
+            stale: Arc::new(AtomicBool::new(false)),
+        }
+    }
+
+    pub fn status(&self) -> VectorIndexStatus {
+        let ready = self.hnsw.read().is_ok_and(|value| value.is_some());
+        VectorIndexStatus {
+            enabled: true,
+            strategy: match self.strategy {
+                VectorIndexStrategy::Exact => "exact",
+                VectorIndexStrategy::Hnsw(_) => "hnsw",
+                VectorIndexStrategy::Disabled => "disabled",
+            }
+            .into(),
+            ann_ready: ready,
+            ann_rebuilding: self.rebuilding.load(Ordering::Acquire),
+            ann_stale: self.stale.load(Ordering::Acquire),
+            exact_fallback: matches!(self.strategy, VectorIndexStrategy::Hnsw(_))
+                && (!ready || self.stale.load(Ordering::Acquire)),
+        }
+    }
+
+    pub fn mark_stale(&self) {
+        if matches!(self.strategy, VectorIndexStrategy::Hnsw(_)) {
+            self.stale.store(true, Ordering::Release);
+        }
+    }
+
+    #[allow(clippy::too_many_lines)]
+    pub fn request_rebuild(&self) -> Result<bool> {
+        let VectorIndexStrategy::Hnsw(options) = self.strategy else {
+            return Err(ZlfError::IndexUnavailable {
+                index: "hnsw".into(),
+                operation: "request_rebuild".into(),
+            });
+        };
+        if self
+            .rebuilding
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .is_err()
+        {
+            self.rebuild_pending.store(true, Ordering::Release);
+            return Ok(false);
+        }
+        let store = Arc::clone(&self.store);
+        let generation = self.generation.clone();
+        let model = self.model.clone();
+        let root = self.hnsw_root.clone();
+        let target = Arc::clone(&self.hnsw);
+        let rebuilding = Arc::clone(&self.rebuilding);
+        let pending = Arc::clone(&self.rebuild_pending);
+        let stale = Arc::clone(&self.stale);
+        std::thread::spawn(move || loop {
+            let rebuilt = store
+                .records(&generation.0, &model.id, model.version)
+                .and_then(|records| {
+                    HnswVectorIndex::build_and_publish(&root, records, &model, options)
+                });
+            if let Ok(index) = rebuilt {
+                if let Ok(mut active) = target.write() {
+                    *active = Some(Arc::new(index));
+                    stale.store(false, Ordering::Release);
+                }
+            }
+            if pending.swap(false, Ordering::AcqRel) {
+                continue;
+            }
+            rebuilding.store(false, Ordering::Release);
+            if pending.swap(false, Ordering::AcqRel)
+                && rebuilding
+                    .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+                    .is_ok()
+            {
+                continue;
+            }
+            break;
+        });
+        Ok(true)
+    }
+
+    pub fn search_page(
+        &self,
+        query: &VectorQuery,
+        page: IndexPageRequest,
+    ) -> Result<IndexPage<VectorHit>> {
+        let mut request = query.clone();
+        request.top_k = page.probe_limit();
+        let hits = self.search(&request, &self.model)?;
+        ranked_page(hits, page).map_err(|error| ZlfError::Internal(error.to_string()))
+    }
+}
+
+impl VectorSearchBackend for VectorRuntime {
+    fn search(
+        &self,
+        query: &VectorQuery,
+        profile: &EmbeddingModelProfile,
+    ) -> Result<Vec<VectorHit>> {
+        if matches!(self.strategy, VectorIndexStrategy::Hnsw(_))
+            && !self.stale.load(Ordering::Acquire)
+        {
+            if let Ok(active) = self.hnsw.read() {
+                if let Some(index) = active.as_ref() {
+                    if let Ok(hits) = index.search(query, profile) {
+                        return Ok(hits);
+                    }
+                }
+            }
+        }
+        self.store.search(query, profile)
+    }
+
+    fn records_for_entity(
+        &self,
+        generation: &str,
+        model_profile: &str,
+        model_version: u32,
+        entity: &zlf_core::EntityRef,
+    ) -> Result<Vec<VectorRecord>> {
+        self.store
+            .records_for_entity(generation, model_profile, model_version, entity)
+    }
 }
 
 pub(crate) fn open_active_generation(storage: &Storage, root: &Path) -> Result<VectorRuntimeParts> {
@@ -75,83 +244,17 @@ fn bootstrap_generation(
     })
 }
 
-impl ZlfDatabase {
-    pub fn embedding_job_state_counts(&self) -> Result<BTreeMap<String, usize>> {
-        EmbeddingJobStore::new(&self.storage).state_counts()
-    }
-
-    pub async fn process_embedding_batch<P: BatchEmbeddingProvider>(
-        &self,
-        provider: &P,
-        now: DateTime<Utc>,
-    ) -> Result<usize> {
-        let target = VectorEmbeddingTarget::new(
-            self.vector.as_ref(),
-            self.vector_generation.clone(),
-            self.vector_model.clone(),
-        )?;
-        let published = DurableEmbeddingWorker::new(
-            &self.storage,
-            self.vector.as_ref().clone(),
-            provider,
-            self.vector_model.clone(),
-            target.manifest_scope(),
-        )?
-        .run_batch(now)
-        .await?;
-        if published > 0 {
-            self.invalidate_retrieval_tables()?;
-        }
-        Ok(published)
-    }
-
-    pub async fn embed_query_text<P: BatchEmbeddingProvider>(
-        &self,
-        provider: &P,
-        text: &str,
-    ) -> Result<Vec<f32>> {
-        let target = VectorEmbeddingTarget::new(
-            self.vector.as_ref(),
-            self.vector_generation.clone(),
-            self.vector_model.clone(),
-        )?;
-        DurableEmbeddingWorker::new(
-            &self.storage,
-            self.vector.as_ref().clone(),
-            provider,
-            self.vector_model.clone(),
-            target.manifest_scope(),
-        )?
-        .embed_query(text)
-        .await
-    }
-
-    pub(crate) fn catch_up_vector(&self) -> Result<()> {
-        let coordinator = IndexCoordinator::new(&self.storage, CoordinatorConfig::default());
-        coordinator.register_target(TARGET)?;
-        let target = VectorEmbeddingTarget::new(
-            self.vector.as_ref(),
-            self.vector_generation.clone(),
-            self.vector_model.clone(),
-        )?;
-        loop {
-            let enqueued = coordinator.enqueue_available(TARGET)?;
-            while coordinator.process_next(TARGET, &target)? {}
-            if enqueued == 0 {
-                break;
-            }
-        }
-        Ok(())
-    }
-
-    pub(crate) fn catch_up_indexes(&self) -> Result<()> {
-        self.catch_up_bm25()?;
-        self.catch_up_vector()?;
-        self.catch_up_temporal()?;
-        self.invalidate_retrieval_tables()
+pub(crate) fn disabled_status() -> VectorIndexStatus {
+    VectorIndexStatus {
+        enabled: false,
+        strategy: "disabled".into(),
+        ann_ready: false,
+        ann_rebuilding: false,
+        ann_stale: false,
+        exact_fallback: false,
     }
 }
 
-fn generation_path(root: &Path, id: &GenerationId) -> std::path::PathBuf {
+fn generation_path(root: &Path, id: &GenerationId) -> PathBuf {
     root.join("generations").join(&id.0)
 }

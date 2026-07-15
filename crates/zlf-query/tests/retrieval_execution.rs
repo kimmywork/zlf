@@ -8,13 +8,22 @@ use zlf_index::{
     RetrievalRequest, TemporalFilter, TemporalRole, VectorFieldOptions,
     INDEX_PROFILE_SCHEMA_VERSION,
 };
-use zlf_query::{BatchEmbeddingProvider, EmbeddingProviderFailure, ZlfDatabase};
+use zlf_query::{
+    BatchEmbeddingProvider, EmbeddingProviderFailure, VectorIndexStrategy, ZlfDatabase,
+    ZlfDatabaseOptions,
+};
 
 #[tokio::test]
 #[allow(clippy::too_many_lines)]
 async fn prepared_hybrid_execution_fuses_pages_and_applies_temporal_and_graph_filters() {
     let temp = tempfile::tempdir().unwrap();
-    let db = ZlfDatabase::open(temp.path()).unwrap();
+    let db = ZlfDatabase::open_with_options(
+        temp.path(),
+        ZlfDatabaseOptions {
+            vector_index: VectorIndexStrategy::Exact,
+        },
+    )
+    .unwrap();
     db.put_index_profile(&profile()).unwrap();
     db.activate_index_profile("knowledge", 1).unwrap();
     db.add_node(node("alice", "engineering", "2026-01-01", false))

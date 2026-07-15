@@ -69,8 +69,10 @@ echo '{"command":"query","path":"./my-graph.db","query":"edge(works_at, X, Y, Pr
 # BM25 text search
 echo '{"command":"search","path":"./my-graph.db","query":"software engineer"}' | ./target/release/zlf
 
-# Semantic search (requires embeddings)
-echo '{"command":"similar","path":"./my-graph.db","node_id":"<node-id>","threshold":0.8,"limit":10}' | ./target/release/zlf
+# Vector predicates require embedding.enabled=true; disabled use returns INDEX_UNAVAILABLE.
+# Choose index_engine "exact" or "hnsw" in zlf.json. For HNSW, rebuild once per batch.
+echo '{"command":"rebuild_vector_index","path":"./my-graph.db"}' | ./target/release/zlf
+echo '{"command":"vector_index_status","path":"./my-graph.db"}' | ./target/release/zlf
 ```
 
 ## CLI Reference

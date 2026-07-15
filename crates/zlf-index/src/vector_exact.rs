@@ -1,4 +1,3 @@
-use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashSet};
 use std::path::Path;
 use std::sync::Arc;
@@ -6,10 +5,10 @@ use std::sync::Arc;
 use rocksdb::{IteratorMode, Options, WriteBatch, DB};
 use zlf_core::{Result, ZlfError};
 
-use crate::vector_exact_support::{matches_filters, DocumentFilters};
+use crate::vector_exact_support::{matches_filters, similarity, DocumentFilters, HeapHit};
 use crate::{
     ranked_page, validate_query_vector, EmbeddingModelProfile, IndexPage, IndexPageRequest,
-    VectorHit, VectorKey, VectorMetric, VectorQuery, VectorRecord,
+    VectorHit, VectorKey, VectorQuery, VectorRecord,
 };
 
 const PREFIX: &[u8] = b"vector:exact:v1:";
@@ -167,20 +166,31 @@ impl ExactVectorStore {
         Ok(records)
     }
 
-    pub fn count(&self, generation: &str, model_profile: &str, model_version: u32) -> Result<u64> {
+    pub fn records(
+        &self,
+        generation: &str,
+        model_profile: &str,
+        model_version: u32,
+    ) -> Result<Vec<VectorRecord>> {
         let prefix = identity_prefix(generation, model_profile, model_version);
-        let mut count = 0;
+        let mut records = Vec::new();
         for item in self
             .db
             .iterator(IteratorMode::From(&prefix, rocksdb::Direction::Forward))
         {
-            let (key, _) = item.map_err(internal)?;
+            let (key, value) = item.map_err(internal)?;
             if !key.starts_with(&prefix) {
                 break;
             }
-            count += 1;
+            records.push(bincode::deserialize(&value).map_err(serialization)?);
         }
-        Ok(count)
+        Ok(records)
+    }
+
+    pub fn count(&self, generation: &str, model_profile: &str, model_version: u32) -> Result<u64> {
+        Ok(self
+            .records(generation, model_profile, model_version)?
+            .len() as u64)
     }
 }
 
@@ -207,58 +217,6 @@ fn consider_record(
         heap.pop();
     }
     Ok(())
-}
-
-fn similarity(query: &[f32], vector: &[f32], metric: VectorMetric) -> Result<f32> {
-    let dot = query
-        .iter()
-        .zip(vector)
-        .map(|(left, right)| f64::from(*left) * f64::from(*right))
-        .sum::<f64>();
-    let score = match metric {
-        VectorMetric::DotProduct => dot,
-        VectorMetric::Cosine => {
-            let query_norm = norm(query);
-            let vector_norm = norm(vector);
-            if query_norm == 0.0 || vector_norm == 0.0 {
-                return Err(ZlfError::Internal("cosine vector must be nonzero".into()));
-            }
-            dot / (query_norm * vector_norm)
-        }
-    };
-    Ok(score as f32)
-}
-
-fn norm(values: &[f32]) -> f64 {
-    values
-        .iter()
-        .map(|value| f64::from(*value).powi(2))
-        .sum::<f64>()
-        .sqrt()
-}
-
-#[derive(Debug)]
-struct HeapHit(VectorHit);
-
-impl PartialEq for HeapHit {
-    fn eq(&self, other: &Self) -> bool {
-        self.0.score == other.0.score && self.0.key == other.0.key
-    }
-}
-impl Eq for HeapHit {}
-impl PartialOrd for HeapHit {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-impl Ord for HeapHit {
-    fn cmp(&self, other: &Self) -> Ordering {
-        other
-            .0
-            .score
-            .total_cmp(&self.0.score)
-            .then_with(|| self.0.key.cmp(&other.0.key))
-    }
 }
 
 fn storage_key(key: &VectorKey) -> Vec<u8> {

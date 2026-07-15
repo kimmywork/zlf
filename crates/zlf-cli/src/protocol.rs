@@ -101,6 +101,10 @@ pub(crate) enum Request {
         minimum_sequence: u64,
         timeout_ms: u64,
     },
+    #[serde(rename = "vector_index_status")]
+    VectorIndexStatus { path: Option<String> },
+    #[serde(rename = "rebuild_vector_index")]
+    RebuildVectorIndex { path: Option<String> },
     #[serde(rename = "query")]
     Query { path: Option<String>, query: String },
     #[serde(rename = "search")]

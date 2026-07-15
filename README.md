@@ -34,10 +34,10 @@ The main user interfaces are:
   - `property(alice, title, "Engineer").`
 - Compiled rule persistence via `StorageRuleStore`
 - BM25 search with jieba tokenization
-- Vector similarity search
+- Optional vector similarity search with exact RocksDB or durable `hnsw_rs`
 - Temporal predicates
-- Ollama embedding support, defaulting to `bge-m3:latest`
-- Persistent embedding queue and worker loop
+- Opt-in Ollama embedding support using `bge-m3:latest`
+- Persistent embedding queue and asynchronous HNSW generation rebuild
 - Markdown/wiki import pipeline tests
 
 ## Build
@@ -77,12 +77,14 @@ echo '{"command":"query","path":"./zlf-db","query":"?property(X, name, \"Alice\"
   | target/release/zlf
 ```
 
-Index embeddings:
+Embedding is disabled by default. Enable it in `zlf.json`, import/index a knowledge batch, complete its embedding jobs, then request one asynchronous ANN rebuild:
 
 ```bash
-echo '{"command":"index_embedding","path":"./zlf-db","node_id":"alice","text":"软件工程师"}' \
-  | target/release/zlf
+echo '{"command":"rebuild_vector_index","path":"./zlf-db"}' | target/release/zlf
+echo '{"command":"vector_index_status","path":"./zlf-db"}' | target/release/zlf
 ```
+
+Use `index_engine: "exact"` when ANN build/RSS cost is not justified. In HNSW mode exact RocksDB is still maintained and automatically serves queries while ANN is missing, stale, rebuilding, or corrupt.
 
 ## Prolog REPL
 
@@ -130,6 +132,8 @@ Default config:
 {
   "db_path": "./zlf-db",
   "embedding": {
+    "enabled": false,
+    "index_engine": "exact",
     "provider": "ollama",
     "api_endpoint": "http://localhost:11434",
     "model": "bge-m3:latest",
@@ -149,6 +153,8 @@ Useful environment variables:
 
 ```bash
 ZLF_DB_PATH=./zlf-db
+ZLF_EMBED_ENABLED=true
+ZLF_VECTOR_INDEX_ENGINE=hnsw
 ZLF_EMBED_PROVIDER=ollama
 ZLF_EMBED_ENDPOINT=http://localhost:11434
 OLLAMA_ENDPOINT=http://localhost:11434
@@ -162,6 +168,8 @@ For Ollama:
 ```bash
 ollama pull bge-m3:latest
 ```
+
+For symbol-heavy code repositories, leave embedding disabled and use BM25 plus graph relationships. This avoids remote inference, vector storage, and ANN rebuild costs. For semantic knowledge bases, batch imports before embedding/HNSW rebuilds instead of rebuilding after each document.
 
 ## Prolog Predicates
 

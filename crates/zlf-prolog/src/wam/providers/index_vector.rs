@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use zlf_core::EntityRef;
-use zlf_index::{EmbeddingModelProfile, ExactVectorStore, GenerationId, VectorQuery};
+use zlf_index::{EmbeddingModelProfile, GenerationId, VectorQuery, VectorSearchBackend};
 
 use crate::parser::Term;
 
@@ -9,14 +9,14 @@ use super::error::{WamError, WamResult};
 
 #[derive(Clone, Copy)]
 pub(super) struct ExactVectorProvider<'a> {
-    store: &'a ExactVectorStore,
+    store: &'a dyn VectorSearchBackend,
     profile: &'a EmbeddingModelProfile,
     generation: &'a GenerationId,
 }
 
 impl<'a> ExactVectorProvider<'a> {
     pub(super) fn new(
-        store: &'a ExactVectorStore,
+        store: &'a dyn VectorSearchBackend,
         profile: &'a EmbeddingModelProfile,
         generation: &'a GenerationId,
     ) -> Self {

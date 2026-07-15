@@ -47,6 +47,8 @@ pub enum RetrievalPreparationError {
         requested: String,
         active: String,
     },
+    #[error("vector embedding index is disabled for retrieval mode {0}")]
+    VectorIndexUnavailable(String),
     #[error("query embedding preparation failed: {0}")]
     Embedding(String),
     #[error("query vector is incompatible with the active model: {0}")]
@@ -118,6 +120,13 @@ impl ZlfDatabase {
         request: RetrievalRequest,
     ) -> Result<PreparedRetrievalHandle, RetrievalPreparationError> {
         request.validate()?;
+        if self.vector.is_none()
+            && matches!(request.mode, RetrievalMode::Vector | RetrievalMode::Hybrid)
+        {
+            return Err(RetrievalPreparationError::VectorIndexUnavailable(
+                format!("{:?}", request.mode).to_lowercase(),
+            ));
+        }
         self.wait_for_retrieval_watermarks(&request)?;
         let snapshot = self.retrieval_snapshot()?;
         validate_requested_generations(&request, &snapshot)?;
@@ -155,6 +164,10 @@ impl ZlfDatabase {
         if !matches!(request.mode, RetrievalMode::Vector | RetrievalMode::Hybrid) {
             return Ok(None);
         }
+        let vector = self
+            .vector
+            .as_ref()
+            .ok_or_else(|| RetrievalPreparationError::VectorIndexUnavailable("vector".into()))?;
         match &request.query {
             RetrievalQuery::Text { text } => self
                 .embed_query_text(provider, text)
@@ -162,12 +175,12 @@ impl ZlfDatabase {
                 .map(Some)
                 .map_err(|error| RetrievalPreparationError::Embedding(error.to_string())),
             RetrievalQuery::Vector { values, metric } => {
-                if *metric != self.vector_model.metric {
+                if *metric != vector.model.metric {
                     return Err(RetrievalPreparationError::InvalidVector(
                         "metric does not match the active model".into(),
                     ));
                 }
-                validate_query_vector(values, &self.vector_model)
+                validate_query_vector(values, &vector.model)
                     .map_err(RetrievalPreparationError::InvalidVector)?;
                 Ok(Some(values.clone()))
             }
@@ -203,6 +216,7 @@ impl ZlfDatabase {
         Ok(())
     }
 
+    #[allow(clippy::too_many_lines)]
     fn retrieval_snapshot(&self) -> Result<PreparedIndexSnapshot, RetrievalPreparationError> {
         let coordinator = IndexCoordinator::new(&self.storage, CoordinatorConfig::default());
         let watermark = |target| {
@@ -211,6 +225,17 @@ impl ZlfDatabase {
                 .map(|progress| progress.published_watermark)
                 .map_err(|error| RetrievalPreparationError::Snapshot(error.to_string()))
         };
+        let (vector_generation, vector_watermark, model_id, model_version) =
+            if let Some(vector) = self.vector.as_ref() {
+                (
+                    vector.generation.clone(),
+                    watermark("vector")?,
+                    vector.model.id.clone(),
+                    vector.model.version,
+                )
+            } else {
+                (GenerationId("disabled".into()), 0, "disabled".into(), 0)
+            };
         Ok(PreparedIndexSnapshot {
             lexical_generation: self
                 .bm25_generation
@@ -218,12 +243,12 @@ impl ZlfDatabase {
                 .map_err(|error| RetrievalPreparationError::Snapshot(error.to_string()))?
                 .clone(),
             lexical_watermark: watermark("bm25")?,
-            vector_generation: self.vector_generation.clone(),
-            vector_watermark: watermark("vector")?,
+            vector_generation,
+            vector_watermark,
             temporal_generation: self.temporal_generation.clone(),
             temporal_watermark: watermark("temporal")?,
-            model_id: self.vector_model.id.clone(),
-            model_version: self.vector_model.version,
+            model_id,
+            model_version,
         })
     }
 }

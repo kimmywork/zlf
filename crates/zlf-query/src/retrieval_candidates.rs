@@ -88,15 +88,12 @@ impl ZlfDatabase {
         ) {
             return Ok(CandidateResult::default());
         }
+        let vector = self.require_vector("retrieval_candidates")?;
         let query = self.vector_query(prepared, bound_entity)?;
         let mut result = CandidateResult::default();
         let mut offset = 0;
         loop {
-            let page = self.vector.search_page(
-                &query,
-                &self.vector_model,
-                page_request(prepared, offset),
-            )?;
+            let page = vector.search_page(&query, page_request(prepared, offset))?;
             result.pages += 1;
             result.exhausted |= page.candidate_budget_exhausted;
             result
@@ -155,7 +152,8 @@ impl ZlfDatabase {
             model_version: prepared.snapshot.model_version,
             document_id: document_id.clone(),
         };
-        self.vector
+        self.require_vector("source_document_vector")?
+            .store
             .get(&key)?
             .map(|record| record.values)
             .ok_or_else(|| ZlfError::Internal("source document vector is not indexed".into()))

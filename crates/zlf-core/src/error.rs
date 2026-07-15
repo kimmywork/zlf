@@ -62,6 +62,9 @@ pub enum ZlfError {
     #[error("Feature not supported: {0}")]
     UnsupportedFeature(String),
 
+    #[error("Index '{index}' is disabled or unavailable for operation '{operation}'")]
+    IndexUnavailable { index: String, operation: String },
+
     #[error("Embedding dimension mismatch: expected {0}, got {1}")]
     EmbeddingDimensionMismatch(usize, usize),
 

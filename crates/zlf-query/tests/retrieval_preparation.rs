@@ -7,13 +7,14 @@ use zlf_index::{
     RetrievalQuery, RetrievalRequest,
 };
 use zlf_query::{
-    BatchEmbeddingProvider, EmbeddingProviderFailure, RetrievalPreparationError, ZlfDatabase,
+    BatchEmbeddingProvider, EmbeddingProviderFailure, RetrievalPreparationError,
+    VectorIndexStrategy, ZlfDatabase, ZlfDatabaseOptions,
 };
 
 #[tokio::test]
 async fn async_preparation_embeds_once_and_registry_lookup_never_calls_provider() {
     let temp = tempfile::tempdir().unwrap();
-    let db = ZlfDatabase::open(temp.path()).unwrap();
+    let db = open_vector(temp.path());
     db.add_node(Node::with_id(
         "doc".into(),
         vec!["record".into()],
@@ -47,7 +48,7 @@ async fn async_preparation_embeds_once_and_registry_lookup_never_calls_provider(
 #[tokio::test]
 async fn lexical_and_explicit_vectors_require_no_remote_embedding() {
     let temp = tempfile::tempdir().unwrap();
-    let db = ZlfDatabase::open(temp.path()).unwrap();
+    let db = open_vector(temp.path());
     let provider = CountingProvider::default();
     let lexical = db
         .prepare_retrieval(&provider, request(RetrievalMode::Lexical))
@@ -81,7 +82,7 @@ async fn lexical_and_explicit_vectors_require_no_remote_embedding() {
 #[tokio::test]
 async fn incompatible_generation_and_provider_failure_are_typed_before_wam() {
     let temp = tempfile::tempdir().unwrap();
-    let db = ZlfDatabase::open(temp.path()).unwrap();
+    let db = open_vector(temp.path());
     let provider = CountingProvider::default();
     let mut incompatible = request(RetrievalMode::Hybrid);
     incompatible.model_generation = Some(GenerationId("not-active".into()));
@@ -112,6 +113,16 @@ async fn incompatible_generation_and_provider_failure_are_typed_before_wam() {
             .await,
         Err(RetrievalPreparationError::Embedding(_))
     ));
+}
+
+fn open_vector(path: &std::path::Path) -> ZlfDatabase {
+    ZlfDatabase::open_with_options(
+        path,
+        ZlfDatabaseOptions {
+            vector_index: VectorIndexStrategy::Exact,
+        },
+    )
+    .unwrap()
 }
 
 fn request(mode: RetrievalMode) -> RetrievalRequest {

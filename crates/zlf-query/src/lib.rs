@@ -1,20 +1,19 @@
 use std::collections::HashSet;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 
 use zlf_core::{Edge, Node, Result, ZlfError};
-use zlf_index::{
-    BM25Index, EmbeddingModelProfile, EventTimeStore, ExactVectorStore, GenerationId, ValidityStore,
-};
+use zlf_index::{BM25Index, EventTimeStore, GenerationId, ValidityStore};
 use zlf_prolog::wam::{
     CompiledRuleArtifact, CompositeFactProvider, GraphAlgorithmProvider, GraphViewProvider,
-    IndexFactProvider, IntrospectionProvider, PredicateRegistry, RocksTableBackend,
-    StorageFactProvider, StorageFactWriter, StorageRuleStore, TableManager, WamRuntime,
+    IndexFactProvider, IntrospectionProvider, PredicateRegistry, StorageFactProvider,
+    StorageFactWriter, StorageRuleStore, TableManager, WamRuntime,
 };
 mod bm25_runtime;
 mod bm25_target;
 mod coordinator;
 mod coordinator_store;
+mod database_open;
 mod embedding_job_store;
 mod embedding_worker_v2;
 mod explain;
@@ -43,7 +42,9 @@ mod temporal_projection;
 mod temporal_runtime;
 mod temporal_target;
 mod vector_embedding_target;
+mod vector_facade;
 mod vector_runtime;
+mod vector_strategy;
 
 pub use bm25_target::Bm25IndexTarget;
 pub use coordinator::{
@@ -67,10 +68,25 @@ pub use retrieval_preparation::{
 };
 pub use temporal_target::TemporalIndexTarget;
 pub use vector_embedding_target::VectorEmbeddingTarget;
+pub use vector_runtime::VectorIndexStatus;
+pub use vector_strategy::{VectorIndexStrategy, ZlfDatabaseOptions};
 
 use helpers::lock_error;
 use zlf_prolog::{PrologParser, PrologRule, Query, Term};
 use zlf_storage::Storage;
+
+fn contains_vector_predicate(term: &Term) -> bool {
+    match term {
+        Term::Compound { name, args } => {
+            name == "vector_similar" || args.iter().any(contains_vector_predicate)
+        }
+        Term::List(items) => items.iter().any(contains_vector_predicate),
+        Term::Object(fields) => fields
+            .iter()
+            .any(|(_, value)| contains_vector_predicate(value)),
+        _ => false,
+    }
+}
 
 pub struct ZlfDatabase {
     storage: Arc<Storage>,
@@ -80,9 +96,7 @@ pub struct ZlfDatabase {
     bm25: RwLock<Arc<BM25Index>>,
     bm25_root: PathBuf,
     bm25_generation: RwLock<GenerationId>,
-    vector: Arc<ExactVectorStore>,
-    vector_generation: GenerationId,
-    vector_model: EmbeddingModelProfile,
+    vector: Option<vector_runtime::VectorRuntime>,
     rules: RwLock<Vec<CompiledRuleArtifact>>,
     registry: RwLock<PredicateRegistry>,
     tabled: RwLock<HashSet<zlf_prolog::wam::PredicateKey>>,
@@ -91,78 +105,6 @@ pub struct ZlfDatabase {
 }
 
 impl ZlfDatabase {
-    pub fn open(path: impl AsRef<Path>) -> Result<Self> {
-        let path = path.as_ref();
-        let storage = Arc::new(Storage::open(path.join("storage"))?);
-        let bm25_root = path.join("bm25");
-        let (bm25, generation) = bm25_runtime::open_active_generation(&storage, &bm25_root)?;
-        let vector = vector_runtime::open_active_generation(&storage, &path.join("vector"))?;
-        let temporal = temporal_runtime::open_active_generation(&storage, &path.join("temporal"))?;
-        Self::from_parts(
-            Arc::clone(&storage),
-            bm25,
-            bm25_root,
-            generation,
-            vector,
-            temporal,
-        )
-    }
-
-    pub fn open_existing(path: impl AsRef<Path>) -> Result<Self> {
-        let path = path.as_ref();
-        let storage = Arc::new(Storage::open_existing(path.join("storage"))?);
-        let bm25_root = path.join("bm25");
-        let (bm25, generation) = bm25_runtime::open_active_generation(&storage, &bm25_root)?;
-        let vector = vector_runtime::open_active_generation(&storage, &path.join("vector"))?;
-        let temporal = temporal_runtime::open_active_generation(&storage, &path.join("temporal"))?;
-        Self::from_parts(
-            Arc::clone(&storage),
-            bm25,
-            bm25_root,
-            generation,
-            vector,
-            temporal,
-        )
-    }
-
-    fn from_parts(
-        storage: Arc<Storage>,
-        bm25: BM25Index,
-        bm25_root: PathBuf,
-        bm25_generation: GenerationId,
-        vector: vector_runtime::VectorRuntimeParts,
-        temporal: temporal_runtime::TemporalRuntimeParts,
-    ) -> Result<Self> {
-        let rules = StorageRuleStore::new(storage.as_ref())
-            .all_rules()
-            .map_err(|e| ZlfError::Internal(e.to_string()))?;
-        let mut pred_registry = PredicateRegistry::new();
-        registry::populate_registry(&storage, &rules, &mut pred_registry)?;
-        let table_manager = Arc::new(TableManager::with_backend(Arc::new(
-            RocksTableBackend::new(Arc::clone(&storage)),
-        )));
-        let tabled = table::load_declarations(&storage)?;
-        let database = Self {
-            storage,
-            events: Arc::new(temporal.events),
-            validities: Arc::new(temporal.validities),
-            temporal_generation: temporal.generation,
-            bm25: RwLock::new(Arc::new(bm25)),
-            bm25_root,
-            bm25_generation: RwLock::new(bm25_generation),
-            vector: Arc::new(vector.store),
-            vector_generation: vector.generation,
-            vector_model: vector.model,
-            rules: RwLock::new(rules),
-            registry: RwLock::new(pred_registry),
-            tabled: RwLock::new(tabled),
-            table_manager,
-            prepared_retrievals: retrieval_preparation::PreparedRetrievalRegistry::new(),
-        };
-        database.catch_up_indexes()?;
-        Ok(database)
-    }
-
     pub fn query_prolog(&self, source: &str) -> Result<Vec<serde_json::Value>> {
         match PrologParser::parse_query(source)? {
             Query::Goal(term) => self.execute_terms(&[term]),
@@ -224,23 +166,36 @@ impl ZlfDatabase {
         self.storage.get_edge(id)
     }
 
+    pub(crate) fn require_vector(&self, operation: &str) -> Result<&vector_runtime::VectorRuntime> {
+        self.vector
+            .as_ref()
+            .ok_or_else(|| ZlfError::IndexUnavailable {
+                index: "vector_embedding".into(),
+                operation: operation.into(),
+            })
+    }
+
     #[allow(clippy::too_many_lines)]
     fn execute_terms(&self, terms: &[Term]) -> Result<Vec<serde_json::Value>> {
+        if self.vector.is_none() && terms.iter().any(contains_vector_predicate) {
+            return Err(ZlfError::IndexUnavailable {
+                index: "vector_embedding".into(),
+                operation: "prolog_vector_query".into(),
+            });
+        }
         let storage_provider = StorageFactProvider::new(self.storage.as_ref());
         let retrieval_provider = retrieval_provider::PreparedRetrievalProvider::new(self);
         let bm25 = self.bm25.read().map_err(lock_error)?.clone();
-        let index_provider = IndexFactProvider::new()
-            .with_bm25(bm25.as_ref())
-            .with_exact_vector(
-                self.vector.as_ref(),
-                &self.vector_model,
-                &self.vector_generation,
-            )
-            .with_temporal(
-                self.events.as_ref(),
-                self.validities.as_ref(),
-                &self.temporal_generation,
-            );
+        let mut index_provider = IndexFactProvider::new().with_bm25(bm25.as_ref());
+        if let Some(vector) = self.vector.as_ref() {
+            index_provider =
+                index_provider.with_vector_backend(vector, &vector.model, &vector.generation);
+        }
+        let index_provider = index_provider.with_temporal(
+            self.events.as_ref(),
+            self.validities.as_ref(),
+            &self.temporal_generation,
+        );
         let reg = self.registry.read().map_err(lock_error)?.clone();
         let rules = self.rules.read().map_err(lock_error)?.clone();
         let introspection = IntrospectionProvider::new(reg, &rules);

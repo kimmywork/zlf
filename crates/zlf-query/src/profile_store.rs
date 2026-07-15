@@ -105,13 +105,19 @@ impl<'a> IndexProfileStore<'a> {
 
 impl ZlfDatabase {
     pub fn put_index_profile(&self, profile: &IndexProfileArtifact) -> Result<MutationSequence> {
+        self.require_profile_capabilities(profile, "put_index_profile")?;
         let sequence = IndexProfileStore::new(&self.storage).put(profile)?;
         self.catch_up_indexes()?;
         Ok(sequence)
     }
 
     pub fn activate_index_profile(&self, name: &str, version: u32) -> Result<MutationSequence> {
-        let sequence = IndexProfileStore::new(&self.storage).activate(name, version)?;
+        let store = IndexProfileStore::new(&self.storage);
+        let profile = store
+            .get(name, version)?
+            .ok_or_else(|| ZlfError::Internal("index profile not found".into()))?;
+        self.require_profile_capabilities(&profile, "activate_index_profile")?;
+        let sequence = store.activate(name, version)?;
         self.rebuild_bm25_generation()?;
         self.catch_up_vector()?;
         self.catch_up_temporal()?;
@@ -124,6 +130,20 @@ impl ZlfDatabase {
 
     pub fn index_profiles(&self) -> Result<Vec<IndexProfileArtifact>> {
         IndexProfileStore::new(&self.storage).list()
+    }
+
+    fn require_profile_capabilities(
+        &self,
+        profile: &IndexProfileArtifact,
+        operation: &str,
+    ) -> Result<()> {
+        if self.vector.is_none() && profile.fields.values().any(|field| field.vector.is_some()) {
+            return Err(ZlfError::IndexUnavailable {
+                index: "vector_embedding".into(),
+                operation: operation.into(),
+            });
+        }
+        Ok(())
     }
 }
 

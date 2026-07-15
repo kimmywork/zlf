@@ -19,9 +19,11 @@ mod temporal_paging;
 mod temporal_validity;
 mod temporal_validity_entity;
 mod temporal_validity_support;
+mod vector_backend;
 pub mod vector_contract;
 mod vector_exact;
 mod vector_exact_support;
+mod vector_hnsw;
 
 pub use bm25::{BM25DocumentHit, BM25Index};
 pub use chunking::{
@@ -66,6 +68,7 @@ pub use temporal_event::EventTimeStore;
 pub use temporal_validity::ValidityStore;
 pub use vector_contract::{
     validate_query_vector, EmbeddingJob, EmbeddingJobState, VectorHit, VectorKey, VectorQuery,
-    VectorRecord, EMBEDDING_JOB_SCHEMA_VERSION, VECTOR_RECORD_SCHEMA_VERSION,
+    VectorRecord, VectorSearchBackend, EMBEDDING_JOB_SCHEMA_VERSION, VECTOR_RECORD_SCHEMA_VERSION,
 };
 pub use vector_exact::ExactVectorStore;
+pub use vector_hnsw::{HnswVectorIdentity, HnswVectorIndex, HnswVectorOptions};

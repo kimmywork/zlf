@@ -44,6 +44,13 @@ pub(crate) fn load_jobs(storage: &Storage, target: &str) -> Result<Vec<DurableIn
         .collect()
 }
 
+pub(crate) fn delete_target(storage: &Storage, target: &str) -> Result<()> {
+    for (key, _) in storage.scan_prefix(&job_prefix(target))? {
+        storage.delete_raw(&key)?;
+    }
+    storage.delete_raw(&target_key(target))
+}
+
 fn target_key(target: &str) -> String {
     format!("{TARGET_PREFIX}{}", hex(target.as_bytes()))
 }

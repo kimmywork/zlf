@@ -6,7 +6,7 @@ use crate::embed_commands::{handle_config, handle_embed};
 use crate::io_data::{export_json, import_json};
 use crate::mutation_commands::handle_mutation;
 use crate::protocol::{Request, Response};
-use crate::state::{ensure_db, AppState};
+use crate::state::{database_options, ensure_db, AppState};
 use crate::values::json_to_properties;
 
 #[allow(clippy::too_many_lines)]
@@ -27,7 +27,7 @@ pub(crate) async fn handle_request(request: Request, state: &AppState) -> Respon
             }
 
             match std::fs::create_dir_all(db_path) {
-                Ok(_) => match ZlfDatabase::open(db_path) {
+                Ok(_) => match ZlfDatabase::open_with_options(db_path, database_options(&config)) {
                     Ok(_) => Response::Success {
                         data: serde_json::json!({ "path": path }),
                     },
@@ -137,6 +137,36 @@ pub(crate) async fn handle_request(request: Request, state: &AppState) -> Respon
                 Err(e) => Response::Error {
                     code: "DB_OPEN_FAILED".to_string(),
                     message: e,
+                },
+            }
+        }
+        Request::VectorIndexStatus { path } => {
+            let path = path.unwrap_or_else(|| config.db_path.clone());
+            match ensure_db(state, &path).await {
+                Ok(db) => Response::Success {
+                    data: serde_json::to_value(db.vector_index_status()).unwrap(),
+                },
+                Err(error) => Response::Error {
+                    code: "DB_OPEN_FAILED".into(),
+                    message: error,
+                },
+            }
+        }
+        Request::RebuildVectorIndex { path } => {
+            let path = path.unwrap_or_else(|| config.db_path.clone());
+            match ensure_db(state, &path).await {
+                Ok(db) => match db.request_vector_rebuild() {
+                    Ok(started) => Response::Success {
+                        data: serde_json::json!({"started":started,"coalesced":!started}),
+                    },
+                    Err(error) => Response::Error {
+                        code: "VECTOR_REBUILD_FAILED".into(),
+                        message: error.to_string(),
+                    },
+                },
+                Err(error) => Response::Error {
+                    code: "DB_OPEN_FAILED".into(),
+                    message: error,
                 },
             }
         }

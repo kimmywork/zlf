@@ -4,7 +4,9 @@ use zlf_core::{Result, ZlfError};
 use zlf_index::IndexJobMetrics;
 use zlf_storage::{MutationEvent, Storage};
 
-use crate::coordinator_store::{list_progress, load_jobs, load_progress, save_job, save_progress};
+use crate::coordinator_store::{
+    delete_target, list_progress, load_jobs, load_progress, save_job, save_progress,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum IndexJobState {
@@ -91,6 +93,10 @@ impl<'a> IndexCoordinator<'a> {
         let progress = load_progress(self.storage, target)?;
         save_progress(self.storage, &progress)?;
         Ok(progress)
+    }
+
+    pub fn disable_target(&self, target: &str) -> Result<()> {
+        delete_target(self.storage, target)
     }
 
     pub fn enqueue_available(&self, target: &str) -> Result<usize> {
