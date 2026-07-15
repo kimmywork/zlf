@@ -1,7 +1,7 @@
 # Code indexing requirements discovery v1
 
 **Date:** 2026-07-15  
-**Status:** draft, awaiting user decisions
+**Status:** requirements confirmed; ready for solution design
 
 ## User-stated needs
 
@@ -117,7 +117,11 @@ Confirmed by the user on 2026-07-15: initial ingestion requires no CodebaseManif
 
 Discovery output is persisted as an inspectable bootstrap inventory before publication so operators can see repository boundaries, ignored/error files, detected languages/build systems, and enricher capabilities without authoring configuration. Optional overrides may be added later for ambiguity, but they are not required for bootstrap.
 
-## Recommended requirement additions
+## Confirmed repository identity
+
+Confirmed by the user on 2026-07-15: zero-config discovery generates and persists a stable internal `RepositoryId` on first sight without modifying the source repository. Normalized remotes, Git common-dir, root/history signals, and prior scan paths are discovery aliases rather than canonical IDs. Path moves and remote URL changes preserve identity when uniquely recognized; ambiguous copies/forks receive a new identity and an inspectable warning.
+
+## Consolidated requirement additions
 
 - Separate syntax extraction from semantic resolution. Tree-sitter provides syntax; language adapters, compiler metadata, build manifests, IDLs, OpenAPI/gRPC/protobuf schemas, and explicit mappings may provide stronger cross-repo/cross-language evidence.
 - Persist relation provenance and certainty (`resolved`, `declared`, `inferred`, `unresolved`) independently from lexical field weight.
@@ -127,7 +131,7 @@ Discovery output is persisted as an inspectable bootstrap inventory before publi
 - Treat “all callers” (reachable symbol set) separately from “all call paths” (potentially exponential). Path queries must always be bounded.
 - Produce a language-neutral visualization IR first, then Mermaid and PlantUML renderers. Static call order is not runtime sequence; sequence diagrams must be labeled static/approximate unless trace data is available.
 - Treat function flowcharts as language-specific approximate CFG extraction; Tree-sitter alone is not compiler-equivalent.
-- Add incremental file ownership, delete convergence, repository ACL/visibility, secret-safe snippets, schema/extractor versioning, and rebuild equivalence.
+- Add incremental file ownership, delete convergence, secret-safe snippets, schema/extractor versioning, and rebuild equivalence.
 - Add target-scale benchmark tiers culminating in 100K files / 1M symbols / 3M relationships, with mutation, reopen, traversal, RSS, disk, and stale-edge evidence.
 
 ## Confirmed identity model
@@ -148,7 +152,7 @@ Keep `simple_name` and `qualified_name` as indexed attributes. The repository re
 
 This permits multiple `ServiceDispatcher` definitions while still supporting simple-name retrieval and cross-language server/client linkage.
 
-## Open decision queue
+## Decision summary
 
 1. **Confirmed:** concrete definitions are separate nodes; simple names never merge definitions.
 2. **Confirmed:** split identifier boundaries and index full normalized identifiers plus subtokens; no full character ngram, arbitrary suffix matching, or typo tolerance.
@@ -160,3 +164,4 @@ This permits multiple `ServiceDispatcher` definitions while still supporting sim
 8. **Confirmed:** initial visualization is static; bounded visualization IR feeds Mermaid/PlantUML, with sequence/CFG views labeled approximate.
 9. **Confirmed:** one active revision per repository; historical revisions require future explicit immutable snapshots.
 10. **Deferred:** repository-level ACL/visibility and permission-aware traversal are out of scope. The target deployment assumes repositories inside one knowledge base are mutually visible; organizations requiring strong internal source isolation are not the initial product scenario.
+11. **Confirmed:** zlf generates a durable internal repository ID; Git path/remote/history signals are aliases used for zero-config rediscovery, not canonical identity.

@@ -18,9 +18,14 @@ Indexed UTF-8 source bytes are published to a dedicated content-addressed compre
 
 Tree-sitter is the always-available syntax baseline. Versioned optional enrichers may consume build-system metadata, dependency graphs, compiler/language tooling, and LSP results. Each enricher declares capabilities and records tool/version/configuration provenance. Missing or failed enrichers degrade to syntax-only indexing without labeling the semantic generation complete.
 
+## Repository identity
+
+First discovery generates a durable internal `RepositoryId` without modifying the repository. Git remotes, common-dir/history signals, and prior scan paths are rediscovery aliases. Unique path/remote moves preserve identity; ambiguous copies/forks create a new identity and warning.
+
 ## Acceptance
 
 - Bootstrap requires no manifest and produces an inspectable discovery inventory.
+- Repository identity survives uniquely recognized path/remote changes and distinguishes ambiguous forks/copies.
 - Nested `.gitignore` and standard Git exclude behavior match independent Git fixtures across worktrees, nested repositories, and submodules.
 - Java, C, C++, Python, Rust, JavaScript, TypeScript, Kotlin, Go, and Swift have pinned grammars, versioned adapters, and golden parse fixtures.
 - Build/LSP enrichers are optional, bounded, provenance-bearing, and have syntax-only fallback tests.
