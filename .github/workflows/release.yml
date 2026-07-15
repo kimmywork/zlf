@@ -23,7 +23,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref_name }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref_name }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
             echo "is_release=true" >> "$GITHUB_OUTPUT"
             echo "should_build=true" >> "$GITHUB_OUTPUT"
             exit 0
@@ -54,8 +54,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: |
-          gh release view "$TAG" >/dev/null 2>&1 || \
-            gh release create "$TAG" --title "$TAG" --generate-notes
+          gh release view "$TAG" >/dev/null 2>&1 || {
+            arguments=(--title "$TAG" --generate-notes)
+            [[ "$TAG" == *-* ]] && arguments+=(--prerelease)
+            gh release create "$TAG" "${arguments[@]}"
+          }
 
   build:
     needs: [prepare, create-release]
